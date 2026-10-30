@@ -126,42 +126,106 @@ async function translate(text, from, to) {
 }
 
 /* ---------- Speech output (free) ---------- */
-let tts = null, ttsLoading = null, audio = new Audio(), unlocked = false;
+// Offline neural voices (Piper, MIT). Stored with the Cache API (works on iPhone Safari too),
+// kept loaded in memory, and played through an AudioContext unlocked on the first tap.
+const HF = "https://huggingface.co/diffusionstudio/piper-voices/resolve/main/";
+const VPATH = {
+  "ka_GE-natia-medium": "ka/ka_GE/natia/medium/ka_GE-natia-medium.onnx",
+  "ru_RU-irina-medium": "ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx",
+  "en_US-hfc_female-medium": "en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx",
+};
+const PHON = "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize";
+let ort = null, phonMod = null, actx = null, unlocked = false, playing = null;
+const sessions = {}, configs = {};
+
 function nativeVoice(lang) {
   const vs = speechSynthesis?.getVoices?.() || [];
   return vs.find(v => v.lang && v.lang.toLowerCase().replace("_","-").startsWith(lang));
 }
-function loadTTS() {
-  return ttsLoading ??= import("https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/dist/vits-web.js").then(m => (tts = m));
+async function cachedFetch(url, onProgress) {
+  let cache = null;
+  try { cache = await caches.open("talk4-voices"); const hit = await cache.match(url); if (hit) return await hit.arrayBuffer(); } catch {}
+  const res = await fetch(url); if (!res.ok) throw new Error("download " + res.status);
+  const total = +(res.headers.get("Content-Length") || 0); const reader = res.body.getReader(); const parts = []; let got = 0;
+  for (;;) { const { done, value } = await reader.read(); if (done) break; parts.push(value); got += value.length; if (total && onProgress) onProgress(got / total); }
+  const blob = new Blob(parts);
+  try { if (cache) await cache.put(url, new Response(blob)); } catch {}
+  return await blob.arrayBuffer();
+}
+async function loadVoice(id, onProgress) {
+  if (sessions[id]) return sessions[id];
+  ort ??= await import("onnxruntime-web");
+  ort.env.wasm.wasmPaths = "https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.18.0/";
+  ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
+  const cfgBuf = await cachedFetch(HF + VPATH[id] + ".json");
+  configs[id] = JSON.parse(new TextDecoder().decode(cfgBuf));
+  const model = await cachedFetch(HF + VPATH[id], onProgress);
+  sessions[id] = await ort.InferenceSession.create(model);
+  return sessions[id];
+}
+async function phonemize(text, espeakVoice) {
+  phonMod ??= (await import("https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/dist/piper-DeOu3H9E.js")).createPiperPhonemize;
+  return new Promise(async (resolve, reject) => {
+    try {
+      (await phonMod({
+        print: l => resolve(JSON.parse(l).phoneme_ids),
+        printErr: () => {},
+        locateFile: f => f.endsWith(".wasm") ? PHON + ".wasm" : f.endsWith(".data") ? PHON + ".data" : f,
+      })).callMain(["-l", espeakVoice, "--input", JSON.stringify([{ text }]), "--espeak_data", "/espeak-ng-data"]);
+    } catch (e) { reject(e); }
+  });
+}
+async function synth(text, id) {
+  const sess = await loadVoice(id), cfg = configs[id];
+  const ids = await phonemize(text, cfg.espeak.voice);
+  const feeds = {
+    input: new ort.Tensor("int64", BigInt64Array.from(ids.map(BigInt)), [1, ids.length]),
+    input_lengths: new ort.Tensor("int64", BigInt64Array.from([BigInt(ids.length)])),
+    scales: new ort.Tensor("float32", Float32Array.from([cfg.inference.noise_scale, cfg.inference.length_scale, cfg.inference.noise_w])),
+  };
+  if (Object.keys(cfg.speaker_id_map || {}).length) feeds.sid = new ort.Tensor("int64", BigInt64Array.from([0n]));
+  const out = await sess.run(feeds);
+  return { pcm: out.output.data, rate: cfg.audio.sample_rate };
+}
+function unlockAudio() {
+  // Must run inside a tap: lets the phone play sound later, after translation finishes
+  try { actx ??= new (window.AudioContext || window.webkitAudioContext)(); if (actx.state !== "running") actx.resume();
+    const b = actx.createBuffer(1, 1, 22050), s = actx.createBufferSource(); s.buffer = b; s.connect(actx.destination); s.start(0); } catch {}
+  if (!unlocked) { unlocked = true; try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch {} }
+}
+function playPCM(pcm, rate) {
+  if (!actx) unlockAudio();
+  if (actx.state !== "running") actx.resume();
+  try { playing?.stop(); } catch {}
+  const buf = actx.createBuffer(1, pcm.length, rate); buf.copyToChannel(pcm instanceof Float32Array ? pcm : Float32Array.from(pcm), 0);
+  const s = actx.createBufferSource(); s.buffer = buf; s.connect(actx.destination); s.start(0); playing = s;
 }
 async function warmVoice() {
-  // Pre-download the offline voice for any chosen language with no voice built into this phone
+  // Download (first time only) and load the voice for any chosen language this phone can't speak itself
   for (const lang of [me, them]) {
-    if (!LANG[lang].tts || nativeVoice(lang)) continue;
+    const id = LANG[lang].tts;
+    if (!id || nativeVoice(lang) || sessions[id]) continue;
     try {
-      await loadTTS();
-      const have = await tts.stored();
-      if (have.includes(LANG[lang].tts)) continue;
-      st(`${LANG[lang].name}の声をダウンロード中（初回だけ）…`);
-      await tts.download(LANG[lang].tts, p => { if (p.total) st(`${LANG[lang].name}の声 ${Math.round(p.loaded*100/p.total)}%（初回だけ）`); });
-    } catch (e) { st("声のダウンロードに失敗。電波を確認してください"); return; }
+      st(`${LANG[lang].name}の声を準備中…`);
+      await loadVoice(id, p => st(`${LANG[lang].name}の声 ${Math.round(p * 100)}%（初回だけ）`));
+      await synth("a", id); // warm up so the first real sentence is quick
+    } catch (e) { st(`${LANG[lang].name}の声を準備できませんでした。電波を確認して再読み込みしてください`); return; }
   }
   st("準備OK", true);
 }
 async function speak(text, lang) {
   if (!text) return;
-  speechSynthesis?.cancel?.(); audio.pause();
+  speechSynthesis?.cancel?.(); try { playing?.stop(); } catch {}
   const nv = nativeVoice(lang);
   if (nv || !LANG[lang].tts) {
     const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (nv) u.voice = nv;
     speechSynthesis.speak(u); return;
   }
   try {
-    await loadTTS();
-    st("音声を作っています…");
-    const wav = await tts.predict({ text, voiceId: LANG[lang].tts });
-    audio.src = URL.createObjectURL(wav); await audio.play(); st("準備OK", true);
-  } catch (e) { st("読み上げできませんでした"); }
+    st("🔊 音声を作っています…");
+    const { pcm, rate } = await synth(text, LANG[lang].tts);
+    playPCM(pcm, rate); st("準備OK", true);
+  } catch (e) { st("読み上げできませんでした: " + (e?.message || e)); }
 }
 speechSynthesis?.addEventListener?.("voiceschanged", () => {});
 
@@ -208,7 +272,6 @@ function startRec(side) {
     if (t) handle(t, s); else if (!last[s]) { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; } };
   try { rec.start(); } catch { active = null; }
 }
-function unlockAudio() { if (unlocked) return; unlocked = true; try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch {} }
 $("meMic").onclick = () => { unlockAudio(); startRec("me"); };
 $("themMic").onclick = () => { unlockAudio(); startRec("them"); };
 
@@ -222,6 +285,7 @@ for (const side of ["me", "them"]) {
 $("meRe").onclick = () => { unlockAudio(); const l = last.me; if (l && !l.own) speak(l.text, l.lang); else if (last.them) speak(last.them.text, last.them.lang); };
 $("themRe").onclick = () => { unlockAudio(); const l = last.them; if (l && !l.own) speak(l.text, l.lang); else if (last.me) speak(last.me.text, last.me.lang); };
 
+document.addEventListener("pointerdown", unlockAudio, { passive: true });
 try { navigator.wakeLock?.request("screen").catch(() => {}); } catch {}
 paint();
 if (!SR) st("音声入力はChromeで開くと使えます。⌨で入力もできます");
