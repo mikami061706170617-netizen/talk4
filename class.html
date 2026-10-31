@@ -510,6 +510,7 @@ let S = {
   ex: LANG[qs.get("ex")] ? qs.get("ex") : saved.ex || phoneLang,
   mode: qs.get("mode") === "study" ? "study" : qs.get("mode") === "class" ? "class" : saved.mode || "class",
   step: 0, i: 0, shown: false, score: null, quiz: null, lquiz: null, line: -1, dlgScores: {}, playing: false, checks: {},
+  showPlans: qs.get("plans") === "1",   // opened from another tab to enter an unlock code
 };
 let stars = {}; try { stars = JSON.parse(localStorage.getItem("t4c-stars") || "{}"); } catch {}
 let doneSteps = {}; try { doneSteps = JSON.parse(localStorage.getItem("t4c-done") || "{}"); } catch {}

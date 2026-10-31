@@ -53,7 +53,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 <body>
 <div class="wrap">
   <h1>📝 覚える / WORDS</h1>
-  <p class="lead">覚えたい言葉を入れるか話すと、すぐに各国語・読み方・発音が出ます。⭐で単語帳に入れて、あとでテストできます。</p>
+  <p class="lead">覚えたい言葉を入れるか話すと、すぐに各国語・読み方・発音が出ます。⭐で単語帳に入れて、あとでテストできます。<br>無料：1日10回・単語帳30個まで（有料プランは無制限）</p>
   <div class="row"><span class="lead">自分の言葉</span><select id="mine"></select></div>
   <div class="row" id="targets"></div>
   <div class="ask"><input id="q" placeholder="例：お会計お願いします" enterkeyhint="go" autocomplete="off"><button class="btn main" id="mic">🎤</button></div>
@@ -301,6 +301,28 @@ function chips() {
     b.onclick = () => { targets = targets.includes(k) ? targets.filter(x => x !== k) : [...targets, k]; keep("t4w-targets", targets); chips(); run(true); warmFor(targets); };
     box.append(b); }
 }
+
+// Free: 10 new phrases a day and 30 words in the list. A Talk4 Class plan (unlock code) removes the limits.
+const FREE_DAY = 10, FREE_WORDS = 30;
+const paid = () => { try { return (localStorage.getItem("t4c-tier") || "none") !== "none"; } catch { return false; } };
+function allowLookup(text) {
+  if (paid()) return true;
+  const day = new Date().toISOString().slice(0, 10), u = load("t4w-use", {});
+  if (u.day !== day) { u.day = day; u.list = []; }
+  if (u.list.includes(text)) return true;
+  // typing is checked as you go: only count a phrase once it is finished (Enter / pause), and ignore growing prefixes
+  u.list = u.list.filter(x => !text.startsWith(x));
+  if (u.list.length >= FREE_DAY) return false;
+  u.list.push(text); keep("t4w-use", u);
+  const left = FREE_DAY - u.list.length; st(left <= 3 ? `無料はあと${left}回（今日）` : "");
+  return true;
+}
+function paywallCard(words) {
+  return h("div", { class: "card" },
+    h("div", { class: "t" }, words ? `🔒 無料の単語帳は${FREE_WORDS}個まで` : `🔒 今日の無料分（${FREE_DAY}回）を使い切りました`),
+    h("div", { class: "lead" }, "有料プランなら回数も単語帳も無制限。教室のレッスン・交流会とセットで使えます。明日になるとまた無料で使えます。"),
+    h("div", { class: "acts" }, h("a", { class: "btn main", href: "class.html?plans=1", style: "text-decoration:none" }, "💳 プランを見る・解除コード")));
+}
 const memo = load("t4w-cache", {});
 async function tr(text, from, to) {
   const key = from + ">" + to + ":" + text; if (memo[key]) return memo[key];
@@ -314,6 +336,7 @@ async function run(force) {
   const text = $("q").value.trim(); if (!text) { $("out").innerHTML = ""; lastQ = ""; return; }
   if (text === lastQ && !force) return; lastQ = text;
   const my = ++job; $("out").innerHTML = "";
+  if (!allowLookup(text)) { $("out").append(paywallCard()); return; }
   const cards = targets.map(to => { const c = h("div", { class: "card" }, h("div", { class: "lg" }, LANG[to].name), h("div", { class: "t" }, "…"), h("div", { class: "r" }), h("div", { class: "acts" })); $("out").append(c); return [to, c]; });
   // 1) Instant machine translation  2) the AI's natural, real-life phrasing replaces it a moment later
   const ai = aiPhrases(text, targets);
@@ -352,7 +375,7 @@ function fill(c, text, to, r) {
   const stars = h("span", { class: "stars" });
   const saved = () => words.some(w => w.a === text && w.lang === to);
   const star = h("button", { class: "btn" + (saved() ? " on" : "") }, saved() ? "⭐ 保存済み" : "⭐ 保存");
-  star.onclick = () => { if (saved()) return; words.unshift({ a: text, mine, lang: to, t: r.text, rom: r.rom || "", n: 0, at: Date.now() }); keep("t4w-words", words); star.className = "btn on"; star.textContent = "⭐ 保存済み"; list(); };
+  star.onclick = () => { if (saved()) return; if (!paid() && words.length >= FREE_WORDS) { $("out").prepend(paywallCard(true)); return; } words.unshift({ a: text, mine, lang: to, t: r.text, rom: r.rom || "", n: 0, at: Date.now() }); keep("t4w-words", words); star.className = "btn on"; star.textContent = "⭐ 保存済み"; list(); };
   const check = h("button", { class: "btn" }, "🎤 言ってみる");
   check.onclick = async () => { unlockAudio(); check.textContent = "👂 …"; const res = await listenOnce(to); check.textContent = "🎤 言ってみる";
     const s = Math.max(0, ...res.alts.map(x => scoreOf(r.text, x, to))), n = starsFor(s);

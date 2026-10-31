@@ -81,6 +81,16 @@ h1 em{font-style:normal;color:var(--gold)}
 .answer{background:#141c24;border:1px solid #2f4a63;border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:4px;text-align:left}
 .answer .t{font-size:18px;font-weight:700;overflow-wrap:anywhere}
 .answer .x{font-size:15px;color:#8cc4f2;overflow-wrap:anywhere}
+.steps{display:flex;gap:6px;justify-content:center;font-size:13px;color:var(--muted)}
+.steps span{padding:4px 10px;border:1px solid var(--line);border-radius:999px}
+.steps span.on{border-color:var(--gold);color:var(--gold)}
+.steps span.ok{color:var(--ok);border-color:var(--ok)}
+.judge{background:#16201a;border:1px solid #2e5a3c;border-radius:16px;padding:12px;text-align:left;display:flex;flex-direction:column;gap:6px}
+.judge .big{font-size:18px;font-weight:700}
+.kw{display:flex;flex-wrap:wrap;gap:6px}
+.kw button{border:1px solid var(--line);background:var(--panel2);color:var(--fg);border-radius:999px;padding:6px 10px;font:inherit;font-size:14px;cursor:pointer}
+.kw button.saved{border-color:var(--gold);color:var(--gold)}
+.typein{display:flex;gap:8px}.typein input{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:12px;padding:10px;font:inherit;font-size:16px}
 .actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
 .sum{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .sum div{background:var(--panel2);border-radius:14px;padding:14px;text-align:center}
@@ -93,6 +103,7 @@ h1 em{font-style:normal;color:var(--gold)}
 <body>
 <header class="top">
   <div class="brand">TALK4 <b>EXCHANGE</b></div>
+  <a class="tool" href="words.html" style="text-decoration:none;color:inherit">📒 単語帳</a>
   <button class="tool" id="endBtn" hidden></button>
 </header>
 <p class="st" id="status"></p>
@@ -100,7 +111,10 @@ h1 em{font-style:normal;color:var(--gold)}
 <div class="switch" id="switch" hidden><div class="big" id="swBig"></div><div class="lead" id="swSub"></div><button class="btn main" id="swGo"></button></div>
 
 <script type="module">
-const { LESSONS } = await import("./lessons.js?v=" + (new URLSearchParams(location.search).get("v") || ""));
+const VER = new URLSearchParams(location.search).get("v") || "";
+const { LESSONS } = await import("./lessons.js?v=" + VER);
+const { QUESTIONS } = await import("./questions.js?v=" + VER);
+let AI = null; try { AI = (await import("./config.js?v=" + VER)).AI; } catch {}
 
 const LANG = {
   ja:{name:"日本語", g:"ja", sr:"ja-JP", tts:null,                    talk:"🎤 押して話す",     wait:"相手の言葉の訳がここに出ます", hold:"聞いています…"},
@@ -297,7 +311,10 @@ const UI = {
         done: "おつかれさまでした！", sumQ: "話した質問", sumS: "★の合計", again: "もう一度", newPair: "メンバーを変える", end: "終了",
         mission: "次のミッション：店のスタッフに、今日覚えた言葉を1つ使って話しかけてみよう",
         noSr: "このブラウザは音声入力に未対応です。お手本を聞いて声に出して練習してください", micErr: "マイクが使えませんでした。もう一度押してください",
-        lv: ["入門", "日常会話", "中級", "上級"], needTwo: "2人以上入れてください" },
+        lv: ["入門", "日常会話", "中級", "上級"], needTwo: "2人以上入れてください",
+        st1: "① 聞く", st2: "② 答えを聞く", st3: "③ 意味を答える", hear2: "👂 相手の答えを聞き取る", heardIt: "相手の答え（聞き取り）", again2: "🔊 もう一度聞く",
+        guess: "🤔 意味を答える（{lang}で話す）", guessType: "または文字で入力", giveUp: "わからない → 答えを見る", judging: "AIが確認中…",
+        right: "正しい意味", words: "覚えたい言葉（タップで単語帳へ）", saveQ: "⭐ この質問を単語帳へ", saved: "⭐ 保存済み", learned: "単語帳に入れた言葉", understood: "聞き取れた答え" },
   en: { h1: "<em>Talk</em> to learn.", lead: "No teacher. You pair up with someone who speaks the language you want to learn, and you each get half the time in your target language. The app runs the topics, model voice, scoring and timer.",
         people: "Who's here", name: "Name", native: "I speak", learning: "I'm learning", level: "Level", add: "+ Add person", minutes: "Time", lesson: "Topic",
         auto: "Automatic (by level)", make: "Make pairs", pairs: "Today's pairs", start: "Start with this pair", restart: "Change people",
@@ -309,7 +326,10 @@ const UI = {
         done: "Well done!", sumQ: "Questions", sumS: "Stars", again: "Go again", newPair: "Change people", end: "End",
         mission: "Next mission: talk to the restaurant staff using one phrase you learned today",
         noSr: "Voice input isn't supported here. Listen to the model and say it out loud", micErr: "The microphone didn't start. Press again",
-        lv: ["Basics", "Everyday", "Intermediate", "Advanced"], needTwo: "Add at least two people" },
+        lv: ["Basics", "Everyday", "Intermediate", "Advanced"], needTwo: "Add at least two people",
+        st1: "① Ask", st2: "② Hear the answer", st3: "③ Say what it means", hear2: "👂 Listen to partner's answer", heardIt: "Partner's answer (heard)", again2: "🔊 Hear it again",
+        guess: "🤔 Say what it means (in {lang})", guessType: "or type it", giveUp: "Not sure → show the meaning", judging: "AI is checking…",
+        right: "Correct meaning", words: "Words to learn (tap to save)", saveQ: "⭐ Save this question", saved: "⭐ Saved", learned: "Words saved", understood: "Answers understood" },
 };
 const cache = (() => { try { return JSON.parse(localStorage.getItem("t4x-tr") || "{}"); } catch { return {}; } })();
 async function gtr(text, from, to) {
@@ -403,10 +423,18 @@ function chooseLesson(lv) {
   let done = []; try { done = JSON.parse(localStorage.getItem("t4x-done") || "[]"); } catch {}
   return pool.find(l => !done.includes(l.id)) || pool[Math.floor(Math.random() * pool.length)];
 }
-function questionsFor(L, lang) {
-  // Questions from the lesson first (they start conversations), then the other phrases
-  const q = L.phrases.filter(p => /[?？]/.test(p[lang] || "")), rest = L.phrases.filter(p => !q.includes(p));
-  return [...q, ...rest].map(p => ({ p, from: "phrase" })).concat(L.dialogue.map(([, x]) => typeof x === "number" ? null : { p: x, from: "talk" }).filter(Boolean));
+// Every turn gets a long, shuffled list: the chosen lesson's questions first, then questions from
+// all lessons up to this level, then the conversation bank — so a 30-60 minute session never runs out.
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+function questionsFor(L, lang, lv) {
+  const isQ = p => /[?？]/.test(p[lang] || p.en || "");
+  const lessonQ = p => p[lang] && isQ(p) && !/＿＿|__/.test(p[lang]);
+  const first = topic !== "auto" ? shuffle(L.phrases.filter(lessonQ)) : [];
+  const fromLessons = LESSONS.filter(l => LV.indexOf(l.level || "basic") <= lv).flatMap(l => l.phrases.filter(lessonQ));
+  const bank = QUESTIONS.filter(q => q.lv <= lv && q[lang]);
+  const seen = new Set(), out = [];
+  for (const p of [...first, ...shuffle([...bank, ...bank.filter(q => q.lv === lv), ...fromLessons])]) { if (seen.has(p.en)) continue; seen.add(p.en); out.push({ p }); }
+  return out;
 }
 function startSession(pr) {
   const m = pr.m.map(i => ({ ...people[i], i }));
@@ -414,8 +442,8 @@ function startSession(pr) {
   const turns = m.filter(a => m.some(b => b !== a && b.native === a.learning)).concat(m.filter(a => !m.some(b => b !== a && b.native === a.learning)));
   const lv = Math.min(...m.map(x => x.level));
   const L = chooseLesson(lv);
-  S = { m, turns, L, t: 0, start: Date.now(), slot: minutes * 60000 / turns.length, k: 0, qs: {}, stars: {}, count: {}, score: null, answer: null, flip: false };
-  for (const a of turns) { S.qs[a.i] = questionsFor(L, a.learning); S.stars[a.i] = 0; S.count[a.i] = 0; }
+  S = { m, turns, L, t: 0, start: Date.now(), slot: minutes * 60000 / turns.length, k: 0, qs: {}, stars: {}, count: {}, got: {}, saved: [], score: null, answer: null, judge: null, flip: false };
+  for (const a of turns) { S.qs[a.i] = questionsFor(L, a.learning, lv); S.stars[a.i] = 0; S.count[a.i] = 0; S.got[a.i] = 0; }
   $("endBtn").hidden = false; $("endBtn").textContent = ui.end; $("endBtn").onclick = endSession;
   clearInterval(tick); tick = setInterval(clock, 1000);
   warmFor([...new Set(m.map(x => x.learning))]);
@@ -432,28 +460,81 @@ function clock() {
 }
 function chime() { try { const c = new (window.AudioContext || window.webkitAudioContext)(); [660, 880, 990].forEach((f, k) => { const o = c.createOscillator(), g = c.createGain(); o.frequency.value = f; g.gain.setValueAtTime(.18, c.currentTime + k * .18); g.gain.exponentialRampToValueAtTime(.001, c.currentTime + k * .18 + .4); o.connect(g); g.connect(c.destination); o.start(c.currentTime + k * .18); o.stop(c.currentTime + k * .18 + .45); }); } catch {} }
 function switchTurn() {
-  stopAll(); S.t++; S.k = 0; S.score = null; S.answer = null; S.flip = !S.flip; chime();
+  stopAll(); S.t++; S.k = 0; S.score = null; S.answer = null; S.judge = null; S.flip = !S.flip; chime();
   const a = cur();
   $("swBig").textContent = ui.switchBig; $("swSub").textContent = fmt(ui.switchSub, { who: nm(a, a.i), lang: LANG[a.learning].name }); $("swGo").textContent = ui.go;
   $("switch").hidden = false; $("swGo").onclick = () => { $("switch").hidden = true; sessionView(); };
+}
+/* Word list shared with the 📝 tab */
+const getWords = () => { try { return JSON.parse(localStorage.getItem("t4w-words")) || []; } catch { return []; } };
+function saveWord(mine, a, lang, t, rom) {
+  const ws = getWords(); if (ws.some(w => w.t === t && w.lang === lang)) return false;
+  ws.unshift({ a, mine, lang, t, rom: rom || "", n: 0, at: Date.now() }); try { localStorage.setItem("t4w-words", JSON.stringify(ws)); } catch {}
+  S?.saved.push(t); return true;
+}
+const hasWord = (t, lang) => getWords().some(w => w.t === t && w.lang === lang);
+const romOf = (t, lang) => lang === "ru" ? translit(t, RU) : lang === "ka" ? kaRoman(t) : "";
+async function callAI(prompt) {
+  if (!AI?.proxy) throw new Error("no AI");
+  const r = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
+  const j = await r.json(); if (j.error) throw new Error(j.error.message);
+  return JSON.parse((j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "").replace(/^```json|```$/g, "").trim());
+}
+const NAMES = { ja: "Japanese", en: "English", ka: "Georgian", ru: "Russian", ko: "Korean", zh: "Chinese" };
+// The learner says (or types) what they think the partner's answer meant; the AI checks it
+async function judge(a, lang, question, answer, guess) {
+  try {
+    const o = await callAI(`A ${NAMES[a.native]} speaker learning ${NAMES[lang]} asked: "${question}". Their partner answered in ${NAMES[lang]}: "${answer}". The learner says it means (in ${NAMES[a.native]}): "${guess || "(no idea)"}".
+Judge how well the learner understood the meaning (0-100, be kind: the gist counts). Write everything for the learner in ${NAMES[a.native]}.
+Reply ONLY JSON {"score":0,"meaning":"natural ${NAMES[a.native]} translation of the answer","comment":"one short encouraging sentence on what they got or missed","words":[{"w":"key ${NAMES[lang]} word or phrase from the answer","m":"its meaning in ${NAMES[a.native]}"}]} with 2-4 words.`);
+    return o;
+  } catch {
+    const t = await translate(answer, lang, a.native);
+    return { score: null, meaning: t.text, comment: "", words: [] };
+  }
 }
 async function sessionView() {
   if (!S) return;
   const a = cur(), b = partnerOf(a), lang = a.learning, list = S.qs[a.i], Q = list[S.k % list.length];
   const main = $("main"); const my = (sessionView.n = (sessionView.n || 0) + 1);
-  const meaning = await gtr(Q.p.en, "en", a.native) ;
-  const meaningNative = Q.p[a.native] || meaning;
+  const meaningNative = Q.p[a.native] || await gtr(Q.p.en, "en", a.native);
   if (my !== sessionView.n) return;
   const stars = n => "★".repeat(n) + `<span class="off">${"★".repeat(3 - n)}</span>`;
+  const stage = S.judge ? 3 : S.answer ? 2 : 1;
+  const step = (n, t) => h("span", { class: stage === n ? "on" : stage > n ? "ok" : "" }, t);
+  const qSaved = hasWord(Q.p[lang], lang);
+  const saveQ = h("button", { class: "btn" }, qSaved ? ui.saved : ui.saveQ);
+  saveQ.onclick = () => { saveWord(a.native, meaningNative, lang, Q.p[lang], readingOf(Q.p, lang)); saveQ.textContent = ui.saved; };
   const card = h("section", { class: `card${S.flip ? " flip" : ""}` },
+    h("div", { class: "steps" }, step(1, ui.st1), step(2, ui.st2), step(3, ui.st3)),
     h("div", { class: "who" }, fmt(ui.ask, { who: nm(a, a.i) })),
     h("div", { class: "q", lang }, Q.p[lang]),
     readingOf(Q.p, lang) ? h("div", { class: "r" }, readingOf(Q.p, lang)) : null,
     h("div", { class: "m", lang: a.native }, meaningNative),
     h("div", { class: "stars", html: S.score ? stars(starsFor(S.score.s)) : "" }),
     S.score ? h("div", { class: "heard" }, `“${S.score.heard}”`) : null,
-    S.answer ? h("div", { class: "answer" }, h("span", { class: "note" }, ui.answerFrom), h("span", { class: "t", lang }, S.answer.text), h("span", { class: "x" }, S.answer.tr)) : null,
     b ? h("div", { class: "help" }, fmt(ui.answerHint, { partner: nm(b, b.i), lang: LANG[lang].name })) : null);
+  // ② the partner's answer, heard by the phone (shown in the language being learned, not translated yet)
+  if (S.answer) {
+    const again = h("button", { class: "btn" }, ui.again2); again.onclick = () => { unlockAudio(); say(S.answer.text, lang); };
+    card.append(h("div", { class: "answer" }, h("span", { class: "note" }, S.answer.helped ? ui.answerFrom : ui.heardIt),
+      h("span", { class: "t", lang }, S.answer.text), romOf(S.answer.text, lang) ? h("span", { class: "x" }, romOf(S.answer.text, lang)) : null,
+      S.answer.helped ? h("span", { class: "x" }, S.answer.tr) : null, h("div", { class: "row" }, again)));
+  }
+  // ③ result of "what did they say?"
+  if (S.judge && S.judge !== "wait") {
+    const J = S.judge, n = J.score == null ? 0 : J.score >= 80 ? 3 : J.score >= 50 ? 2 : J.score >= 20 ? 1 : 0;
+    const kw = h("div", { class: "kw" });
+    for (const w of J.words || []) { const bt = h("button", { class: hasWord(w.w, lang) ? "saved" : "" }, `⭐ ${w.w} = ${w.m}`);
+      bt.onclick = () => { saveWord(a.native, w.m, lang, w.w, romOf(w.w, lang)); bt.className = "saved"; }; kw.append(bt); }
+    card.append(h("div", { class: "judge" },
+      J.score != null ? h("div", { class: "stars", html: stars(n) }) : null,
+      J.guess ? h("div", { class: "heard" }, `“${J.guess}”`) : null,
+      h("div", { class: "note" }, ui.right), h("div", { class: "big", lang: a.native }, J.meaning || ""),
+      J.comment ? h("div", { class: "heard" }, J.comment) : null,
+      (J.words || []).length ? h("div", { class: "note" }, ui.words) : null, kw));
+  } else if (S.judge === "wait") card.append(h("div", { class: "judge" }, h("div", { class: "heard" }, ui.judging)));
   const mic = h("button", { class: "btn mic", id: "mic" }, ui.speak);
   mic.onclick = async () => {
     unlockAudio(); if (rec) { stopListening(); return; }
@@ -464,35 +545,51 @@ async function sessionView() {
     let best = { s: 0, heard: alts[0] || "" }; for (const x of alts) { const s = scoreOf(Q.p[lang], x, lang); if (s > best.s) best = { s, heard: x }; }
     S.score = best; sessionView();
   };
-  const hear = h("button", { class: "btn" }, ui.hearAnswer);
+  const hear = h("button", { class: "btn main" }, ui.hear2);
   hear.onclick = async () => {
     unlockAudio(); if (rec) { stopListening(); return; }
     hear.classList.add("on"); hear.textContent = fmt(ui.helpOn, { lang: LANG[lang].name });
-    const { alts } = await listenOnce(lang, true);
-    hear.classList.remove("on"); hear.textContent = ui.hearAnswer;
-    if (alts[0]) { S.answer = { text: alts[0], tr: (await translate(alts[0], lang, a.native)).text }; sessionView(); }
+    const { alts, err } = await listenOnce(lang, true);
+    hear.classList.remove("on"); hear.textContent = ui.hear2;
+    if (err === "nosr") return st(ui.noSr);
+    if (alts[0]) { S.answer = { text: alts[0] }; S.judge = null; sessionView(); } else st(ui.micErr);
   };
+  const runJudge = async guess => { S.judge = "wait"; sessionView(); const J = await judge(a, lang, Q.p[lang], S.answer.text, guess); J.guess = guess;
+    if (J.score != null && J.score >= 50) S.got[a.i]++; S.judge = J; sessionView(); };
+  const guessBtn = h("button", { class: "btn main" }, fmt(ui.guess, { lang: LANG[a.native].name }));
+  guessBtn.onclick = async () => {
+    unlockAudio(); if (rec) { stopListening(); return; }
+    guessBtn.classList.add("on"); guessBtn.textContent = fmt(ui.helpOn, { lang: LANG[a.native].name });
+    const { alts } = await listenOnce(a.native, true);
+    guessBtn.classList.remove("on"); guessBtn.textContent = fmt(ui.guess, { lang: LANG[a.native].name });
+    if (alts[0]) runJudge(alts[0]); else st(ui.micErr);
+  };
+  const typeIn = h("input", { placeholder: ui.guessType, enterkeyhint: "send" });
+  typeIn.onkeydown = e => { if (e.key === "Enter" && typeIn.value.trim()) runJudge(typeIn.value.trim()); };
+  const giveUp = h("button", { class: "btn" }, ui.giveUp); giveUp.onclick = () => runJudge("");
   const help = h("button", { class: "btn" }, ui.help);
   help.onclick = async () => {
     unlockAudio(); if (rec) { stopListening(); return; }
     help.classList.add("on"); help.textContent = fmt(ui.helpOn, { lang: LANG[a.native].name });
     const { alts } = await listenOnce(a.native, true);
     help.classList.remove("on"); help.textContent = ui.help;
-    if (alts[0]) { const t = await translate(alts[0], a.native, lang); S.answer = { text: t.text + (t.rom ? `  (${t.rom})` : ""), tr: alts[0] }; say(t.text, lang); sessionView(); }
+    if (alts[0]) { const t = await translate(alts[0], a.native, lang); S.answer = { text: t.text, tr: alts[0], helped: true }; say(t.text, lang); sessionView(); }
   };
   const next = () => {
     if (S.score) { S.stars[a.i] += starsFor(S.score.s); }
-    S.count[a.i]++; S.k++; S.score = null; S.answer = null; sessionView();
+    S.count[a.i]++; S.k++; S.score = null; S.answer = null; S.judge = null; sessionView();
   };
+  const rows = [
+    h("div", { class: "actions" },
+      h("button", { class: stage === 1 ? "btn main" : "btn", onclick: () => { unlockAudio(); say(Q.p[lang], lang); } }, ui.listen),
+      h("button", { class: "btn", onclick: () => { unlockAudio(); say(Q.p[lang], lang, true); } }, ui.slow), mic, saveQ),
+    h("div", { class: "actions" }, hear, help)];
+  if (S.answer && !S.answer.helped && !(S.judge && S.judge !== "wait")) rows.push(h("div", { class: "actions" }, guessBtn, giveUp), h("div", { class: "typein" }, typeIn));
   main.replaceChildren(
     h("div", { class: "bar" }, h("div", { class: "turn", html: "" }), h("div", { class: "clock", id: "clock" }, "")),
     h("div", { class: "prog" }, h("i", { id: "pg", style: "width:0" })),
-    card,
-    h("div", { class: "actions" },
-      h("button", { class: "btn main", onclick: () => { unlockAudio(); say(Q.p[lang], lang); } }, ui.listen),
-      h("button", { class: "btn", onclick: () => { unlockAudio(); say(Q.p[lang], lang, true); } }, ui.slow), mic),
-    h("div", { class: "actions" }, hear, help),
-    h("div", { class: "actions" }, h("button", { class: "btn main", onclick: next }, ui.next)));
+    card, ...rows,
+    h("div", { class: "actions" }, h("button", { class: "btn main", onclick: next }, ui.next), h("button", { class: "btn", onclick: () => { S.k++; S.score = null; S.answer = null; S.judge = null; sessionView(); } }, ui.skip)));
   main.querySelector(".turn").textContent = fmt(ui.turn, { who: nm(a, a.i), lang: LANG[lang].name });
   clock();
 }
@@ -501,7 +598,8 @@ function endSession() {
   try { const d = JSON.parse(localStorage.getItem("t4x-done") || "[]"); if (!d.includes(S.L.id)) d.push(S.L.id); localStorage.setItem("t4x-done", JSON.stringify(d)); } catch {}
   const main = $("main"); main.replaceChildren(h("h1", {}, ui.done));
   const sum = h("div", { class: "sum" });
-  for (const a of S.turns) sum.append(h("div", {}, `${nm(a, a.i)} · ${LANG[a.learning].name}`, h("b", {}, `★ ${S.stars[a.i]}`), h("span", { class: "note" }, `${ui.sumQ}: ${S.count[a.i]}`)));
+  for (const a of S.turns) sum.append(h("div", {}, `${nm(a, a.i)} · ${LANG[a.learning].name}`, h("b", {}, `★ ${S.stars[a.i]}`), h("span", { class: "note" }, `${ui.sumQ}: ${S.count[a.i]} · ${ui.understood}: ${S.got[a.i]}`)));
+  if (S.saved.length) sum.append(h("div", {}, ui.learned, h("b", {}, String(S.saved.length)), h("span", { class: "note" }, S.saved.slice(0, 12).join(" · "))));
   main.append(sum, h("p", { class: "lead" }, ui.mission),
     h("div", { class: "actions" }, h("button", { class: "btn main", onclick: () => { const pr = { m: S.m.map(x => x.i) }; startSession(pr); } }, ui.again), h("button", { class: "btn", onclick: () => { S = null; setupView(); } }, ui.newPair)));
   $("endBtn").hidden = true; S = null;
