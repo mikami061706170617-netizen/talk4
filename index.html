@@ -58,6 +58,19 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 @media (prefers-reduced-motion:reduce){.mic.on{animation:none}}
 .log{display:none}
 .gbtn{border:1px solid var(--line);background:var(--panel2);color:var(--fg);border-radius:999px;padding:4px 12px;font:inherit;font-size:14px;cursor:pointer}
+.cam{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px))}
+.cam[hidden]{display:none!important}
+.camtop{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.camtop b{color:var(--gold);flex:1}
+.camtop select,.camtop button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;font-size:14px}
+.camimg{max-height:28vh;object-fit:contain;border-radius:12px;margin:10px 0;background:#000}
+.camsum{color:var(--muted);font-size:14px;margin-bottom:6px}
+.camlist{flex:1;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.camitem{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;text-align:left;color:var(--fg);font:inherit}
+.camitem .t{font-size:19px;font-weight:700}
+.camitem .o{font-size:14px;color:var(--muted)}
+.camitem .r{font-size:14px;color:var(--gold)}
+.campick{background:var(--red);color:#fff;border:none;border-radius:999px;padding:14px;font:inherit;font-size:17px;font-weight:700;margin-top:10px}
 </style>
 </head>
 <body>
@@ -76,6 +89,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <a class="tog" href="group.html" style="text-decoration:none">👥 3-4人</a>
   <a class="tog" href="exchange.html" style="text-decoration:none">🤝 Exchange</a>
   <a class="tog" href="class.html" style="text-decoration:none">📘 Class</a>
+  <button class="tog" id="camBtn">📷 写して訳す</button>
   <button class="tog" id="autoSpeak">🔊 ON</button>
   <span class="st" id="status">準備中…</span>
 </div>
@@ -85,6 +99,15 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <div class="typerow" id="meType" hidden><input id="meInput" enterkeyhint="send" placeholder="文字で入力"><button id="meSend">訳す</button></div>
   <div class="said" id="meSaid"><div class="big wait" id="meBig"></div><div class="rom" id="meRom"></div><div class="small" id="meSmall"></div></div>
   <div class="lang"><span id="meLabel"></span><button class="gbtn" id="meG" aria-label="声"></button></div>
+</section>
+
+<section class="cam" id="cam" hidden>
+  <div class="camtop"><b>📷 写して訳す</b><select id="camTo" aria-label="訳す言語"></select><button id="camClose">✕</button></div>
+  <img class="camimg" id="camImg" alt="" hidden>
+  <div class="camsum" id="camSum">メニュー・看板・レシート・書類を撮ると、その場で訳します。訳をタップすると読み上げます。</div>
+  <div class="camlist" id="camList"></div>
+  <button class="campick" id="camPick">📷 撮る / 写真を選ぶ</button>
+  <input type="file" id="camFile" accept="image/*" capture="environment" hidden>
 </section>
 
 <script type="module">
@@ -391,6 +414,48 @@ Reply ONLY JSON: {"text":"translation","rom":"Latin-letter reading of the transl
     const o = JSON.parse(raw.replace(/^```json|```$/g, "").trim());
     return o.text ? o : null;
   } catch { return null; } finally { clearTimeout(t); }
+}
+
+
+// ---------- Camera translate: photo of a menu, sign, receipt or document → every line translated ----------
+let camData = null;
+for (const k in LANG) $("camTo").add(new Option(LANG[k].name, k));
+$("camBtn").onclick = () => { $("camTo").value = me; $("cam").hidden = false; if (!camData) $("camFile").click(); };
+$("camClose").onclick = () => { $("cam").hidden = true; };
+$("camPick").onclick = () => $("camFile").click();
+$("camTo").onchange = () => { if (camData) camRead(); };
+$("camFile").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  const img = await createImageBitmap(f), k = Math.min(1, 1400 / Math.max(img.width, img.height));
+  const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  const url = c.toDataURL("image/jpeg", 0.82); camData = url.split(",")[1];
+  $("camImg").src = url; $("camImg").hidden = false; camRead();
+};
+async function camRead() {
+  const to = $("camTo").value, my = Symbol(); camRead.cur = my;
+  $("camList").innerHTML = ""; $("camSum").textContent = "⏳ 読み取り中…";
+  if (!AIcfg?.proxy) { $("camSum").textContent = "⚠ AIにつながりません"; return; }
+  const prompt = `Read ALL text in this photo (menu, sign, label, receipt, document or handwriting), top to bottom. Translate each line into ${AI_NAMES[to]}, naturally, as a local would understand it. For dishes, briefly say what it is if the name alone is unclear. Keep prices and numbers. Shop words: ${GLOSS.map(g => `${g.en} = ${g[to] || g.en}`).join("; ")}.
+Reply ONLY JSON: {"summary":"one short sentence in ${AI_NAMES[to]} saying what this is","items":[{"orig":"original text","orom":"reading of the original in Latin letters (empty if already Latin)","tr":"translation"}]}`;
+  try {
+    const r = await fetch(AIcfg.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ request: { contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data: camData } }, { text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
+    const j = await r.json(); if (camRead.cur !== my) return;
+    if (j.error) throw new Error(j.error.message);
+    const raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+    const o = JSON.parse(raw.replace(/^```json|```$/g, "").trim());
+    $("camSum").textContent = o.summary || "";
+    if (!o.items?.length) { $("camSum").textContent = "文字が見つかりませんでした。近づいて、明るい所で撮ってください"; return; }
+    for (const it of o.items) {
+      const b = document.createElement("button"); b.className = "camitem";
+      b.innerHTML = `<div class="t"></div><div class="o"></div><div class="r"></div>`;
+      b.children[0].textContent = it.tr || ""; b.children[1].textContent = it.orig || ""; b.children[2].textContent = it.orom || "";
+      b.onclick = () => speak(it.tr, to);
+      $("camList").append(b);
+    }
+  } catch (err) { if (camRead.cur === my) $("camSum").textContent = "⚠ 読み取れませんでした。もう一度撮ってください"; }
 }
 
 // The last thing someone said, in its original language. Changing a language re-translates it,
