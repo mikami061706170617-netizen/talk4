@@ -120,6 +120,20 @@ h2.head{margin:0;font-size:clamp(24px,3.4vw,40px);text-wrap:balance}
 .modal .box{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:22px;max-width:420px;width:100%;display:flex;flex-direction:column;gap:14px;align-items:center;text-align:center}
 #qr{background:#fff;padding:14px;border-radius:14px}
 .url{font-size:13px;color:var(--muted);word-break:break-all;user-select:all}
+.pill{border:1px solid var(--gold);color:var(--gold);background:#211c12;border-radius:999px;padding:8px 12px;font-size:13px;white-space:nowrap}
+.pill.paid{border-color:var(--ok);color:var(--ok);background:#18241b}
+.plans{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:820px){.plans{grid-template-columns:minmax(0,1fr)}}
+.plan{border:1px solid var(--line);background:var(--panel2);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.plan.hot{border-color:var(--gold)}
+.plan h3{margin:0;font-family:var(--display);font-size:22px;letter-spacing:.04em}
+.plan .can{font-size:15px;line-height:1.55;color:var(--fg)}
+.plan .price{font-size:15px;line-height:1.7;color:var(--muted)}
+.plan .price b{color:var(--gold);font-size:20px}
+.plan a.btn{text-decoration:none;text-align:center;color:inherit;display:block}
+.codebox{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.codebox input{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;color:var(--fg);font:inherit;font-size:16px;letter-spacing:.08em;text-transform:uppercase;min-width:0;width:220px}
+.lockline{text-align:center;color:var(--gold);font-size:15px}
 .status{font-size:12px;color:var(--muted);text-align:center;min-height:16px}
 @media print{
   body{background:#fff;color:#111;padding:0}
@@ -141,6 +155,7 @@ h2.head{margin:0;font-size:clamp(24px,3.4vw,40px);text-wrap:balance}
   <div class="tabs" role="group" aria-label="mode">
     <button id="mClass"></button><button id="mStudy"></button>
   </div>
+  <button class="pill" id="planPill"></button>
   <button class="tool" id="share"></button>
   <button class="tool" id="full" aria-label="fullscreen">⛶</button>
 </header>
@@ -186,7 +201,17 @@ const UI = {
         lq:"聞こえた言葉はどれ？", q:"これはどれ？", right:"正解！", wrong:"ざんねん", again:"もう一回", done:"終了！",
         canDo:"できるようになったこと", homework:"宿題", print:"🖨 印刷・PDF", nextLesson:"次のレッスンへ →",
         shareTitle:"生徒はこのQRを読むと、同じレッスンを自分のスマホで練習できます", copy:"リンクをコピー", copied:"コピーしました",
-        script:"先生の台本", basics:"入門", daily:"日常会話", noMic:"このブラウザでは発音チェックが使えません（Chromeかスマホで開いてください）", micErr:"マイクが使えませんでした。もう一度押してください" },
+        script:"先生の台本", basics:"入門", daily:"日常会話", midL:"中級", advL:"上級",
+        trialLeft:"無料体験 残り{n}分", trialOver:"無料体験は終わりました", paid:"ここからは有料です", trialEnd:"30分の無料体験が終わりました",
+        paidSub:"続きは、プランに申し込むと使えます。先生の授業（対面・オンライン）とアプリがセットです。", lockedLv:"このレッスンは「{lv}」プランから使えます",
+        planBeg:"初心者", planMid:"中級", planAdv:"上級", planFree:"無料体験",
+        canBeg:"あいさつ・数字・レストラン・買い物・タクシーなど、旅行と毎日のやりとりができる（12レッスン）",
+        canMid:"予約・病院・部屋探し・仕事・メッセージ・旅の話まで、住んで困らない会話ができる（初心者＋6レッスン）",
+        canAdv:"商談・交渉・意見・オンライン会議まで、仕事で使える会話ができる（全22レッスン）",
+        price60:"授業60分", p1:"1人 ₾75", p2:"2人なら 1人₾45", p3:"3人以上 月4回 ₾120", appIncl:"アプリは授業料に含まれます",
+        ruNote:"ロシア語は先生の授業が週1回。ほかの日はアプリで練習します。", apply:"WhatsAppで申し込む",
+        haveCode:"解除コードをお持ちの方", unlock:"解除する", badCode:"コードが違います。もう一度確かめてください", unlocked:"解除しました",
+        seePlans:"プランを詳しく見る", current:"{lv}プラン ✓", applyMsg:"Talk4 Class の「{lv}」プランに申し込みたいです。", noMic:"このブラウザでは発音チェックが使えません（Chromeかスマホで開いてください）", micErr:"マイクが使えませんでした。もう一度押してください" },
   en: { lesson:"Lesson", learn:"Learn", ex:"Explain in", class:"Class", study:"Self-study", share:"Student link",
         s0:"Goal", s1:"Practice", s2:"Talk", s3:"Listen", s4:"Quiz", s5:"Review",
         goal:"Today's goal", words:"Today's words", tip:"Tip", start:"Start practising →",
@@ -196,7 +221,17 @@ const UI = {
         lq:"Which did you hear?", q:"Which one is it?", right:"Correct!", wrong:"Not quite", again:"Play again", done:"Finished!",
         canDo:"I can now…", homework:"Homework", print:"🖨 Print / PDF", nextLesson:"Next lesson →",
         shareTitle:"Students scan this to practise the same lesson on their phone", copy:"Copy link", copied:"Copied",
-        script:"Teacher script", basics:"Basics", daily:"Everyday conversation", noMic:"Pronunciation check needs Chrome or a phone browser", micErr:"The microphone didn't start. Press again" },
+        script:"Teacher script", basics:"Basics", daily:"Everyday conversation", midL:"Intermediate", advL:"Advanced",
+        trialLeft:"Free trial: {n} min left", trialOver:"Free trial finished", paid:"The rest is part of a plan", trialEnd:"Your 30-minute free trial is over",
+        paidSub:"Join a plan to keep going. Every plan includes classes with a teacher (in person or online) and the app.", lockedLv:"This lesson is part of the {lv} plan",
+        planBeg:"Beginner", planMid:"Intermediate", planAdv:"Advanced", planFree:"Free trial",
+        canBeg:"Greetings, numbers, restaurants, shopping, taxis — get through travel and daily life (12 lessons)",
+        canMid:"Bookings, doctors, renting, work, messaging and stories — enough to live there (Beginner + 6 lessons)",
+        canAdv:"Meetings, negotiation, opinions and online calls — ready for business (all 22 lessons)",
+        price60:"60-minute class", p1:"1 person ₾75", p2:"2 people ₾45 each", p3:"3 or more: 4 classes a month ₾120", appIncl:"The app is included in the class fee",
+        ruNote:"Russian has a teacher once a week; on the other days you practise with the app.", apply:"Apply on WhatsApp",
+        haveCode:"Have an unlock code?", unlock:"Unlock", badCode:"That code didn't work. Please check it and try again", unlocked:"Unlocked",
+        seePlans:"See plans in detail", current:"{lv} plan ✓", applyMsg:"I'd like to join the Talk4 Class {lv} plan.", noMic:"Pronunciation check needs Chrome or a phone browser", micErr:"The microphone didn't start. Press again" },
 };
 const cache = (() => { try { return JSON.parse(localStorage.getItem("t4c-tr") || "{}"); } catch { return {}; } })();
 async function gtr(text, from, to) {
@@ -436,21 +471,80 @@ const save = () => { try {
   localStorage.setItem("t4c", JSON.stringify({ lesson: S.lesson, learn: S.learn, ex: S.ex, mode: S.mode }));
   localStorage.setItem("t4c-stars", JSON.stringify(stars)); localStorage.setItem("t4c-done", JSON.stringify(doneSteps)); } catch {} };
 const lesson = () => LESSONS.find(l => l.id === S.lesson);
+
+/* ---------- Plans: 30-minute free trial, then paid levels unlocked by code ---------- */
+const WA = "819087080598";
+const RANK = { none: 0, beg: 1, mid: 2, adv: 3 };
+const lvRank = l => ({ basic: 1, daily: 1, mid: 2, adv: 3 })[l.level || "basic"];
+const lvName = r => [ui.planFree, ui.planBeg, ui.planMid, ui.planAdv][r];
+const CODES = {"8616066c77c249e6c8fe67961454c0a6cb1a9373395e86277a6b629516bb145a": "beg", "acffc7ce11a2d1ea2e2fc36d22250228203f134f8bac18721066278c47972262": "beg", "763bb9581a1a516764d9e04ec841ed39ef042ab2d1504f9e71a38ba240516a5b": "beg", "96f4935453920da92820269f6fd02265316f9d705e5f929e9e4e5187a5af4798": "beg", "27a82325b2d581370e286b596fdf31d5cda6dcc41033208f13844388c6db9475": "beg", "775b53495600c61aba9a1ee73525299fdb083dc99d414eac93427c510e3ee77d": "beg", "640dd2f95a619c1377f33800b4be43c32c354d5834f3fcae513801de5b289c6c": "beg", "f62f037585579665ae69e6d2641e5d6f2485955a30f0b7ca9f6e24d051a8e5d7": "beg", "14608363624b7296e1f21c522c14bedde9074922b65ab882bfc6911542440fc3": "beg", "1c370bbcd7e7eb3c847f3d8cb40b072dbcd9f9c7b7f778d321248ceb419a6643": "beg", "b83d2498504c8859ef0f0c0e69497c8129143268cd4207fbadbff55693f04293": "beg", "db3999547b607f35008338caf5e84348390960353d359c9852c5298e68d4e143": "beg", "ad38c2a293c0f8c282020e42f270aa9696b2f8bc3ebb267dbd399c894fe7c1fa": "beg", "4baa9c82e8c9640262ccbd2821616058a2f064f649a6f2f69627453dfb3f1823": "beg", "4daadd90d14f4ebff4f36128fe1d476f7b7fbe790401ddb79a8db75c92fff759": "beg", "d1d6e9dbccb0ff0e8f6eead791e2f4821cd7394696a0f158bae0f5dcd1dd0c8b": "beg", "3969bbfd7deed58c2bebcb9c825de4cf288b0ec22c5b4d8358b259e9c2a154ff": "beg", "f0782b4db338e273ded014589066f4d15897aa5e13e990e67c1537cb215d384e": "beg", "5fa28e1f79f9e500f3d070449020f911b86bc544cd4c4ba8438c7b14422028c5": "beg", "991163a6d619c4d09f6c9382bc272365d42782a66880910714185c1a7861a7e6": "beg", "6ee2000991cd10479bc5fc5e7e5e73e15610f73b18a48041811aecb3cd51ae04": "beg", "5ccc011342681b8eec5b57344a066dd2939f53eba1706409e48366c579bc3c64": "beg", "a9a38710945459876a5ef836e6f264fbfb4252e723d86c3d4d32d6943c02e1e5": "beg", "6d5821ac15836b2b3e618c28943ce2d1d98884c4142225c857eeef9e829603c5": "beg", "8768d744d829c2222bde7d175b9306ad8b72c940dfc71b8e3c7af7ded86c7eac": "beg", "94eaf754bb6b1548988ab23838a029ee7e71f2ff48c39b9785e3318209bad4d5": "beg", "979e236bc273b94bce4f7c80f54a5f3bb5d1c5ce855652ff54ce8a0bc88ccaf0": "beg", "4d5fe4b8e2ed39d9e8741b3abde09bd3c9980894b585a557445c7094ac99fe2e": "beg", "9225d6e0299e02dbdc1ca9ef47f5eaca35ba22e57c201c7d6c5530306fec6de5": "beg", "5569cd9ca1b832634a7b103e6651ea316e8d3331708fdba021222fb7fcc12687": "beg", "cd6bd572f21d20bfc449f8564d8784afcc44ec7324ca536fd44669aca42f46ac": "mid", "b71addf7655e7296e2ec1c969f2cb700d3660deebf357b42415e4916fba45a81": "mid", "5dd8fd12407d0233d57bf19ae0faf2bd4fd6140451687cb43020d59aa7fa65a5": "mid", "86d2422c99feeca1b74fdc086014e60d0a4cf6392503fe85cfce3df0b8deace3": "mid", "57a2abc43e2187b8f63aa380409887d4bce63fcb14b9441b0150c90bc38b758c": "mid", "4aca2cfe3a309a40b91d1f92d9ef3e8a25b3560979dae1b3c696b311dc9d465a": "mid", "37603cf9e9707aa1f02dacefc33e08a7da7585fd01e10f8ba3fd3d91e27fe7aa": "mid", "35080f0b9801cca1c1996f38f1166acdfafdab88031c90443a4f52b9d450fedc": "mid", "3ba29c60a28c242a3e562069443c435d66f2cac0e7d008cae4760f78ee4db1c4": "mid", "2815e4e77b7a5373ab23785c8466ae1b70f57502564cc872e5a9cf1921c1ac2d": "mid", "600a22f61d02c48b9f084c5f4ae7db5b1b9049abc8c162ad10bb5770185fc485": "mid", "8ccdc2ac6b90b735c57e50683216709285cecf1953cd5a8728ee4970f657c3ea": "mid", "d06166733a033223bef8729e53a1dba75ffdfaca889394dead54cf650fa6deb9": "mid", "42e15c5899a48952ec1b6f9914bf05b8dcdb983b5d0ce7d90092e7b551300d96": "mid", "ac7e0e4e3fe52e5306796101f471f521f60dcff2034d5fabc14ab4c815fefaa0": "mid", "0d1cc1670e729f746b9f3d50e15d48b17cba492bd19c0621f6cd2e8612a8e746": "mid", "5afbb450e8fc8c4b96897a1b2d7aa544ba088658796d19bd45b04b4c8482af94": "mid", "fa13c264f6fd7c929e954aa48ec4aa1f3f6c603420a0e4a8f0d1b84daa502ad6": "mid", "30bd99a002974ac78185811f4f64f8fd4c64ad625ffc4359c69a744df54b529c": "mid", "0d5d4c1bce44fd554712840af0ee3796a7ee216b1e9441f644f61a6d8a708ab9": "mid", "1bb96093a969857788af0a630b5fb166d6b3e2bc3ba040358853782f88a1b612": "mid", "f097f18f44d0b269a60ef1b7409d53384c28e5f7de8070dd1f18bf83b20ed86a": "mid", "6adb82cf18933e007ec3d3ae05c51e0cfefbe67ada62e17c4601f6cfe6288db1": "mid", "af0856094b32c9bb17b567865cbadc30b8fbf0f2b8b875b477b6ab9a31a44268": "mid", "2066eb2921ed1d0d1e5c69776feab30ee55d96c13f5bc708079070a2d80bb835": "mid", "f51eac2cae117d2f0be37b7a5be2a0ec4800a3fc4bf8ffb05a150c4fea6954a8": "mid", "e1be1d2eef4700834207ac15eede6c3330396b4aac19a41e610ecf466d6aa881": "mid", "b2b5d01c1bc3c34fbbd8b3be471739921cd11b5075b1b67b575a57304c03a4ff": "mid", "6c052aceb380126b50a3f2add5869bc381d7e0e06b21d2fc3e6930a770d0085d": "mid", "309885c5d3e25b0fe082e828f4e0ca7e42b71eac604810e8e3a7873508d3a834": "mid", "0d34a65e9ff22ed0b73f2d65abd78e393669d6f5246ec806910d433a321705c7": "adv", "78b884cef9c73a3df3cf64d688a7d5e09c70fbfe238a33d27d2c54d49c12f173": "adv", "dc2231dd7850d9573a2bb07c556f7d5d79f63fbb886e0da3b8617300ba39b8c1": "adv", "9d867de52a6f5d85ca682833509efd650eb20dfc50b257ee7db4c424c0b8ccff": "adv", "15bbe6438bf9d58b849b88dabe7ba9549a809593676c156fbb1ce73f8c93c4b1": "adv", "d699a7ef7b91d66def6725988c036cb1f8ed46f35686864e8eea7e89b52703cf": "adv", "01eb10662c29428f7c00b592ae4cfa3fe08c9946cfb4b80d13a385fed5d16da9": "adv", "6ed60f1d77931e77a5ed5cb39debf37e6fb728c9733fe1fe5eb0813860dfab5e": "adv", "e89b45bc0b0faf7d02bbff4ec1ac665d447c059915f67559aad93211ae3f9ee0": "adv", "72e3f6c233f17c86ef60fb3ad94cbeec576a86128b9ab2050707b7f38c8ff245": "adv", "f7db7270517e200262902e62b1073099209f102a62f55919c6d7d0f345e5d23e": "adv", "aa65571fe4b7c7e5e7c0aea5a2bf5652d8eee914e97bb0f1938a732d034168cc": "adv", "5ed3544c0d7529285a3ca9866a06922604dc6b89a2aa3d435cef39e98d522bda": "adv", "9774322f8c2c66eea0db5d947f05f0a7dc5b104cb39c8289bfc6a593bf651ebd": "adv", "09b1605c40c5c8d5b008bbff9819eb9ab9f120ecff4e5adefb5da0268851b09a": "adv", "cb1a7fb9c2bac28f2455427686770d2409b5a80f52c16fc1ae71013c36af7674": "adv", "96a1092a92716037dc1e616a281471915c29d19a26969cb411608fb3f4bb2fb9": "adv", "0f8346e6960a43359e4b5804f4c1357e8bdb1ed75ebef81eeca18e37c24ae138": "adv", "2447e88b0c18c1f163648aaa672b7cec9e047c3fd14cd76890bf167aab5a1227": "adv", "dc27d1d61788491d247190a8ef42e3e175e970777d13421662553f21b34efc55": "adv", "70c280639c9ac68e26b5e4e2e62238679c7bc805b4928d857a0ecd43bcefcd53": "adv", "8b34d61257511e3b80a7f8176ba4bd66986ba79eaf36cdda646155f2b83db6eb": "adv", "26b1917c96aa67acd674924a3bf54a33636dca4b9ef4bd3aaf1b3f2e1dbf901a": "adv", "3f2e6f76b00eab6a44219366c965d88bcc0a09e1c5572afa8059f535ebe0b41c": "adv", "f1f99b8d46dd68e9ea726aa56d8897b33131f4d0552a5fe7929fbc8592447ac0": "adv", "8b52271a6aa9524c699ffcfc6612e1c82d6b91510bf18eb48fe05c35149abd7a": "adv", "3a39416ba1e00ec69b5a764acead8122d20850178224c58ecce517dd5a3d2f38": "adv", "0bd65092111e5ad0e6eae83127af9e00eb6cbe6ba1d4d588fd854bc1ca14be79": "adv", "a86415fe2700465bae3ff4030c9bf3016db4af5695b79ea98053b7546868ce3c": "adv", "9b1c53c01cad43826db8d7c65096a56f1f0570f06a903e6bc877fb6f44b0a3fd": "adv", "897b81459e5d48992fbfa3f75e64ade9d3f46b76c1d66d772badb3a36ca70857": "adv"};
+const TRIAL_SEC = 30 * 60;
+let tier = "none", trialUsed = 0;
+try { tier = localStorage.getItem("t4c-tier") || "none"; trialUsed = +localStorage.getItem("t4c-trial") || 0; } catch {}
+const trialLeft = () => Math.max(0, TRIAL_SEC - trialUsed);
+function canUse(L, step) {
+  if (RANK[tier] >= lvRank(L)) return true;
+  if (step === 0) return true;                            // anyone may look at the goal & words
+  return lvRank(L) === 1 && trialLeft() > 0;              // the free trial covers Beginner
+}
+setInterval(() => {
+  if (tier !== "none" || document.visibilityState !== "visible" || S.step === 0 || lvRank(lesson()) !== 1 || trialLeft() <= 0) return;
+  trialUsed += 5; try { localStorage.setItem("t4c-trial", String(trialUsed)); } catch {}
+  paintPill(); if (trialLeft() <= 0) render();
+}, 5000);
+function paintPill() {
+  const p = $("planPill");
+  if (tier !== "none") { p.textContent = ui.current.replace("{lv}", lvName(RANK[tier])); p.className = "pill paid"; }
+  else { p.textContent = trialLeft() > 0 ? "🎁 " + ui.trialLeft.replace("{n}", Math.ceil(trialLeft() / 60)) : "🔒 " + ui.trialOver; p.className = "pill"; }
+}
+async function sha(t) { const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join(""); }
+async function tryCode(raw) {
+  const c = raw.trim().toUpperCase().replace(/\s+/g, "");
+  const t = CODES[await sha("talk4-class-v1:" + c)];
+  if (!t) return false;
+  if (RANK[t] > RANK[tier]) { tier = t; try { localStorage.setItem("t4c-tier", t); } catch {} }
+  return true;
+}
+async function paywall(card, L, ex) {
+  const need = lvRank(L), trialDone = need === 1 && trialLeft() <= 0;
+  card.append(h("div", { class: "stage", style: "flex:0" },
+    h("div", { class: "result", style: "font-size:clamp(30px,5vw,56px)" }, trialDone ? ui.trialEnd : ui.paid),
+    h("div", { class: "lockline" }, ui.lockedLv.replace("{lv}", lvName(need))),
+    h("div", { class: "meaning", style: "font-size:17px" }, ui.paidSub)));
+  const plans = h("div", { class: "plans" });
+  for (const [r, can] of [[1, ui.canBeg], [2, ui.canMid], [3, ui.canAdv]]) {
+    const msg = encodeURIComponent(ui.applyMsg.replace("{lv}", lvName(r)) + "\n" + UI.en.applyMsg.replace("{lv}", UI.en[["", "planBeg", "planMid", "planAdv"][r]]));
+    plans.append(h("div", { class: `plan${r === need ? " hot" : ""}` },
+      h("h3", {}, lvName(r)),
+      h("div", { class: "can" }, can),
+      h("div", { class: "price", html: `${ui.price60}<br><b>${ui.p1}</b><br>${ui.p2}<br>${ui.p3}<br><small>${ui.appIncl}</small>` }),
+      h("a", { class: `btn${r === need ? " main" : ""}`, href: `https://wa.me/${WA}?text=${msg}`, target: "_blank", rel: "noopener" }, "💬 " + ui.apply)));
+  }
+  card.append(plans, h("div", { class: "heard", style: "text-align:center" }, ui.ruNote));
+  const inp = h("input", { id: "codeIn", placeholder: "T4X-XXXX-XXXX", autocomplete: "off", "aria-label": ui.haveCode });
+  const msg = h("div", { class: "heard", style: "text-align:center;min-height:20px" });
+  const go = async () => { if (await tryCode(inp.value)) { msg.textContent = ui.unlocked; paintPill(); render(); } else msg.textContent = ui.badCode; };
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+  card.append(h("div", { class: "goal", style: "text-align:center;font-size:16px" }, ui.haveCode),
+    h("div", { class: "codebox" }, inp, h("button", { class: "btn main", onclick: go }, ui.unlock)), msg,
+    h("div", { class: "actions" }, h("a", { class: "btn", href: "plans.html", style: "text-decoration:none;color:inherit" }, ui.seePlans)));
+}
 const exLang = () => S.ex === S.learn ? (S.learn === "en" ? "ja" : "en") : S.ex;
 const starKey = i => `${S.learn}:${S.lesson}:${i}`;
 const doneKey = s => `${S.learn}:${S.lesson}:${s}`;
 const lineOf = (L, x) => typeof x === "number" ? L.phrases[x] : x;
 function reset() { S.i = 0; S.shown = false; S.score = null; S.quiz = null; S.lquiz = null; S.line = -1; S.dlgScores = {}; S.playing = false; S.checks = {}; }
-function goStep(n) { stopAll(); doneSteps[doneKey(S.step)] = true; save(); S.step = n; S.score = null; S.shown = false; S.line = -1; render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+function goStep(n) { S.showPlans = false; stopAll(); doneSteps[doneKey(S.step)] = true; save(); S.step = n; S.score = null; S.shown = false; S.line = -1; render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
 
 /* ---------- Header ---------- */
 for (const k of LEARN) $("learnSel").add(new Option(LANG[k].name, k));
 for (const k in LANG) $("exSel").add(new Option(LANG[k].name, k));
-$("lessonSel").onchange = e => { S.lesson = e.target.value; S.step = 0; reset(); save(); render(); };
+$("lessonSel").onchange = e => { S.showPlans = false; S.lesson = e.target.value; S.step = 0; reset(); save(); render(); };
 $("learnSel").onchange = e => { S.learn = e.target.value; reset(); save(); render(); warm(S.learn); };
 $("exSel").onchange = async e => { S.ex = e.target.value; save(); await loadUI(S.ex); render(); };
 for (const [id, m] of [["mClass","class"],["mStudy","study"]]) $(id).onclick = () => { unlockAudio(); S.mode = m; save(); render(); };
 $("full").onclick = () => { const d = document.documentElement; try { (document.fullscreenElement ? document.exitFullscreen() : d.requestFullscreen?.())?.catch?.(() => {}); } catch {} };
+$("planPill").onclick = () => { stopAll(); S.showPlans = !S.showPlans; render(); };
 $("share").onclick = () => {
   const u = new URL(location.href.split("?")[0]); u.search = new URLSearchParams({ l: S.lesson, learn: S.learn, mode: "study" }).toString();
   $("shareUrl").textContent = u.href; $("qr").innerHTML = "";
@@ -462,11 +556,12 @@ $("close").onclick = () => { $("modal").hidden = true; $("copy").textContent = u
 
 function paintHeader() {
   const sel = $("lessonSel"); sel.innerHTML = "";
-  for (const [lv, label] of [["basic", ui.basics], ["daily", ui.daily]]) {
+  for (const [lv, label] of [["basic", ui.basics], ["daily", ui.daily], ["mid", ui.midL], ["adv", ui.advL]]) {
     const g = document.createElement("optgroup"); g.label = label;
     LESSONS.filter(l => (l.level || "basic") === lv).forEach(l => {
       const n = LESSONS.indexOf(l) + 1, done = doneSteps[`${S.learn}:${l.id}:5`] ? " ✓" : "";
-      g.append(new Option(`${n}. ${l.icon} ${titleOf(l, S.ex)}${done}`, l.id));
+      const lock = RANK[tier] >= lvRank(l) || (lvRank(l) === 1 && trialLeft() > 0) ? "" : " 🔒";
+      g.append(new Option(`${n}. ${l.icon} ${titleOf(l, S.ex)}${done}${lock}`, l.id));
     });
     if (g.children.length) sel.append(g);
   }
@@ -476,6 +571,7 @@ function paintHeader() {
   for (const [id, m] of [["mClass","class"],["mStudy","study"]]) $(id).setAttribute("aria-pressed", S.mode === m);
   $("share").textContent = "📱 " + ui.share; $("shareTitle").textContent = ui.shareTitle; $("copy").textContent = ui.copy;
   document.documentElement.lang = S.ex;
+  paintPill();
   const bar = $("steps"); bar.innerHTML = "";
   ["s0","s1","s2","s3","s4","s5"].forEach((k, n) => {
     const b = h("button", { class: doneSteps[doneKey(n)] ? "done" : "", onclick: () => goStep(n) }, h("span", { class: "n" }, doneSteps[doneKey(n)] && n !== S.step ? "✓" : String(n + 1)), h("span", {}, ui[k]));
@@ -499,7 +595,8 @@ async function render() {
   const card = h("section", { class: "card", id: "card" });
   const L = lesson(), ex = exLang();
   card.append(h("div", { class: "meta" }, h("span", { class: "lesson" }, `${LESSONS.indexOf(L) + 1}. ${L.icon} ${titleOf(L, S.ex)}`), h("span", {}, `${LANG[S.learn].name}`)));
-  await [stepGoal, stepPractice, stepTalk, stepListen, stepQuiz, stepReview][S.step](card, L, ex);
+  if (S.showPlans || !canUse(L, S.step)) await paywall(card, L, ex);
+  else await [stepGoal, stepPractice, stepTalk, stepListen, stepQuiz, stepReview][S.step](card, L, ex);
   if (my !== renderNo) return;
   $("card").replaceWith(card);
   if (showSide) renderScript(L);
@@ -513,6 +610,7 @@ async function stepGoal(card, L, ex) {
   for (const p of L.phrases) tb.append(h("tr", {}, h("td", { class: "t", lang: S.learn }, p[S.learn]), h("td", { class: "r" }, reading(p, S.learn)), h("td", { class: "m" }, await meaningOf(p, ex)), h("td", { class: "p" }, play(p[S.learn]))));
   card.append(h("div", { class: "goal", html: `<b>${ui.words}</b>` }), h("div", { class: "tablebox" }, tb));
   const tip = L.tips?.[S.learn]; if (tip) card.append(h("div", { class: "tipbox", html: `<b>${ui.tip}</b>` }, await note(tip, ex)));
+  if (!canUse(L, 1)) card.append(h("div", { class: "lockline" }, "🔒 " + ui.lockedLv.replace("{lv}", lvName(lvRank(L)))));
   card.append(h("div", { class: "nav" }, h("span"), h("button", { class: "btn main", onclick: () => goStep(1) }, ui.start)));
 }
 
