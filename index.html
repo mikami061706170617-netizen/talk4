@@ -36,6 +36,8 @@ body{background:var(--bg);color:var(--fg);font-family:var(--font);
 .big{font-size:clamp(22px,6.2vw,34px);line-height:1.35;font-weight:700;overflow-wrap:anywhere}
 .big.wait{font-weight:400;color:var(--muted);font-size:18px}
 .small{font-size:14px;color:var(--muted);overflow-wrap:anywhere}
+.rom{font-size:clamp(15px,4.2vw,20px);color:var(--gold);line-height:1.4;overflow-wrap:anywhere}
+.rom:empty{display:none}
 .ctrl{display:flex;gap:8px;align-items:stretch}
 .mic{flex:1;border:none;border-radius:999px;background:var(--red);color:#fff;font:inherit;font-size:18px;font-weight:700;
   padding:16px 12px;cursor:pointer;touch-action:manipulation}
@@ -61,7 +63,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 
 <section class="half them" id="themHalf">
   <div class="lang"><span id="themLabel"></span><span id="themHint"></span></div>
-  <div class="said" id="themSaid"><div class="big wait" id="themBig"></div><div class="small" id="themSmall"></div></div>
+  <div class="said" id="themSaid"><div class="big wait" id="themBig"></div><div class="rom" id="themRom"></div><div class="small" id="themSmall"></div></div>
   <div class="typerow" id="themType" hidden><input id="themInput" enterkeyhint="send"><button id="themSend">OK</button></div>
   <div class="ctrl"><button class="mic" id="themMic"></button><button class="icon" id="themKb" aria-label="keyboard">⌨</button><button class="icon" id="themRe" aria-label="replay">🔊</button></div>
 </section>
@@ -77,16 +79,18 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 <section class="half me" id="meHalf">
   <div class="ctrl"><button class="mic" id="meMic"></button><button class="icon" id="meKb" aria-label="キーボード">⌨</button><button class="icon" id="meRe" aria-label="もう一度読む">🔊</button></div>
   <div class="typerow" id="meType" hidden><input id="meInput" enterkeyhint="send" placeholder="文字で入力"><button id="meSend">訳す</button></div>
-  <div class="said" id="meSaid"><div class="big wait" id="meBig"></div><div class="small" id="meSmall"></div></div>
+  <div class="said" id="meSaid"><div class="big wait" id="meBig"></div><div class="rom" id="meRom"></div><div class="small" id="meSmall"></div></div>
   <div class="lang"><span id="meLabel"></span><span id="meHint"></span></div>
 </section>
 
 <script type="module">
 const LANG = {
-  ja:{name:"日本語", sr:"ja-JP", tts:null,                    talk:"🎤 押して話す",     wait:"相手の言葉の訳がここに出ます", hold:"聞いています…"},
-  en:{name:"English",sr:"en-US", tts:"en_US-hfc_female-medium",talk:"🎤 Tap to speak",   wait:"Translation will appear here",   hold:"Listening…"},
-  ka:{name:"ქართული",sr:"ka-GE", tts:"ka_GE-natia-medium",    talk:"🎤 დააჭირე და ილაპარაკე", wait:"თარგმანი აქ გამოჩნდება", hold:"გისმენთ…"},
-  ru:{name:"Русский",sr:"ru-RU", tts:"ru_RU-irina-medium",    talk:"🎤 Нажмите и говорите", wait:"Перевод появится здесь", hold:"Слушаю…"},
+  ja:{name:"日本語", g:"ja", sr:"ja-JP", tts:null,                    talk:"🎤 押して話す",     wait:"相手の言葉の訳がここに出ます", hold:"聞いています…"},
+  en:{name:"English",g:"en", sr:"en-US", tts:"en_US-hfc_female-medium",talk:"🎤 Tap to speak",   wait:"Translation will appear here",   hold:"Listening…"},
+  ka:{name:"ქართული",g:"ka", sr:"ka-GE", tts:"ka_GE-natia-medium",    talk:"🎤 დააჭირე და ილაპარაკე", wait:"თარგმანი აქ გამოჩნდება", hold:"გისმენთ…"},
+  ru:{name:"Русский",g:"ru", sr:"ru-RU", tts:"ru_RU-irina-medium",    talk:"🎤 Нажмите и говорите", wait:"Перевод появится здесь", hold:"Слушаю…"},
+  ko:{name:"한국어", g:"ko", sr:"ko-KR", tts:null,                    talk:"🎤 눌러서 말하기", wait:"번역이 여기에 나옵니다", hold:"듣고 있어요…"},
+  zh:{name:"中文",   g:"zh-CN", sr:"zh-CN", tts:"zh_CN-huayan-medium", talk:"🎤 点击说话", wait:"翻译会显示在这里", hold:"正在听…"},
 };
 const $ = id => document.getElementById(id);
 const st = (t, ok) => { $("status").textContent = t; $("status").classList.toggle("ok", !!ok); };
@@ -103,8 +107,8 @@ function paint() {
   $("meSel").value = me; $("themSel").value = them;
   $("meLabel").innerHTML = `<b>${LANG[me].name}</b>`; $("themLabel").innerHTML = `<b>${LANG[them].name}</b>`;
   $("meMic").textContent = LANG[me].talk; $("themMic").textContent = LANG[them].talk;
-  if (!last.me) { $("meBig").textContent = LANG[me].wait; $("meBig").className = "big wait"; }
-  if (!last.them) { $("themBig").textContent = LANG[them].wait; $("themBig").className = "big wait"; }
+  if (!last.me) { $("meBig").textContent = LANG[me].wait; $("meBig").className = "big wait"; $("meRom").textContent = ""; $("meSmall").textContent = ""; }
+  if (!last.them) { $("themBig").textContent = LANG[them].wait; $("themBig").className = "big wait"; $("themRom").textContent = ""; $("themSmall").textContent = ""; }
   $("autoSpeak").textContent = "🔊 自動 " + (autoSpeak ? "ON" : "OFF");
   $("themInput").placeholder = LANG[them].name;
 }
@@ -114,15 +118,29 @@ $("swap").onclick = () => { unlockAudio(); [me, them] = [them, me]; langChanged(
 $("autoSpeak").onclick = () => { autoSpeak = !autoSpeak; save(); paint(); };
 
 /* ---------- Translation (free) ---------- */
+// Georgian → Latin (national romanization), used when the free service gives none
+const KA = {"ა":"a","ბ":"b","გ":"g","დ":"d","ე":"e","ვ":"v","ზ":"z","თ":"t","ი":"i","კ":"k'","ლ":"l","მ":"m","ნ":"n","ო":"o","პ":"p'","ჟ":"zh","რ":"r","ს":"s","ტ":"t'","უ":"u","ფ":"p","ქ":"k","ღ":"gh","ყ":"q'","შ":"sh","ჩ":"ch","ც":"ts","ძ":"dz","წ":"ts'","ჭ":"ch'","ხ":"kh","ჯ":"j","ჰ":"h"};
+const kaRoman = t => [...t].map(c => KA[c] ?? c).join("");
+function romFor(text, lang, given) {
+  if (lang === "en") return "";
+  if (given) return given;
+  if (lang === "ka") return kaRoman(text);
+  return "";
+}
 async function translate(text, from, to) {
+  const sl = LANG[from].g, tl = LANG[to].g;
   try {
-    const u = `https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=${from}&tl=${to}&q=${encodeURIComponent(text)}`;
+    const u = `https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&dt=rm&sl=${sl}&tl=${tl}&q=${encodeURIComponent(text)}`;
     const r = await fetch(u); if (!r.ok) throw 0;
-    const j = await r.json(); const out = j[0].map(x => x[0]).join("");
-    if (out) return out;
+    const j = await r.json();
+    const parts = j[0].filter(x => x[0] != null);
+    const romRow = j[0].find(x => x[0] == null) || [];
+    const out = parts.map(x => x[0]).join("");
+    if (out) return { text: out, rom: romFor(out, to, romRow[2]), srcRom: romFor(text, from, romRow[3]) };
   } catch {}
-  const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`);
-  const j = await r.json(); return j.responseData.translatedText;
+  const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sl}|${tl}`);
+  const j = await r.json(); const out = j.responseData.translatedText;
+  return { text: out, rom: romFor(out, to), srcRom: romFor(text, from) };
 }
 
 /* ---------- Speech output (free) ---------- */
@@ -133,6 +151,7 @@ const VPATH = {
   "ka_GE-natia-medium": "ka/ka_GE/natia/medium/ka_GE-natia-medium.onnx",
   "ru_RU-irina-medium": "ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx",
   "en_US-hfc_female-medium": "en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx",
+  "zh_CN-huayan-medium": "zh/zh_CN/huayan/medium/zh_CN-huayan-medium.onnx",
 };
 const PHON = "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize";
 let ort = null, phonMod = null, actx = null, unlocked = false, playing = null;
@@ -234,8 +253,8 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null, active = null;
 
 function sideEls(side) { return side === "me"
-  ? { mic: $("meMic"), big: $("meBig"), small: $("meSmall") }
-  : { mic: $("themMic"), big: $("themBig"), small: $("themSmall") }; }
+  ? { mic: $("meMic"), big: $("meBig"), small: $("meSmall"), rom: $("meRom") }
+  : { mic: $("themMic"), big: $("themBig"), small: $("themSmall"), rom: $("themRom") }; }
 
 // The last thing someone said, in its original language. Changing a language re-translates it,
 // so nobody has to say it again.
@@ -249,15 +268,16 @@ async function show(o) {
   const listenerSide = speakerSide === "me" ? "them" : "me";
   const to = listenerSide === "me" ? me : them;
   const L = sideEls(listenerSide), S = sideEls(speakerSide);
-  S.small.textContent = ""; S.big.className = "big"; S.big.textContent = o.text;
+  S.small.textContent = ""; S.big.className = "big"; S.big.textContent = o.text; S.rom.textContent = romFor(o.text, o.lang, o.srcRom);
   last[speakerSide] = { text: o.text, lang: o.lang, own: true };
-  L.big.className = "big"; L.big.textContent = "…"; L.small.textContent = o.text;
-  if (o.lang === to) { L.big.textContent = o.text; last[listenerSide] = { text: o.text, lang: to }; return; }
+  L.big.className = "big"; L.big.textContent = "…"; L.rom.textContent = ""; L.small.textContent = o.text;
+  if (o.lang === to) { L.big.textContent = o.text; L.rom.textContent = romFor(o.text, to); last[listenerSide] = { text: o.text, lang: to }; return; }
   try {
     const out = await translate(o.text, o.lang, to);
     if (my !== job) return; // a newer sentence or language change took over
-    L.big.textContent = out; last[listenerSide] = { text: out, lang: to };
-    if (autoSpeak) speak(out, to);
+    L.big.textContent = out.text; L.rom.textContent = out.rom; last[listenerSide] = { text: out.text, lang: to };
+    if (out.srcRom) { o.srcRom = out.srcRom; S.rom.textContent = out.srcRom; }
+    if (autoSpeak) speak(out.text, to);
   } catch { if (my === job) { L.big.textContent = "⚠"; st("翻訳できませんでした。電波を確認してください"); } }
 }
 async function handle(text, speakerSide) {
@@ -277,7 +297,7 @@ function startRec(side) {
   const lang = side === "me" ? me : them, E = sideEls(side);
   let done = "", interim = "";
   stopWanted = false; active = side;
-  E.mic.classList.add("on"); E.mic.textContent = "■ " + LANG[lang].hold; E.big.className = "big"; E.big.textContent = "…"; E.small.textContent = "";
+  E.mic.classList.add("on"); E.mic.textContent = "■ " + LANG[lang].hold; E.big.className = "big"; E.big.textContent = "…"; E.small.textContent = ""; E.rom.textContent = "";
   const bump = () => { clearTimeout(silenceTimer); silenceTimer = setTimeout(stopRec, SILENCE_MS); };
   maxTimer = setTimeout(stopRec, MAX_MS);
   bump();
