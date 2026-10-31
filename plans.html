@@ -6,7 +6,7 @@
 
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Talk4 Class Plans</title>
-<meta name="description" content="Learn Japanese, English, Georgian or Russian in Tbilisi or online. First class free, then 4 classes ₾120 or 8 classes ₾200 a month, private lessons ₾50, with the Talk4 app.">
+<meta name="description" content="Learn Japanese, English, Georgian or Russian in Tbilisi or online. First class free, then group lessons ₾120 (4) or ₾200 (8) a month, private ₾75, with the Talk4 app.">
 <meta name="theme-color" content="#111010">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+Georgian:wght@400;700&family=Noto+Sans:wght@400;700&display=swap">
@@ -87,8 +87,8 @@ button,select{font:inherit;color:inherit}
   <section class="table">
     <h2 id="feeH">Classes</h2>
     <div class="rows">
-      <div class="row"><span id="f1a">First class</span><b>₾0</b><span class="note" id="f1b">90 minutes, free to try</span></div>
-      <div class="row"><span id="f2a">Members</span><b>4× / 8×</b><span class="note" id="f2b">4 classes ₾120 / 8 classes ₾200 a month</span></div>
+      <div class="row"><span id="f1a">Trial</span><b>₾0</b><span class="note" id="f1b">one lesson in a running class (30-minute trial: ₾25)</span></div>
+      <div class="row"><span id="f2a">Start alone</span><b>₾75→45</b><span class="note" id="f2b">₾75 on your own, ₾45 each for two, group price from three. Bring a friend and you both pay less.</span></div>
       <div class="row"><span id="f3a">Online</span><b>✓</b><span class="note" id="f3b">join on Google Meet; each person uses the app on their own phone</span></div>
     </div>
     <p class="note" id="feeNote">You're paired with someone who speaks the language you're learning and wants to learn yours. Half the time in each language. The app runs the topics, model voice, timer and scoring, so nobody gets lost.</p>
@@ -129,15 +129,15 @@ const WA = "819087080598";
 const T = {
   en: {
     tagFree: "Start here", tagBeg: "Most popular", tagMid: "Fastest progress", tagAdv: "Your pace",
-    free: "Free trial", beg: "4 classes a month", mid: "8 classes a month", adv: "Private lesson",
+    free: "Free trial", beg: "Group · 4 a month", mid: "Group · 8 a month", adv: "Private (1:1)",
     priceFree: "first class", priceFreeSub: "+ 30 min in the app, no sign-up", priceFrom: "", per: "/ month", perPrivate: "/ 60 min",
-    canFree: "Come to your first class free, and try the Beginner lessons in the app.",
-    canBeg: "Once a week, 90 minutes in a small group (4–8). You talk with people who speak the language you're learning.",
-    canMid: "Twice a week — the quickest way to actually speak. Works out at ₾25 a class.",
-    canAdv: "One-to-one, on exactly what you need: work, moving to Georgia, a trip.",
-    incFree: ["First class at the restaurant", "30 minutes of app lessons", "5 AI conversation replies"],
-    incBeg: ["4 classes a month (90 min, 4–8 people)", "Unlimited app: 22 lessons, Words, AI partner", "Interpreter, camera translate", "10% off food at the restaurant"],
-    incMid: ["8 classes a month (90 min)", "Everything in the 4-class plan"],
+    canFree: "Join one lesson of a running class free. No class at your level yet? A 30-minute trial is ₾25, taken off your first month.",
+    canBeg: "Once a week, 60 minutes in a small group (3–8). You talk with people who speak the language you're learning.",
+    canMid: "Twice a week — the quickest way to actually speak. Works out at ₾25 a lesson.",
+    canAdv: "One-to-one, on exactly what you need: work, moving to Georgia, a trip. 4 lessons a month ₾280. Two of you: ₾45 each.",
+    incFree: ["One lesson in a running class", "30 minutes of app lessons", "5 AI conversation replies"],
+    incBeg: ["4 lessons a month (60 min, 3–8 people)", "Unlimited app: 22 lessons, Words, AI partner", "Interpreter, camera translate", "10% off food at the restaurant"],
+    incMid: ["8 lessons a month (60 min)", "Everything in the 4-lesson plan"],
     incAdv: ["60 minutes, just you", "Any topic you need", "Unlimited app while you take lessons"],
     ctaFree: "Book a free class", ctaPlan: "Apply on WhatsApp",
     applyMsg: "Hello! I'd like to join the Talk4 language class: {p}.",
@@ -145,21 +145,21 @@ const T = {
   },
   ja: {
     tagFree: "まずはここから", tagBeg: "いちばん人気", tagMid: "早く話せる", tagAdv: "自分のペースで",
-    free: "無料体験", beg: "月4回", mid: "月8回", adv: "個人レッスン",
+    free: "無料体験", beg: "グループ 月4回", mid: "グループ 月8回", adv: "個人レッスン",
     priceFree: "初回", priceFreeSub: "＋アプリ30分・登録不要", priceFrom: "", per: "／月", perPrivate: "／60分",
-    canFree: "初回のクラスは無料。アプリの初心者レッスンもためせます。",
-    canBeg: "週1回・90分の少人数クラス（4〜8人）。その言葉を話す人と実際に話します。",
-    canMid: "週2回・90分。いちばん早く話せるようになります。1回あたり₾25。",
-    canAdv: "1対1で、仕事・引っ越し・旅行など必要な場面だけを練習します。",
-    incFree: ["店でのクラス1回", "アプリのレッスン30分", "AI会話5回"],
-    incBeg: ["月4回のクラス（90分・4〜8人）", "アプリ使い放題：22レッスン・単語帳・AI会話", "通訳・写して訳す", "受講中は店の料理10%オフ"],
-    incMid: ["月8回のクラス（90分）", "月4回プランの内容すべて"],
+    canFree: "動いているクラスに1回無料で参加できます。まだクラスがないレベルは30分体験₾25（入会したら初月から引きます）。",
+    canBeg: "週1回・60分の少人数クラス（3〜8人）。その言葉を話す人と実際に話します。",
+    canMid: "週2回・60分。いちばん早く話せるようになります。1回あたり₾25。",
+    canAdv: "1対1で、仕事・引っ越し・旅行など必要な場面だけを練習します。月4回₾280。2人なら1人₾45。",
+    incFree: ["動いているクラスに1回参加", "アプリのレッスン30分", "AI会話5回"],
+    incBeg: ["月4回のクラス（60分・3〜8人）", "アプリ使い放題：22レッスン・単語帳・AI会話", "通訳・写して訳す", "受講中は店の料理10%オフ"],
+    incMid: ["月8回のクラス（60分）", "月4回プランの内容すべて"],
     incAdv: ["60分・マンツーマン", "練習したい場面を自由に", "受講中はアプリ使い放題"],
     ctaFree: "無料体験を予約", ctaPlan: "WhatsAppで申し込む",
     applyMsg: "こんにちは！Talk4の語学クラス「{p}」に申し込みたいです。",
     trialMsg: "こんにちは！無料体験のクラスを予約したいです。",
     h1: "<em>初日から</em>話せる。", lead: "日本語・英語・ロシア語・ジョージア語を、その言葉を話す人と実際に話して覚えます。トビリシのJapan Food Hubで少人数クラス、Google Meetでオンラインも。家では Talk4 アプリで、通訳・単語帳・AI会話がいつでも使えます。",
-    feeH: "クラス", f1a: "初回", f1b: "90分・無料で体験できます", f2a: "メンバー", f2b: "月4回 ₾120／月8回 ₾200", f3a: "オンライン", f3b: "Google Meetで参加。アプリはそれぞれ自分のスマホで使います",
+    feeH: "クラス", f1a: "体験", f1b: "動いているクラスに1回無料（30分体験は₾25）", f2a: "1人から始められる", f2b: "1人₾75 → 2人なら1人₾45 → 3人からグループ料金。友だちを誘うと安くなります", f3a: "オンライン", f3b: "Google Meetで参加。アプリはそれぞれ自分のスマホで使います",
     feeNote: "学びたい言葉を話す人とペアになり、半分ずつお互いの言葉で話します。話題・お手本の声・タイマー・★採点はアプリが進めるので、初めてでも迷いません。",
     howH: "はじめ方", st1: "WhatsAppで無料体験を予約する。", st2: "体験に来て、プランを選ぶ。", st3: "店か振込で支払うと、解除コードが届く。", st4: "クラスに来る（オンラインでも可）。家ではアプリで毎日練習する。",
     exH: "店でできること", x1a: "グループ通訳", x1b: "テーブルで無料のTalk4グループが使えます。4人まで、それぞれ自分の言葉で話せます。",
@@ -219,7 +219,7 @@ async function paint() {
     plan("free", "free", t.tagFree, t.free, `<b>₾0</b>${esc(t.priceFree)} · ${esc(t.priceFreeSub)}`, t.canFree, t.incFree, t.ctaFree, wa(t.trialMsg + (lang === "en" ? "" : "\n" + T.en.trialMsg)), true) +
     plan("beg", "", t.tagBeg, t.beg, from("₾120"), t.canBeg, t.incBeg, t.ctaPlan, wa(applyMsg("beg")), true) +
     plan("mid", "", t.tagMid, t.mid, from("₾200"), t.canMid, t.incMid, t.ctaPlan, wa(applyMsg("mid"))) +
-    plan("adv", "", t.tagAdv, t.adv, `<b>₾50</b>${esc(t.perPrivate || "/ 60 min")}`, t.canAdv, t.incAdv, t.ctaPlan, wa(applyMsg("adv")));
+    plan("adv", "", t.tagAdv, t.adv, `<b>₾75</b>${esc(t.perPrivate || "/ 60 min")}`, t.canAdv, t.incAdv, t.ctaPlan, wa(applyMsg("adv")));
   document.getElementById("waBtn").href = wa(t.trialMsg + (lang === "en" ? "" : "\n" + T.en.trialMsg));
 }
 paint();
