@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Talk4 Group</title>
+<meta name="theme-color" content="#111010">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+Georgian:wght@400;700&family=Noto+Sans:wght@400;700&display=swap">
+<script type="importmap">
+{"imports":{"onnxruntime-web":"https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/esm/ort.min.js"}}
+</script>
+<style>
+/* One phone in the middle of the table: conversation log on top, one big button per person at the bottom */
+:root{
+  --bg:#111010; --panel:#1c1a18; --panel2:#24211e; --fg:#f4efe6; --muted:#a39d90; --line:#33302b;
+  --gold:#d8ae55; --red:#d8443a; --ok:#5fb37a;
+  --p0:#d8ae55; --p1:#5fa8e8; --p2:#e0705f; --p3:#6cc08b;
+  --font:"Noto Sans JP","Noto Sans Georgian","Noto Sans",system-ui,sans-serif;
+  --display:Oswald,"Noto Sans JP","Noto Sans Georgian",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);display:flex;flex-direction:column;overflow:hidden;
+  padding:env(safe-area-inset-top,0px) max(12px,env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) max(12px,env(safe-area-inset-left,0px));-webkit-tap-highlight-color:transparent}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer;touch-action:manipulation}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.top{display:flex;align-items:center;gap:8px;padding-block:10px;flex-wrap:wrap}
+.brand{font-family:var(--display);font-weight:700;letter-spacing:.06em;font-size:18px;margin-right:auto;display:flex;gap:10px;align-items:baseline}
+.brand b{color:var(--gold)}
+.brand a{font-family:var(--font);font-weight:400;font-size:13px;color:var(--muted)}
+.tool{border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:8px 10px;font-size:13px}
+.st{font-size:12px;color:var(--muted);min-height:16px;text-align:center}
+.log{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-block:6px}
+.empty{margin:auto;text-align:center;color:var(--muted);font-size:16px;line-height:1.7;max-width:420px}
+.msg{background:var(--panel);border:1px solid var(--line);border-left-width:6px;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.msg .who{font-size:12px;letter-spacing:.06em;font-weight:700}
+.msg .orig{font-size:15px;color:var(--muted);overflow-wrap:anywhere}
+.msg .tr{display:flex;flex-direction:column;gap:1px;border-top:1px dashed var(--line);padding-top:6px}
+.msg .tr .l{font-size:11px;color:var(--muted);letter-spacing:.06em}
+.msg .tr .t{font-size:clamp(18px,4.6vw,26px);font-weight:700;overflow-wrap:anywhere}
+.msg .tr .r{font-size:14px;color:var(--gold);overflow-wrap:anywhere}
+.msg.last .tr .t{font-size:clamp(22px,6vw,34px)}
+.msg button.mini{align-self:flex-end;border:1px solid var(--line);background:var(--panel2);border-radius:999px;width:38px;height:38px}
+.people{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding-block:8px}
+.people.n1{grid-template-columns:minmax(0,1fr)}
+.pb{border:none;border-radius:16px;padding:14px 10px;font-weight:700;font-size:17px;color:#16120a;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:68px}
+.pb small{font-weight:400;font-size:12px;opacity:.85}
+.pb.on{animation:pulse 1s infinite;outline:3px solid #fff}
+@keyframes pulse{50%{opacity:.6}}
+@media (prefers-reduced-motion:reduce){.pb.on,.auto.on{animation:none}}
+.auto{border:2px solid var(--gold);background:#211c12;color:var(--gold);border-radius:16px;padding:12px;font-weight:700;font-size:16px;width:100%}
+.auto.on{animation:pulse 1s infinite}
+.typer{display:flex;gap:8px;padding-bottom:8px}
+.typer input{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:16px}
+.typer button{border:none;background:var(--gold);color:#1a1307;border-radius:12px;padding:0 16px;font-weight:700}
+.setup{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
+.setup .box{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:18px;width:100%;max-width:460px;display:flex;flex-direction:column;gap:12px;max-height:92vh;overflow-y:auto}
+.setup h2{margin:0;font-size:18px}
+.setup .row{display:flex;gap:8px;align-items:center}
+.setup .dot{width:14px;height:14px;border-radius:50%;flex:none}
+.setup input,.setup select{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:15px;min-width:0}
+.setup input{flex:1}
+.setup .x{border:1px solid var(--line);background:none;border-radius:10px;width:40px;height:40px}
+.setup .btns{display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap}
+.setup .main{background:var(--gold);color:#1a1307;border:none;border-radius:999px;padding:12px 22px;font-weight:700}
+.setup .sub{border:1px solid var(--line);background:var(--panel2);border-radius:999px;padding:12px 18px}
+.setup label.ck{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--muted)}
+.hint{font-size:13px;color:var(--muted);line-height:1.6}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">TALK4 <b>GROUP</b> <a href="./">← Talk4</a></div>
+  <button class="tool" id="kbBtn" aria-label="keyboard">⌨</button>
+  <button class="tool" id="spkBtn"></button>
+  <button class="tool" id="clearBtn" aria-label="clear">🗑</button>
+  <button class="tool" id="setBtn">👥</button>
+</header>
+<div class="st" id="status"></div>
+<main class="log" id="log"></main>
+<div class="typer" id="typer" hidden><input id="tin" enterkeyhint="send" autocomplete="off"><button id="tsend">→</button></div>
+<button class="auto" id="autoBtn" hidden></button>
+<nav class="people" id="people"></nav>
+
+<div class="setup" id="setup" hidden>
+  <div class="box">
+    <h2 id="setTitle"></h2>
+    <div class="hint" id="setHint"></div>
+    <div id="rows" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div class="btns"><button class="sub" id="addBtn"></button><button class="main" id="doneBtn"></button></div>
+  </div>
+</div>
+
+<script type="module">
+let AI = { key: "", model: "" };
+try { AI = { ...AI, ...(await import("./config.js?v=" + Date.now())).AI }; } catch {}
+
+const LANG = {
+  ja:{name:"日本語", g:"ja", sr:"ja-JP", tts:null,                    talk:"🎤 押して話す",     wait:"相手の言葉の訳がここに出ます", hold:"聞いています…"},
+  en:{name:"English",g:"en", sr:"en-US", tts:"en_US-hfc_female-medium",talk:"🎤 Tap to speak",   wait:"Translation will appear here",   hold:"Listening…"},
+  ka:{name:"ქართული",g:"ka", sr:"ka-GE", tts:"ka_GE-natia-medium",    talk:"🎤 დააჭირე და ილაპარაკე", wait:"თარგმანი აქ გამოჩნდება", hold:"გისმენთ…"},
+  ru:{name:"Русский",g:"ru", sr:"ru-RU", tts:"ru_RU-irina-medium",    talk:"🎤 Нажмите и говорите", wait:"Перевод появится здесь", hold:"Слушаю…"},
+  ko:{name:"한국어", g:"ko", sr:"ko-KR", tts:null,                    talk:"🎤 눌러서 말하기", wait:"번역이 여기에 나옵니다", hold:"듣고 있어요…"},
+  zh:{name:"中文",   g:"zh-CN", sr:"zh-CN", tts:"zh_CN-huayan-medium", talk:"🎤 点击说话", wait:"翻译会显示在这里", hold:"正在听…"},
+};
+const $ = id => document.getElementById(id);
+const st = (t) => { $("status").textContent = t; };
+
+/* ---------- Translation (free) ---------- */
+// Georgian → Latin (national romanization), used when the free service gives none
+const KA = {"ა":"a","ბ":"b","გ":"g","დ":"d","ე":"e","ვ":"v","ზ":"z","თ":"t","ი":"i","კ":"k'","ლ":"l","მ":"m","ნ":"n","ო":"o","პ":"p'","ჟ":"zh","რ":"r","ს":"s","ტ":"t'","უ":"u","ფ":"p","ქ":"k","ღ":"gh","ყ":"q'","შ":"sh","ჩ":"ch","ც":"ts","ძ":"dz","წ":"ts'","ჭ":"ch'","ხ":"kh","ჯ":"j","ჰ":"h"};
+const kaRoman = t => [...t].map(c => KA[c] ?? c).join("");
+function romFor(text, lang, given) {
+  if (lang === "en") return "";
+  if (given) return given;
+  if (lang === "ka") return kaRoman(text);
+  return "";
+}
+// Shop words: always translated the same way. Each is swapped for a code before translating
+// (the free translator leaves codes like ZQX1 alone) and swapped back afterwards.
+const GLOSS = [
+  { ja:"オムライスランド", en:"Omurice Land", ka:"ომურაისლენდ", kaStem:"ომურაისლენდ", ru:"Омурайс Лэнд", ko:"오므라이스 랜드", zh:"蛋包饭乐园",
+    rom:{ ja:"Omuraisu Rando", ka:"omuraislend", ru:"Omurays Lend", ko:"omeulaiseu laendeu", zh:"Dànbāofàn Lèyuán" },
+    alt:["omurice land","omelet land","omelette land","オムレットランド"] },
+  { ja:"オムライス", en:"Omurice", ka:"ომურაისი", kaStem:"ომურაის", ru:"омурайс", ko:"오므라이스", zh:"蛋包饭",
+    rom:{ ja:"omuraisu", ka:"omuraisi", ru:"omurays", ko:"omeulaiseu", zh:"dànbāofàn" },
+    alt:["omurice","omu rice","omelet rice","omelette rice","ომურაის","омурайс","омурис","омурайса","омурайсом"] },
+];
+const esc = x => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function protect(text) {
+  GLOSS.forEach((g, i) => {
+    const forms = [...new Set([g.ja, g.en, g.ka, g.ru, g.ko, g.zh, ...g.alt])].sort((a, b) => b.length - a.length);
+    text = text.replace(new RegExp(forms.map(esc).join("|"), "gi"), ` ZQX${i + 1} `);
+  });
+  return text.replace(/ +/g, " ").trim();
+}
+const batchim = ch => { const c = ch.charCodeAt(0) - 0xAC00; return c >= 0 && c < 11172 && c % 28 !== 0; };
+const KO_P = { "은":"는","는":"는","이":"가","가":"가","을":"를","를":"를" }, KO_P2 = { "은":"은","는":"은","이":"이","가":"이","을":"을","를":"을" };
+function restore(out, lang) {
+  if (lang === "ko") out = out.replace(/ZQX(\d)\s?(은|는|이|가|을|를)?/g, (m, d, p) => {
+    const w = GLOSS[d - 1].ko; return p ? w + (batchim(w.at(-1)) ? KO_P2[p] : KO_P[p]) : w; });
+  // Georgian puts case endings on the code ("ZQX2-ის"): join them to the word's stem
+  if (lang === "ka") out = out.replace(/ZQX(\d)-?([ა-ჰ]{1,4})?(?![ა-ჰ])/g, (m, d, suf) => suf ? GLOSS[d - 1].kaStem + suf : GLOSS[d - 1].ka);
+  out = out.replace(/ZQX(\d)/gi, (m, d) => GLOSS[d - 1][lang]).replace(/ +([。、，．！？])/g, "$1");
+  if (lang === "zh" || lang === "ja") out = out.replace(/([。、，！？\u3040-\u30ff\u4e00-\u9fff]) +/g, "$1").replace(/ +([\u3040-\u30ff\u4e00-\u9fff])/g, "$1");
+  return lang === "ru" ? out.replace(/(^|[.!?]\s+)([а-яё])/g, (m, a, c) => a + c.toUpperCase()) : out;
+}
+const restoreRom = (r, lang) => r && r.replace(/zqx\s?(\d)/gi, (m, d) => GLOSS[d - 1].rom[lang] || GLOSS[d - 1].en);
+async function translate(text, from, to) {
+  const res = await translateRaw(protect(text), from, to);
+  return { text: restore(res.text, to), rom: restoreRom(res.rom, to), srcRom: restoreRom(res.srcRom, from) };
+}
+async function translateRaw(text, from, to) {
+  const sl = LANG[from].g, tl = LANG[to].g;
+  try {
+    const u = `https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&dt=rm&sl=${sl}&tl=${tl}&q=${encodeURIComponent(text)}`;
+    const r = await fetch(u); if (!r.ok) throw 0;
+    const j = await r.json();
+    const parts = j[0].filter(x => x[0] != null);
+    const romRow = j[0].find(x => x[0] == null) || [];
+    const out = parts.map(x => x[0]).join("");
+    if (out) return { text: out, rom: romFor(out, to, romRow[2]), srcRom: romFor(text, from, romRow[3]) };
+  } catch {}
+  const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sl}|${tl}`);
+  const j = await r.json(); const out = j.responseData.translatedText;
+  return { text: out, rom: romFor(out, to), srcRom: romFor(text, from) };
+}
+
+/* ---------- Speech output (free) ---------- */
+// Offline neural voices (Piper, MIT). Stored with the Cache API (works on iPhone Safari too),
+// kept loaded in memory, and played through an AudioContext unlocked on the first tap.
+const HF = "https://huggingface.co/diffusionstudio/piper-voices/resolve/main/";
+const VPATH = {
+  "ka_GE-natia-medium": "ka/ka_GE/natia/medium/ka_GE-natia-medium.onnx",
+  "ru_RU-irina-medium": "ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx",
+  "en_US-hfc_female-medium": "en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx",
+  "zh_CN-huayan-medium": "zh/zh_CN/huayan/medium/zh_CN-huayan-medium.onnx",
+  "en_US-hfc_male-medium": "en/en_US/hfc_male/medium/en_US-hfc_male-medium.onnx",
+  "ru_RU-dmitri-medium": "ru/ru_RU/dmitri/medium/ru_RU-dmitri-medium.onnx",
+};
+// Male voices where a free one exists; otherwise the normal voice (lowering it made speech sound broken)
+const MALE = { en: "en_US-hfc_male-medium", ru: "ru_RU-dmitri-medium" };
+const isMale = v => /(?:^|[^e])male|otoya|hattori|ichiro|daniel|aaron|alex\b|fred|arthur|gordon|rishi|reed|eddy|rocko|grandpa|ralph|albert|bruce|junior|yuri|xander|li-mu|yu-shu|injoon|eric|thomas|dmitri|pavel/i.test(v.name);
+const PHON = "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize";
+let ort = null, phonMod = null, actx = null, unlocked = false, playing = null;
+const sessions = {}, configs = {};
+
+function nativeVoices(lang) {
+  const vs = speechSynthesis?.getVoices?.() || [];
+  const l = v => (v.lang || "").toLowerCase().replace("_", "-");
+  const list = vs.filter(v => l(v).startsWith(lang));
+  return lang === "zh" ? list.sort((a, b) => (l(b) === "zh-cn") - (l(a) === "zh-cn")) : list;
+}
+function nativeVoice(lang) { return nativeVoices(lang)[0]; }
+// How to say something in this language with this gender: a phone voice, or a downloaded one
+function voicePlan(lang, g) {
+  const vs = nativeVoices(lang);
+  if (g === "m") {
+    const m = vs.find(isMale); if (m) return { nv: m, pitch: 1 };
+    if (MALE[lang]) return { id: MALE[lang], rate: 1 };
+    if (vs.length) return { nv: vs[0], pitch: 0.85 };
+    if (LANG[lang].tts) return { id: LANG[lang].tts, rate: 1 };
+    return { nv: null, pitch: 0.85 };
+  }
+  const f = vs.find(v => !isMale(v)) || vs[0];
+  if (f) return { nv: f, pitch: isMale(f) ? 1.4 : 1 };
+  if (LANG[lang].tts) return { id: LANG[lang].tts, rate: 1 };
+  return { nv: null, pitch: 1 };
+}
+async function cachedFetch(url, onProgress) {
+  let cache = null;
+  try { cache = await caches.open("talk4-voices"); const hit = await cache.match(url); if (hit) return await hit.arrayBuffer(); } catch {}
+  const res = await fetch(url); if (!res.ok) throw new Error("download " + res.status);
+  const total = +(res.headers.get("Content-Length") || 0); const reader = res.body.getReader(); const parts = []; let got = 0;
+  for (;;) { const { done, value } = await reader.read(); if (done) break; parts.push(value); got += value.length; if (total && onProgress) onProgress(got / total); }
+  const blob = new Blob(parts);
+  try { if (cache) await cache.put(url, new Response(blob)); } catch {}
+  return await blob.arrayBuffer();
+}
+async function loadVoice(id, onProgress) {
+  if (sessions[id]) return sessions[id];
+  ort ??= await import("onnxruntime-web");
+  ort.env.wasm.wasmPaths = "https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.18.0/";
+  ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
+  const cfgBuf = await cachedFetch(HF + VPATH[id] + ".json");
+  configs[id] = JSON.parse(new TextDecoder().decode(cfgBuf));
+  const model = await cachedFetch(HF + VPATH[id], onProgress);
+  sessions[id] = await ort.InferenceSession.create(model);
+  return sessions[id];
+}
+async function phonemize(text, espeakVoice) {
+  phonMod ??= (await import("https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/dist/piper-DeOu3H9E.js")).createPiperPhonemize;
+  return new Promise(async (resolve, reject) => {
+    try {
+      (await phonMod({
+        print: l => resolve(JSON.parse(l).phoneme_ids),
+        printErr: () => {},
+        locateFile: f => f.endsWith(".wasm") ? PHON + ".wasm" : f.endsWith(".data") ? PHON + ".data" : f,
+      })).callMain(["-l", espeakVoice, "--input", JSON.stringify([{ text }]), "--espeak_data", "/espeak-ng-data"]);
+    } catch (e) { reject(e); }
+  });
+}
+async function synth(text, id) {
+  const sess = await loadVoice(id), cfg = configs[id];
+  const ids = await phonemize(text, cfg.espeak.voice);
+  const feeds = {
+    input: new ort.Tensor("int64", BigInt64Array.from(ids.map(BigInt)), [1, ids.length]),
+    input_lengths: new ort.Tensor("int64", BigInt64Array.from([BigInt(ids.length)])),
+    scales: new ort.Tensor("float32", Float32Array.from([cfg.inference.noise_scale, cfg.inference.length_scale, cfg.inference.noise_w])),
+  };
+  if (Object.keys(cfg.speaker_id_map || {}).length) feeds.sid = new ort.Tensor("int64", BigInt64Array.from([0n]));
+  const out = await sess.run(feeds);
+  return { pcm: out.output.data, rate: cfg.audio.sample_rate };
+}
+function unlockAudio() {
+  // Must run inside a tap: lets the phone play sound later, after translation finishes
+  try { actx ??= new (window.AudioContext || window.webkitAudioContext)(); if (actx.state !== "running") actx.resume();
+    const b = actx.createBuffer(1, 1, 22050), s = actx.createBufferSource(); s.buffer = b; s.connect(actx.destination); s.start(0); } catch {}
+  if (!unlocked) { unlocked = true; try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch {} }
+}
+function playPCM(pcm, rate, speed = 1) {
+  if (!actx) unlockAudio();
+  if (actx.state !== "running") actx.resume();
+  try { playing?.stop(); } catch {}
+  const buf = actx.createBuffer(1, pcm.length, rate); buf.copyToChannel(pcm instanceof Float32Array ? pcm : Float32Array.from(pcm), 0);
+  const s = actx.createBufferSource(); s.buffer = buf; s.playbackRate.value = speed; s.connect(actx.destination); s.start(0); playing = s;
+}
+
+
+/* ---------- Screen words ---------- */
+const UI = {
+  ja: { title: "参加する人", hint: "2〜4人まで。名前（なくてもOK）と、その人が話す言葉を選んでください。話すときは自分のボタンを押します。", add: "＋ 人を追加", done: "はじめる",
+        name: "名前", empty: "自分のボタンを押して話すと、ほかの全員の言葉に訳されて読み上げられます。", auto: "🎙 自動で聞き分ける（だれが話してもOK）", autoOn: "■ 聞いています…（もう一度押すと終わる）",
+        speakOn: "🔊 自動 ON", speakOff: "🔊 自動 OFF", typePh: "文字で入力（言語は自動で判定）", detected: "判定", noSr: "このブラウザは音声入力に未対応です。⌨で入力してください", micErr: "マイクが使えませんでした。もう一度押してください",
+        listening: "聞いています…", translating: "訳しています…", ready: "✓ OK", aiErr: "言葉を聞き分けられませんでした。自分のボタンで話してください" },
+  en: { title: "Who's talking?", hint: "Up to 4 people. Add a name (optional) and the language each person speaks. Press your own button when you talk.", add: "+ Add person", done: "Start",
+        name: "Name", empty: "Press your button and speak. Everyone else sees and hears it in their own language.", auto: "🎙 Auto-detect (anyone can speak)", autoOn: "■ Listening… (press again to stop)",
+        speakOn: "🔊 Auto ON", speakOff: "🔊 Auto OFF", typePh: "Type (language detected automatically)", detected: "detected", noSr: "Voice input isn't supported here. Use ⌨ to type", micErr: "The microphone didn't start. Press again",
+        listening: "Listening…", translating: "Translating…", ready: "✓ OK", aiErr: "Couldn't tell the language. Please use your own button" },
+};
+const pickLang = c => { c = (c || "").toLowerCase(); return c.startsWith("zh") ? "zh" : LANG[c.slice(0, 2)] ? c.slice(0, 2) : null; };
+const uiLang = (navigator.languages || [navigator.language]).map(pickLang).find(Boolean) === "ja" ? "ja" : "en";
+const ui = UI[uiLang];
+
+/* ---------- People ---------- */
+const COLORS = ["var(--p0)", "var(--p1)", "var(--p2)", "var(--p3)"];
+let people = [{ name: "", lang: "ja" }, { name: "", lang: "ka" }], autoSpeak = true, log = [];
+try { const s = JSON.parse(localStorage.getItem("t4g") || "null"); if (s?.people?.length) people = s.people.filter(p => LANG[p.lang]).slice(0, 4); if (typeof s?.autoSpeak === "boolean") autoSpeak = s.autoSpeak; } catch {}
+const save = () => { try { localStorage.setItem("t4g", JSON.stringify({ people, autoSpeak })); } catch {} };
+const label = (p, i) => p.name?.trim() || `${i + 1}`;
+const langsInRoom = () => [...new Set(people.map(p => p.lang))];
+
+function paintSetup() {
+  $("setTitle").textContent = ui.title; $("setHint").textContent = ui.hint; $("addBtn").textContent = ui.add; $("doneBtn").textContent = ui.done;
+  $("addBtn").hidden = people.length >= 4;
+  const rows = $("rows"); rows.replaceChildren();
+  people.forEach((p, i) => {
+    const sel = document.createElement("select"); sel.id = `pl${i}`; sel.setAttribute("aria-label", "language");
+    for (const k in LANG) sel.add(new Option(LANG[k].name, k)); sel.value = p.lang; sel.onchange = () => { p.lang = sel.value; };
+    const inp = document.createElement("input"); inp.id = `pn${i}`; inp.placeholder = `${ui.name} ${i + 1}`; inp.value = p.name || ""; inp.oninput = () => { p.name = inp.value; };
+    const dot = document.createElement("span"); dot.className = "dot"; dot.style.background = COLORS[i];
+    const x = document.createElement("button"); x.className = "x"; x.textContent = "✕"; x.setAttribute("aria-label", "remove"); x.hidden = people.length <= 2;
+    x.onclick = () => { people.splice(i, 1); paintSetup(); };
+    const row = document.createElement("div"); row.className = "row"; row.append(dot, inp, sel, x); rows.append(row);
+  });
+}
+$("addBtn").onclick = () => { if (people.length < 4) { people.push({ name: "", lang: ["en", "ru", "ko", "zh", "ja", "ka"].find(l => !people.some(p => p.lang === l)) || "en" }); paintSetup(); } };
+$("doneBtn").onclick = () => { unlockAudio(); save(); $("setup").hidden = true; paint(); warmAll(); };
+$("setBtn").onclick = () => { paintSetup(); $("setup").hidden = false; };
+
+/* ---------- Main screen ---------- */
+function paint() {
+  $("spkBtn").textContent = autoSpeak ? ui.speakOn : ui.speakOff;
+  $("tin").placeholder = ui.typePh;
+  const nav = $("people"); nav.replaceChildren(); nav.className = "people" + (people.length === 1 ? " n1" : "");
+  people.forEach((p, i) => {
+    const b = document.createElement("button"); b.className = "pb"; b.id = `pb${i}`; b.style.background = COLORS[i];
+    b.innerHTML = `<span></span><small></small>`; b.firstChild.textContent = `🎤 ${label(p, i)}`; b.lastChild.textContent = LANG[p.lang].name;
+    b.onclick = () => { unlockAudio(); listenFor(i); };
+    nav.append(b);
+  });
+  $("autoBtn").hidden = !AI.key; $("autoBtn").textContent = ui.auto;
+  paintLog();
+}
+function paintLog() {
+  const box = $("log"); box.replaceChildren();
+  if (!log.length) { const e = document.createElement("div"); e.className = "empty"; e.textContent = ui.empty; box.append(e); return; }
+  log.forEach((m, k) => {
+    const el = document.createElement("div"); el.className = "msg" + (k === log.length - 1 ? " last" : ""); el.style.borderLeftColor = m.color;
+    const who = document.createElement("div"); who.className = "who"; who.style.color = m.color; who.textContent = `${m.who} · ${LANG[m.lang].name}${m.detected ? " (" + ui.detected + ")" : ""}`;
+    const orig = document.createElement("div"); orig.className = "orig"; orig.lang = m.lang; orig.textContent = m.text;
+    el.append(who, orig);
+    for (const t of m.out) {
+      const d = document.createElement("div"); d.className = "tr";
+      const l = document.createElement("span"); l.className = "l"; l.textContent = LANG[t.lang].name;
+      const tt = document.createElement("span"); tt.className = "t"; tt.lang = t.lang; tt.textContent = t.text ?? "…";
+      d.append(l, tt);
+      if (t.rom) { const r = document.createElement("span"); r.className = "r"; r.textContent = t.rom; d.append(r); }
+      el.append(d);
+    }
+    const again = document.createElement("button"); again.className = "mini"; again.textContent = "▶"; again.setAttribute("aria-label", "replay");
+    again.onclick = () => { unlockAudio(); readOut(m); };
+    el.append(again);
+    box.append(el);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+$("spkBtn").onclick = () => { autoSpeak = !autoSpeak; save(); paint(); };
+$("clearBtn").onclick = () => { log = []; paintLog(); };
+$("kbBtn").onclick = () => { $("typer").hidden = !$("typer").hidden; if (!$("typer").hidden) $("tin").focus(); };
+
+/* ---------- Speak a result out loud, one language after another ---------- */
+let readRun = 0;
+function sayAndWait(text, lang) {
+  return new Promise(async done => {
+    const plan = voicePlan(lang, "f");
+    if (!plan.id) {
+      const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.pitch = plan.pitch;
+      u.onend = u.onerror = () => done(); speechSynthesis.speak(u); setTimeout(done, 2000 + text.length * 220); return;
+    }
+    try { const { pcm, rate } = await synth(text, plan.id); playPCM(pcm, rate, plan.rate); playing.onended = () => done(); setTimeout(done, pcm.length / rate * 1000 + 500); }
+    catch { done(); }
+  });
+}
+async function readOut(m) {
+  const my = ++readRun; speechSynthesis?.cancel?.(); try { playing?.stop(); } catch {}
+  for (const t of m.out) { if (my !== readRun || !t.text) return; await sayAndWait(t.text, t.lang); await new Promise(r => setTimeout(r, 250)); }
+}
+function stopReading() { readRun++; try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} }
+
+/* ---------- One utterance → every other language in the room ---------- */
+async function addUtterance(text, lang, who, color, detected) {
+  text = text.trim(); if (!text) return;
+  const targets = langsInRoom().filter(l => l !== lang);
+  const m = { text, lang, who, color, detected, out: targets.map(l => ({ lang: l, text: null })) };
+  log.push(m); if (log.length > 60) log.shift(); paintLog(); st(ui.translating);
+  await Promise.all(m.out.map(async t => { try { const r = await translate(text, lang, t.lang); t.text = r.text; t.rom = r.rom; } catch { t.text = "⚠"; } }));
+  paintLog(); st(ui.ready);
+  if (autoSpeak) readOut(m);
+}
+
+/* ---------- Per-person microphone ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, recIdx = -1, recFinish = null;
+function listenFor(i) {
+  if (rec) { const was = recIdx; stopRec(); if (was === i) return; }
+  if (recording) stopAuto();
+  if (!SR) { st(ui.noSr); $("typer").hidden = false; return; }
+  stopReading();
+  const p = people[i], btn = $(`pb${i}`);
+  let done = "", interim = "", finished = false, quiet = null, stopWanted = false, restarts = 0;
+  recIdx = i; btn.classList.add("on"); st(`${label(p, i)}: ${ui.listening}`);
+  const finish = () => {
+    if (finished) return; finished = true; clearTimeout(quiet); const r = rec; rec = null; recIdx = -1; recFinish = null; try { r?.abort(); } catch {}
+    btn.classList.remove("on"); const t = (done + " " + interim).trim();
+    if (t) addUtterance(t, p.lang, label(p, i), COLORS[i], false); else st("");
+  };
+  recFinish = () => { stopWanted = true; try { rec?.stop(); } catch {} setTimeout(finish, 1500); };
+  const bump = () => { clearTimeout(quiet); quiet = setTimeout(() => recFinish?.(), 3500); };
+  const begin = () => {
+    const r = new SR(); rec = r; r.lang = LANG[p.lang].sr; r.interimResults = true; r.continuous = true;
+    r.onresult = e => { let fin = "", tmp = ""; for (let k = e.resultIndex; k < e.results.length; k++) { const x = e.results[k]; if (x.isFinal) fin += x[0].transcript; else tmp += x[0].transcript; }
+      if (fin) done = (done + " " + fin).trim(); interim = tmp; st(`${label(p, i)}: ${(done + " " + interim).trim()}`); bump(); };
+    r.onerror = e => { if (e.error === "no-speech" || e.error === "aborted") return; stopWanted = true; st(ui.micErr + " (" + e.error + ")"); };
+    r.onend = () => { if (rec !== r) return; if (interim) { done = (done + " " + interim).trim(); interim = ""; } if (stopWanted || ++restarts > 40) finish(); else { try { begin(); } catch { finish(); } } };
+    r.start();
+  };
+  bump(); setTimeout(() => recFinish?.(), 120000);
+  try { begin(); } catch { finish(); }
+}
+function stopRec() { recFinish?.(); }
+
+/* ---------- Typed text: language detected automatically ---------- */
+async function detectAndTranslate(text) {
+  let lang = null;
+  try { const j = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=auto&tl=en&q=${encodeURIComponent(text)}`).then(r => r.json()); lang = pickLang(j[2]); } catch {}
+  const i = people.findIndex(p => p.lang === lang);
+  if (!lang) lang = people[0].lang;
+  addUtterance(text, lang, i >= 0 ? label(people[i], i) : "?", i >= 0 ? COLORS[i] : "var(--muted)", true);
+}
+$("tsend").onclick = () => { unlockAudio(); const v = $("tin").value; $("tin").value = ""; if (v.trim()) detectAndTranslate(v); };
+$("tin").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) $("tsend").click(); });
+
+/* ---------- Auto mode (needs the AI key): record, let the AI tell which language it was ---------- */
+let recording = null;
+async function startAuto() {
+  if (rec) stopRec(); stopReading();
+  let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); } catch { st(ui.micErr); return; }
+  const ctx = new (window.AudioContext || window.webkitAudioContext)(), src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1);
+  const chunks = []; let heard = false, lastLoud = Date.now(); const t0 = Date.now();
+  proc.onaudioprocess = e => {
+    const d = e.inputBuffer.getChannelData(0); chunks.push(new Float32Array(d));
+    let s = 0; for (let k = 0; k < d.length; k += 8) s += d[k] * d[k]; const rms = Math.sqrt(s / (d.length / 8));
+    if (rms > 0.02) { heard = true; lastLoud = Date.now(); }
+    if ((heard && Date.now() - lastLoud > 1800) || Date.now() - t0 > 30000) stopAuto();
+  };
+  src.connect(proc); proc.connect(ctx.destination);
+  recording = { stream, ctx, proc, chunks, rate: ctx.sampleRate };
+  $("autoBtn").classList.add("on"); $("autoBtn").textContent = ui.autoOn; st(ui.listening);
+}
+function toWav(chunks, rate) {
+  const target = 16000, len = chunks.reduce((a, c) => a + c.length, 0), ratio = rate / target, n = Math.floor(len / ratio);
+  const all = new Float32Array(len); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
+  const buf = new DataView(new ArrayBuffer(44 + n * 2)), w = (p, s) => [...s].forEach((ch, k) => buf.setUint8(p + k, ch.charCodeAt(0)));
+  w(0, "RIFF"); buf.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt "); buf.setUint32(16, 16, true); buf.setUint16(20, 1, true); buf.setUint16(22, 1, true);
+  buf.setUint32(24, target, true); buf.setUint32(28, target * 2, true); buf.setUint16(32, 2, true); buf.setUint16(34, 16, true); w(36, "data"); buf.setUint32(40, n * 2, true);
+  for (let k = 0; k < n; k++) { const v = Math.max(-1, Math.min(1, all[Math.floor(k * ratio)])); buf.setInt16(44 + k * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true); }
+  let bin = ""; const u8 = new Uint8Array(buf.buffer); for (let k = 0; k < u8.length; k += 0x8000) bin += String.fromCharCode(...u8.subarray(k, k + 0x8000));
+  return btoa(bin);
+}
+let aiModel = AI.model || null;
+async function pickModel() {
+  if (aiModel) return aiModel;
+  const j = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${encodeURIComponent(AI.key)}`).then(r => r.json());
+  const ok = (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
+    .map(m => m.name.replace("models/", "")).filter(n => /flash/.test(n) && !/(lite|image|tts|audio|live|thinking|exp|8b|embedding)/.test(n));
+  const ver = n => parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/) || [0, 0])[1]);
+  ok.sort((a, b) => (/preview/.test(a) - /preview/.test(b)) || ver(b) - ver(a) || a.length - b.length);
+  return (aiModel = ok[0] || "gemini-2.5-flash");
+}
+async function stopAuto() {
+  const R = recording; if (!R) return; recording = null;
+  try { R.proc.disconnect(); R.stream.getTracks().forEach(t => t.stop()); R.ctx.close(); } catch {}
+  $("autoBtn").classList.remove("on"); $("autoBtn").textContent = ui.auto;
+  if (R.chunks.length < 4) { st(""); return; }
+  st(ui.translating);
+  try {
+    const langs = langsInRoom();
+    const body = { contents: [{ role: "user", parts: [
+      { inline_data: { mime_type: "audio/wav", data: toWav(R.chunks, R.rate) } },
+      { text: `Transcribe this speech. The speaker uses one of these languages: ${langs.map(l => `${l} (${LANG[l].name})`).join(", ")}. Answer as JSON {"lang": one of [${langs.map(l => `"${l}"`).join(",")}], "text": "exact transcript in that language"}. If there is no speech, answer {"lang":"","text":""}.` }] }],
+      generationConfig: { responseMimeType: "application/json", temperature: 0 } };
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${await pickModel()}:generateContent?key=${encodeURIComponent(AI.key)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error?.message || r.status);
+    const out = JSON.parse((j.candidates?.[0]?.content?.parts || []).map(p => p.text).join("") || "{}");
+    if (!out.text || !LANG[out.lang]) { st(""); return; }
+    const i = people.findIndex(p => p.lang === out.lang);
+    addUtterance(out.text, out.lang, i >= 0 ? label(people[i], i) : "?", i >= 0 ? COLORS[i] : "var(--muted)", true);
+  } catch (e) { st(ui.aiErr + " (" + (e.message || e) + ")"); }
+}
+$("autoBtn").onclick = () => { unlockAudio(); recording ? stopAuto() : startAuto(); };
+
+/* ---------- Voices for every language in the room ---------- */
+async function warmAll() {
+  for (const lang of langsInRoom()) {
+    const id = voicePlan(lang, "f").id; if (!id || sessions[id]) continue;
+    try { await loadVoice(id, p => st(`🔊 ${LANG[lang].name} ${Math.round(p * 100)}%`)); await synth("a", id); } catch { st(`⚠ ${LANG[lang].name}`); return; }
+  }
+  st(ui.ready);
+}
+
+document.addEventListener("pointerdown", unlockAudio, { passive: true });
+try { navigator.wakeLock?.request("screen").catch(() => {}); } catch {}
+paint();
+let first = true; try { first = !localStorage.getItem("t4g"); } catch {}
+if (first) { paintSetup(); $("setup").hidden = false; } else warmAll();
+</script>
+</body>
+</html>
