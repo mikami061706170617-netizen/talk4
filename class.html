@@ -403,18 +403,32 @@ async function synth(text, id) {
   const out = await sess.run(feeds);
   return { pcm: out.output.data, rate: cfg.audio.sample_rate };
 }
+// Downloaded voices play through one shared <audio> element. Phones (iPhone especially) keep an
+// element working after the microphone has been used, where Web Audio often stays silent.
+const player = new Audio(); player.preload = "auto"; player.setAttribute("playsinline", "");
+player.stop = () => { try { player.pause(); player.currentTime = 0; } catch {} };
+const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 function unlockAudio() {
   // Must run inside a tap: lets the phone play sound later, after translation finishes
-  try { actx ??= new (window.AudioContext || window.webkitAudioContext)(); if (actx.state !== "running") actx.resume();
-    const b = actx.createBuffer(1, 1, 22050), s = actx.createBufferSource(); s.buffer = b; s.connect(actx.destination); s.start(0); } catch {}
+  if (!player.src || player.src === SILENT) { try { player.src = SILENT; player.play().catch(() => {}); } catch {} }
   if (!unlocked) { unlocked = true; try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch {} }
 }
+function wavBlob(pcm, rate) {
+  const n = pcm.length, dv = new DataView(new ArrayBuffer(44 + n * 2)), w = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, "RIFF"); dv.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, rate, true); dv.setUint32(28, rate * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, "data"); dv.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, pcm[i])); dv.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true); }
+  return new Blob([dv.buffer], { type: "audio/wav" });
+}
+let lastUrl = null;
 function playPCM(pcm, rate, speed = 1) {
-  if (!actx) unlockAudio();
-  if (actx.state !== "running") actx.resume();
-  try { playing?.stop(); } catch {}
-  const buf = actx.createBuffer(1, pcm.length, rate); buf.copyToChannel(pcm instanceof Float32Array ? pcm : Float32Array.from(pcm), 0);
-  const s = actx.createBufferSource(); s.buffer = buf; s.playbackRate.value = speed; s.connect(actx.destination); s.start(0); playing = s;
+  try { speechSynthesis.cancel(); } catch {}
+  player.stop(); player.onended = null;
+  if (lastUrl) URL.revokeObjectURL(lastUrl);
+  lastUrl = URL.createObjectURL(wavBlob(pcm, rate));
+  player.src = lastUrl; player.playbackRate = speed; player.preservesPitch = false;
+  player.play().catch(e => st("🔇 " + (e?.message || e)));
+  playing = player;
 }
 
 function say(text, lang, slow = false) {
