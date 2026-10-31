@@ -12,7 +12,10 @@ function doPost(e) {
     if (!key) return json_({ error: { message: "GEMINI_KEY is not set" } });
     // Try the best Flash model first; if it is busy, fall back to the next one
     let res = null;
-    for (const model of pickModels_(key)) {
+    // "high" (listening to audio) uses the full Flash models first; everything else uses the fast Lite ones first
+    const list = pickModels_(key), lite = list.filter(m => /lite/.test(m)), full = list.filter(m => !/lite/.test(m));
+    const order = body.quality === "high" ? full.concat(lite) : lite.concat(full);
+    for (const model of order) {
       res = UrlFetchApp.fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
         method: "post", contentType: "application/json", headers: { "x-goog-api-key": key },
         payload: JSON.stringify(body.request || {}), muteHttpExceptions: true,
@@ -33,7 +36,7 @@ function doGet() {
 }
 
 function pickModels_(key) {
-  const cache = CacheService.getScriptCache(), hit = cache.get("models2");
+  const cache = CacheService.getScriptCache(), hit = cache.get("models3");
   if (hit) return JSON.parse(hit);
   let models = ["gemini-2.5-flash-lite", "gemini-2.5-flash"];
   try {
@@ -43,11 +46,11 @@ function pickModels_(key) {
       .map(m => m.name.replace("models/", ""))
       .filter(n => /flash/.test(n) && !/(image|tts|audio|live|thinking|exp|8b|embedding)/.test(n));
     const ver = n => parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/) || [0, 0])[1]);
-    const rank = n => (/preview/.test(n) ? 2 : 0) + (/lite/.test(n) ? 0 : 1); // Lite first: fast, rarely busy
-    names.sort((a, b) => rank(a) - rank(b) || ver(b) - ver(a) || a.length - b.length);
-    if (names.length) models = names.slice(0, 4);
+    const sorted = names.sort((a, b) => (/preview/.test(a) - /preview/.test(b)) || ver(b) - ver(a) || a.length - b.length);
+    const lite = sorted.filter(n => /lite/.test(n)).slice(0, 3), full = sorted.filter(n => !/lite/.test(n)).slice(0, 3);
+    if (lite.length || full.length) models = lite.concat(full);
   } catch (e) {}
-  cache.put("models2", JSON.stringify(models), 21600); cache.put("models", JSON.stringify(models), 21600);
+  cache.put("models3", JSON.stringify(models), 21600); cache.put("models", JSON.stringify(models), 21600);
   return models;
 }
 

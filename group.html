@@ -492,8 +492,8 @@ function toWav(chunks, rate) {
   let bin = ""; const u8 = new Uint8Array(buf.buffer); for (let k = 0; k < u8.length; k += 0x8000) bin += String.fromCharCode(...u8.subarray(k, k + 0x8000));
   return btoa(bin);
 }
-async function callAI(request) {
-  const r = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ request }) });
+async function callAI(request, quality) {
+  const r = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ request, quality }) });
   const j = await r.json();
   if (j.error) throw new Error(j.error.message || "AI error");
   return j;
@@ -503,8 +503,8 @@ async function aiHear(wavB64) {
   const recent = log.slice(-4).map(m => `${m.who} (${m.lang}): ${m.text}`).join("\n") || "(none yet)";
   const shop = GLOSS.map(g => `${g.en} = ${langs.map(l => `${l}: ${g[l]}`).join(", ")}`).join("\n");
   const prompt = `You are a live interpreter at a restaurant table in Tbilisi. People in the room speak: ${langs.map(l => `${l} (${LANG[l].name})`).join(", ")}.
-1. Transcribe the audio exactly, in the language it was spoken.
-2. Say which of those languages it is.
+1. Listen carefully and decide which of those languages is being spoken from the sounds themselves (Georgian and Russian sound very different from Japanese).
+2. Transcribe the audio exactly, in that language and its own script (Georgian in Georgian letters, Russian in Cyrillic).
 3. Translate it into every OTHER language in the room. Use the conversation so far to resolve words like "it", "that", "he". Natural, polite, spoken style.
 4. Give a Latin-letter reading of each translation (romaji for Japanese, pinyin for Chinese, romanization for Georgian, Russian, Korean; empty for English).
 Always use these shop words:
@@ -513,7 +513,7 @@ Conversation so far:
 ${recent}
 Answer only JSON: {"lang":"<code>","text":"<transcript>","tr":{"<code>":"<translation>"},"rom":{"<code>":"<reading>"}}. If there is no speech, answer {"lang":"","text":""}.`;
   const j = await callAI({ contents: [{ role: "user", parts: [{ inline_data: { mime_type: "audio/wav", data: wavB64 } }, { text: prompt }] }],
-    generationConfig: { responseMimeType: "application/json", temperature: 0.2 } });
+    generationConfig: { responseMimeType: "application/json", temperature: 0.2 } }, "high");
   return JSON.parse((j.candidates?.[0]?.content?.parts || []).map(p => p.text).join("").replace(/^```json|```$/g, "") || "{}");
 }
 async function sendClip(clip, rate) {
