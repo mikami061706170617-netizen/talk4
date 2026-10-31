@@ -197,7 +197,8 @@ h2.head{margin:0;font-size:clamp(24px,3.4vw,40px);text-wrap:balance}
 </div>
 
 <script type="module">
-import { LESSONS, MISSIONS, MISSION_REWARD } from "./lessons.js";
+const VER = new URLSearchParams(location.search).get("v") || "";  // newest lesson file after an update
+const { LESSONS, MISSIONS, MISSION_REWARD } = await import("./lessons.js?v=" + VER);
 let AI = { proxy: "", freeTurns: 5 };
 try { AI = { ...AI, ...(await import("./config.js?v=" + Date.now())).AI }; } catch {}
 

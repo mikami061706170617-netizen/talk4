@@ -100,7 +100,7 @@ h1 em{font-style:normal;color:var(--gold)}
 <div class="switch" id="switch" hidden><div class="big" id="swBig"></div><div class="lead" id="swSub"></div><button class="btn main" id="swGo"></button></div>
 
 <script type="module">
-import { LESSONS } from "./lessons.js";
+const { LESSONS } = await import("./lessons.js?v=" + (new URLSearchParams(location.search).get("v") || ""));
 
 const LANG = {
   ja:{name:"日本語", g:"ja", sr:"ja-JP", tts:null,                    talk:"🎤 押して話す",     wait:"相手の言葉の訳がここに出ます", hold:"聞いています…"},
