@@ -445,10 +445,12 @@ function listenFor(i) {
     if (t) addUtterance(t, p.lang, label(p, i), COLORS[i], false); else st("");
   };
   recFinish = () => { stopWanted = true; try { rec?.stop(); } catch {} setTimeout(finish, 1500); };
-  const bump = () => { clearTimeout(quiet); quiet = setTimeout(() => recFinish?.(), 3500); };
+  let spoke = false;   // wait up to 8 s for the first word, then stop 2 s after the last one
+  const bump = () => { clearTimeout(quiet); quiet = setTimeout(() => recFinish?.(), spoke ? 2000 : 8000); };
   const begin = () => {
     const r = new SR(); rec = r; r.lang = LANG[p.lang].sr; r.interimResults = true; r.continuous = true;
     r.onresult = e => { let fin = "", tmp = ""; for (let k = e.resultIndex; k < e.results.length; k++) { const x = e.results[k]; if (x.isFinal) fin += x[0].transcript; else tmp += x[0].transcript; }
+      if (fin || tmp.trim()) spoke = true;
       if (fin) done = (done + " " + fin).trim(); interim = tmp; st(`${label(p, i)}: ${(done + " " + interim).trim()}`); bump(); };
     r.onerror = e => { if (e.error === "no-speech" || e.error === "aborted") return; stopWanted = true; st(ui.micErr + " (" + e.error + ")"); };
     r.onend = () => { if (rec !== r) return; if (interim) { done = (done + " " + interim).trim(); interim = ""; } if (stopWanted || ++restarts > 40) finish(); else { try { begin(); } catch { finish(); } } };

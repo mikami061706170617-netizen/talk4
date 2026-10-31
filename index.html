@@ -511,7 +511,9 @@ function startRec(side) {
   let done = "", interim = "", finished = false;
   stopWanted = false; active = side; restarts = 0;
   E.mic.classList.add("on"); E.mic.textContent = "■ " + LANG[lang].hold; E.big.className = "big"; E.big.textContent = "…"; E.small.textContent = ""; E.rom.textContent = "";
-  const bump = () => { clearTimeout(silenceTimer); silenceTimer = setTimeout(stopRec, SILENCE_MS); };
+  // Before the first word: wait up to 8 s (people need a moment to start). After that: stop 1.8 s after the last word.
+  let spoke = false;
+  const bump = () => { clearTimeout(silenceTimer); silenceTimer = setTimeout(stopRec, spoke ? SILENCE_MS : 8000); };
   maxTimer = setTimeout(stopRec, MAX_MS);
   bump();
   const finish = () => {
@@ -528,6 +530,7 @@ function startRec(side) {
     r.onresult = e => { let fin = "", tmp = "";
       for (let i = e.resultIndex; i < e.results.length; i++) { const x = e.results[i]; if (x.isFinal) fin += x[0].transcript; else tmp += x[0].transcript; }
       if (fin) done = (done + " " + fin).trim();
+      if (fin || tmp.trim()) spoke = true;
       interim = tmp; E.big.textContent = (done + " " + interim).trim() || "…"; bump(); preview(side, (done + " " + interim).trim()); };
     r.onerror = e => {
       if (e.error === "no-speech" || e.error === "aborted") return;
