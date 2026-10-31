@@ -209,7 +209,7 @@ const LANG = {
   ko:{name:"한국어", g:"ko", sr:"ko-KR", tts:null},
   zh:{name:"中文",   g:"zh-CN", sr:"zh-CN", tts:"zh_CN-huayan-medium"},
 };
-const LEARN = ["ja","en","ru","ka"];
+const LEARN = ["ja","en","ru","ka","ko","zh"];
 const $ = id => document.getElementById(id);
 const st = t => { $("status").textContent = t; };
 
@@ -316,6 +316,8 @@ function reading(p, lang) {
   if (lang === "ja") return p.jr || "";
   if (lang === "ru") return translit(p.ru, RU);
   if (lang === "ka") return translit(p.ka, KA);
+  if (lang === "ko") return p.kr || "";
+  if (lang === "zh") return p.zr || "";
   return "";
 }
 async function meaningOf(p, lang) { return p[lang] ?? gtr(p.en, "en", lang); }
