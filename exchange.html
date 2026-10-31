@@ -2,7 +2,6 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<script>if (window.top === window.self) location.replace("./#exchange" + location.search);</script>
 
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Talk4 Exchange</title>
@@ -111,7 +110,7 @@ h1 em{font-style:normal;color:var(--gold)}
 <div class="switch" id="switch" hidden><div class="big" id="swBig"></div><div class="lead" id="swSub"></div><button class="btn main" id="swGo"></button></div>
 
 <script type="module">
-const VER = new URLSearchParams(location.search).get("v") || "";
+const VER = new URLSearchParams(location.search).get("v") || String(Math.floor(Date.now() / 600000));  // fresh files after an update
 const { LESSONS } = await import("./lessons.js?v=" + VER);
 const { QUESTIONS } = await import("./questions.js?v=" + VER);
 let AI = null; try { AI = (await import("./config.js?v=" + VER)).AI; } catch {}
@@ -649,5 +648,6 @@ document.addEventListener("pointerdown", unlockAudio, { passive: true });
 try { navigator.wakeLock?.request("screen").catch(() => {}); } catch {}
 setupView();
 </script>
+<script src="nav.js"></script>
 </body>
 </html>

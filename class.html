@@ -2,7 +2,6 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<script>if (window.top === window.self) location.replace("./#class" + location.search);</script>
 
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Talk4 Class</title>
@@ -197,7 +196,7 @@ h2.head{margin:0;font-size:clamp(24px,3.4vw,40px);text-wrap:balance}
 </div>
 
 <script type="module">
-const VER = new URLSearchParams(location.search).get("v") || "";  // newest lesson file after an update
+const VER = new URLSearchParams(location.search).get("v") || String(Math.floor(Date.now() / 600000));  // fresh files after an update
 const { LESSONS, MISSIONS, MISSION_REWARD } = await import("./lessons.js?v=" + VER);
 let AI = { proxy: "", freeTurns: 5 };
 try { AI = { ...AI, ...(await import("./config.js?v=" + Date.now())).AI }; } catch {}
@@ -919,5 +918,6 @@ await loadUI(S.ex);
 render();
 warm(S.learn);
 </script>
+<script src="nav.js"></script>
 </body>
 </html>

@@ -9,69 +9,15 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<style>
-/* One address for everything: each tool opens in this frame, the tab bar at the bottom switches between them */
-:root{--bg:#111010;--panel:#1c1a18;--fg:#f4efe6;--muted:#9d968a;--line:#33302b;--gold:#d8ae55;color-scheme:dark}
-*{box-sizing:border-box}
-html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans JP",system-ui,sans-serif}
-body{display:flex;flex-direction:column;overflow:hidden}
-main{flex:1;min-height:0;position:relative}
-iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
-iframe[hidden]{display:none}
-nav{display:flex;background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
-nav button{flex:1;border:0;background:none;color:var(--muted);font:inherit;font-size:11px;padding:6px 2px 7px;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer;-webkit-tap-highlight-color:transparent}
-nav button span{font-size:21px;line-height:1.1}
-nav button[aria-current="page"]{color:var(--gold)}
-nav button:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
-</style>
-</head>
-<body>
-<main id="main"></main>
-<nav id="nav"></nav>
+<style>html,body{margin:0;height:100%;background:#111010;color:#f4efe6;font-family:system-ui,sans-serif}</style>
 <script>
-const TABS = [
-  { id: "talk",     file: "talk.html",     icon: "💬", name: "通訳" },
-  { id: "words",    file: "words.html",    icon: "📝", name: "覚える" },
-  { id: "group",    file: "group.html",    icon: "👥", name: "3-4人" },
-  { id: "exchange", file: "exchange.html", icon: "🤝", name: "交流" },
-  { id: "class",    file: "class.html",    icon: "📘", name: "教室" },
-  { id: "plans",    file: "plans.html",    icon: "💳", name: "料金" },
-];
-const frames = {};
-for (const t of TABS) {
-  const b = document.createElement("button");
-  b.innerHTML = `<span>${t.icon}</span>${t.name}`; b.onclick = () => go(t.id); b.id = "tab-" + t.id;
-  document.getElementById("nav").append(b);
-}
-// Open a tab. Frames are kept, so going back to a tab keeps what was on screen.
-function go(id, query) {
-  const t = TABS.find(x => x.id === id) || TABS[0];
-  let f = frames[t.id];
-  if (!f || query !== undefined) {
-    if (!f) { f = document.createElement("iframe"); f.allow = "microphone; camera; autoplay; clipboard-write; fullscreen"; f.title = t.name;
-      f.onload = () => hook(f); document.getElementById("main").append(f); frames[t.id] = f; }
-    // always fetch the newest version of the tool (big voice files are cached separately, so this stays fast)
-    const q = new URLSearchParams((query || "").replace(/^\?/, "")); q.set("v", Date.now().toString(36));
-    f.src = t.file + "?" + q;
-  }
-  for (const k in frames) frames[k].hidden = k !== t.id;
-  for (const x of TABS) { const b = document.getElementById("tab-" + x.id); if (x.id === t.id) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
-  history.replaceState(null, "", "#" + t.id + (query || ""));
-  document.title = "Talk4 · " + t.name;
-}
-// Links inside a tool to another tool (e.g. "see plans") switch tabs instead of opening a new address
-function hook(f) {
-  try {
-    f.contentDocument.addEventListener("click", e => {
-      const a = e.target.closest?.("a[href]"); if (!a || a.target === "_blank") return;
-      const u = new URL(a.href, f.contentWindow.location.href); if (u.origin !== location.origin) return;
-      const t = TABS.find(x => u.pathname.endsWith("/" + x.file)) || (u.pathname.endsWith("/") || u.pathname.endsWith("/index.html") ? TABS[0] : null);
-      if (!t) return; e.preventDefault(); go(t.id, u.search);
-    });
-  } catch {}
-}
-const h = location.hash.slice(1), i = h.indexOf("?");
-go(i < 0 ? h : h.slice(0, i), i < 0 ? undefined : h.slice(i));
+// The one address people share. "#class?l=greet" style links open that tool directly.
+(() => {
+  const FILES = { talk: "talk.html", words: "words.html", group: "group.html", exchange: "exchange.html", class: "class.html", plans: "plans.html" };
+  const h = location.hash.slice(1), i = h.indexOf("?"), id = i < 0 ? h : h.slice(0, i), q = i < 0 ? "" : h.slice(i);
+  location.replace((FILES[id] || FILES.talk) + q);
+})();
 </script>
-</body>
+</head>
+<body></body>
 </html>

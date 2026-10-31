@@ -2,7 +2,6 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<script>if (window.top === window.self) location.replace("./#group" + location.search);</script>
 
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Talk4 Group</title>
@@ -568,5 +567,6 @@ paint();
 let first = true; try { first = !localStorage.getItem("t4g"); } catch {}
 if (first) { paintSetup(); $("setup").hidden = false; } else warmAll();
 </script>
+<script src="nav.js"></script>
 </body>
 </html>
