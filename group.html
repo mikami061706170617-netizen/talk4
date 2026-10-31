@@ -290,11 +290,11 @@ function playPCM(pcm, rate, speed = 1) {
 /* ---------- Screen words ---------- */
 const UI = {
   ja: { title: "参加する人", hint: "2〜4人まで。名前（なくてもOK）と、その人が話す言葉を選んでください。話すときは自分のボタンを押します。", add: "＋ 人を追加", done: "はじめる",
-        name: "名前", empty: "自分のボタンを押して話すと、ほかの全員の言葉に訳されて読み上げられます。", auto: "🎙 自動で聞き分ける（だれが話してもOK）", autoOn: "■ 聞いています…（もう一度押すと終わる）",
+        name: "名前", empty: "自分のボタンを押して話すと、ほかの全員の言葉に訳されて読み上げられます。", auto: "🎙 置いておくだけ通訳（AIが言葉を聞き分ける）", autoOn: "■ ずっと聞いています（もう一度押すと止まる）",
         speakOn: "🔊 自動 ON", speakOff: "🔊 自動 OFF", typePh: "文字で入力（言語は自動で判定）", detected: "判定", noSr: "このブラウザは音声入力に未対応です。⌨で入力してください", micErr: "マイクが使えませんでした。もう一度押してください",
         listening: "聞いています…", translating: "訳しています…", ready: "✓ OK", aiErr: "言葉を聞き分けられませんでした。自分のボタンで話してください" },
   en: { title: "Who's talking?", hint: "Up to 4 people. Add a name (optional) and the language each person speaks. Press your own button when you talk.", add: "+ Add person", done: "Start",
-        name: "Name", empty: "Press your button and speak. Everyone else sees and hears it in their own language.", auto: "🎙 Auto-detect (anyone can speak)", autoOn: "■ Listening… (press again to stop)",
+        name: "Name", empty: "Press your button and speak. Everyone else sees and hears it in their own language.", auto: "🎙 Hands-free (AI detects every language)", autoOn: "■ Listening all the time (press to stop)",
         speakOn: "🔊 Auto ON", speakOff: "🔊 Auto OFF", typePh: "Type (language detected automatically)", detected: "detected", noSr: "Voice input isn't supported here. Use ⌨ to type", micErr: "The microphone didn't start. Press again",
         listening: "Listening…", translating: "Translating…", ready: "✓ OK", aiErr: "Couldn't tell the language. Please use your own button" },
 };
@@ -382,21 +382,28 @@ function sayAndWait(text, lang) {
     catch { done(); }
   });
 }
+let reading = false;
 async function readOut(m) {
   const my = ++readRun; speechSynthesis?.cancel?.(); try { playing?.stop(); } catch {}
-  for (const t of m.out) { if (my !== readRun || !t.text) return; await sayAndWait(t.text, t.lang); await new Promise(r => setTimeout(r, 250)); }
+  reading = true;
+  try { for (const t of m.out) { if (my !== readRun || !t.text) return; await sayAndWait(t.text, t.lang); await new Promise(r => setTimeout(r, 250)); } }
+  finally { if (my === readRun) reading = false; }
 }
-function stopReading() { readRun++; try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} }
+function stopReading() { readRun++; reading = false; try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} }
 
 /* ---------- One utterance → every other language in the room ---------- */
-async function addUtterance(text, lang, who, color, detected) {
+async function addUtterance(text, lang, who, color, detected, ai) {
   text = text.trim(); if (!text) return;
   const targets = langsInRoom().filter(l => l !== lang);
-  const m = { text, lang, who, color, detected, out: targets.map(l => ({ lang: l, text: null })) };
+  const m = { text, lang, who, color, detected, ai: !!ai, out: targets.map(l => ({ lang: l, text: ai?.tr?.[l] ? restore(protect(ai.tr[l]), l) : null, rom: ai?.rom?.[l] || "" })) };
   log.push(m); if (log.length > 60) log.shift(); paintLog(); st(ui.translating);
-  await Promise.all(m.out.map(async t => { try { const r = await translate(text, lang, t.lang); t.text = r.text; t.rom = r.rom; } catch { t.text = "⚠"; } }));
+  // Anything the AI didn't give us is filled in by the free translator
+  await Promise.all(m.out.map(async t => {
+    if (t.text) { if (!t.rom) t.rom = romFor(t.text, t.lang); return; }
+    try { const r = await translate(text, lang, t.lang); t.text = r.text; t.rom = r.rom; } catch { t.text = "⚠"; }
+  }));
   paintLog(); st(ui.ready);
-  if (autoSpeak) readOut(m);
+  if (autoSpeak) await readOut(m);
 }
 
 /* ---------- Per-person microphone ---------- */
@@ -404,7 +411,7 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null, recIdx = -1, recFinish = null;
 function listenFor(i) {
   if (rec) { const was = recIdx; stopRec(); if (was === i) return; }
-  if (recording) stopAuto();
+  if (handsFree) { handsFree = false; stopAuto(); paintAuto(); }
   if (!SR) { st(ui.noSr); $("typer").hidden = false; return; }
   stopReading();
   const p = people[i], btn = $(`pb${i}`);
@@ -441,23 +448,40 @@ async function detectAndTranslate(text) {
 $("tsend").onclick = () => { unlockAudio(); const v = $("tin").value; $("tin").value = ""; if (v.trim()) detectAndTranslate(v); };
 $("tin").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) $("tsend").click(); });
 
-/* ---------- Auto mode (needs the AI key): record, let the AI tell which language it was ---------- */
-let recording = null;
+/* ---------- Hands-free mode (needs the AI): keeps listening; whoever speaks, in whatever language,
+   is transcribed, recognised and translated for everyone by one AI call, using the conversation so far ---------- */
+let handsFree = false, recording = null, queue = Promise.resolve();
+async function openMic() {
+  try { return await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+  catch { st(ui.micErr); return null; }
+}
 async function startAuto() {
-  if (rec) stopRec(); stopReading();
-  let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); } catch { st(ui.micErr); return; }
+  if (rec) stopRec();
+  const stream = await openMic(); if (!stream) { handsFree = false; paintAuto(); return; }
   const ctx = new (window.AudioContext || window.webkitAudioContext)(), src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1);
-  const chunks = []; let heard = false, lastLoud = Date.now(); const t0 = Date.now();
+  let chunks = [], heard = false, lastLoud = 0, started = 0, noise = 0.01;
   proc.onaudioprocess = e => {
-    const d = e.inputBuffer.getChannelData(0); chunks.push(new Float32Array(d));
-    let s = 0; for (let k = 0; k < d.length; k += 8) s += d[k] * d[k]; const rms = Math.sqrt(s / (d.length / 8));
-    if (rms > 0.02) { heard = true; lastLoud = Date.now(); }
-    if ((heard && Date.now() - lastLoud > 1800) || Date.now() - t0 > 30000) stopAuto();
+    if (!handsFree) return;
+    const d = e.inputBuffer.getChannelData(0);
+    if (reading) { chunks = []; heard = false; return; }               // don't listen to our own read-aloud
+    let sum = 0; for (let k = 0; k < d.length; k += 8) sum += d[k] * d[k]; const rms = Math.sqrt(sum / (d.length / 8));
+    if (!heard) { noise = noise * 0.95 + rms * 0.05; chunks = chunks.slice(-3); }  // keep a little audio before speech starts
+    chunks.push(new Float32Array(d));
+    const loud = rms > Math.max(0.02, noise * 3);
+    if (loud) { if (!heard) { heard = true; started = Date.now(); st(ui.listening); } lastLoud = Date.now(); }
+    if (heard && (Date.now() - lastLoud > 1200 || Date.now() - started > 25000)) {
+      const clip = chunks; chunks = []; heard = false;
+      if (lastLoud - started > 350) queue = queue.then(() => sendClip(clip, ctx.sampleRate));   // ignore short clicks and bumps
+    }
   };
   src.connect(proc); proc.connect(ctx.destination);
-  recording = { stream, ctx, proc, chunks, rate: ctx.sampleRate };
-  $("autoBtn").classList.add("on"); $("autoBtn").textContent = ui.autoOn; st(ui.listening);
+  recording = { stream, ctx, proc };
 }
+function stopAuto() {
+  const R = recording; recording = null;
+  try { R?.proc.disconnect(); R?.stream.getTracks().forEach(t => t.stop()); R?.ctx.close(); } catch {}
+}
+function paintAuto() { $("autoBtn").classList.toggle("on", handsFree); $("autoBtn").textContent = handsFree ? ui.autoOn : ui.auto; }
 function toWav(chunks, rate) {
   const target = 16000, len = chunks.reduce((a, c) => a + c.length, 0), ratio = rate / target, n = Math.floor(len / ratio);
   const all = new Float32Array(len); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
@@ -474,26 +498,35 @@ async function callAI(request) {
   if (j.error) throw new Error(j.error.message || "AI error");
   return j;
 }
-async function stopAuto() {
-  const R = recording; if (!R) return; recording = null;
-  try { R.proc.disconnect(); R.stream.getTracks().forEach(t => t.stop()); R.ctx.close(); } catch {}
-  $("autoBtn").classList.remove("on"); $("autoBtn").textContent = ui.auto;
-  if (R.chunks.length < 4) { st(""); return; }
+async function aiHear(wavB64) {
+  const langs = langsInRoom();
+  const recent = log.slice(-4).map(m => `${m.who} (${m.lang}): ${m.text}`).join("\n") || "(none yet)";
+  const shop = GLOSS.map(g => `${g.en} = ${langs.map(l => `${l}: ${g[l]}`).join(", ")}`).join("\n");
+  const prompt = `You are a live interpreter at a restaurant table in Tbilisi. People in the room speak: ${langs.map(l => `${l} (${LANG[l].name})`).join(", ")}.
+1. Transcribe the audio exactly, in the language it was spoken.
+2. Say which of those languages it is.
+3. Translate it into every OTHER language in the room. Use the conversation so far to resolve words like "it", "that", "he". Natural, polite, spoken style.
+4. Give a Latin-letter reading of each translation (romaji for Japanese, pinyin for Chinese, romanization for Georgian, Russian, Korean; empty for English).
+Always use these shop words:
+${shop}
+Conversation so far:
+${recent}
+Answer only JSON: {"lang":"<code>","text":"<transcript>","tr":{"<code>":"<translation>"},"rom":{"<code>":"<reading>"}}. If there is no speech, answer {"lang":"","text":""}.`;
+  const j = await callAI({ contents: [{ role: "user", parts: [{ inline_data: { mime_type: "audio/wav", data: wavB64 } }, { text: prompt }] }],
+    generationConfig: { responseMimeType: "application/json", temperature: 0.2 } });
+  return JSON.parse((j.candidates?.[0]?.content?.parts || []).map(p => p.text).join("").replace(/^```json|```$/g, "") || "{}");
+}
+async function sendClip(clip, rate) {
   st(ui.translating);
   try {
-    const langs = langsInRoom();
-    const body = { contents: [{ role: "user", parts: [
-      { inline_data: { mime_type: "audio/wav", data: toWav(R.chunks, R.rate) } },
-      { text: `Transcribe this speech. The speaker uses one of these languages: ${langs.map(l => `${l} (${LANG[l].name})`).join(", ")}. Answer as JSON {"lang": one of [${langs.map(l => `"${l}"`).join(",")}], "text": "exact transcript in that language"}. If there is no speech, answer {"lang":"","text":""}.` }] }],
-      generationConfig: { responseMimeType: "application/json", temperature: 0 } };
-    const j = await callAI(body);
-    const out = JSON.parse((j.candidates?.[0]?.content?.parts || []).map(p => p.text).join("") || "{}");
-    if (!out.text || !LANG[out.lang]) { st(""); return; }
+    const out = await aiHear(toWav(clip, rate));
+    if (!out.text || !LANG[out.lang]) { st(handsFree ? ui.autoOn : ""); return; }
     const i = people.findIndex(p => p.lang === out.lang);
-    addUtterance(out.text, out.lang, i >= 0 ? label(people[i], i) : "?", i >= 0 ? COLORS[i] : "var(--muted)", true);
+    await addUtterance(out.text, out.lang, i >= 0 ? label(people[i], i) : "?", i >= 0 ? COLORS[i] : "var(--muted)", true, out);
   } catch (e) { st(ui.aiErr + " (" + (e.message || e) + ")"); }
 }
-$("autoBtn").onclick = () => { unlockAudio(); recording ? stopAuto() : startAuto(); };
+$("autoBtn").onclick = () => { unlockAudio(); handsFree = !handsFree; paintAuto(); if (handsFree) startAuto(); else stopAuto(); };
+window.__t4g = { aiHear, synth, voicePlan, loadVoice, langsInRoom, get log() { return log; } };   // for testing
 
 /* ---------- Voices for every language in the room ---------- */
 async function warmAll() {
