@@ -355,6 +355,8 @@ async function show(o) {
     if (my !== job) return; // a newer sentence or language change took over
     L.big.textContent = out.text; L.rom.textContent = out.rom; last[listenerSide] = { text: out.text, lang: to, g: voice[speakerSide] };
     if (out.srcRom) { o.srcRom = out.srcRom; S.rom.textContent = out.srcRom; }
+    // Check: translate the result back into the speaker's language, so they can see if the meaning survived
+    translateRaw(out.text, to, o.lang).then(b => { if (my === job && b.text && b.text.trim() !== o.text.trim()) S.small.textContent = "↩ " + restore(b.text, o.lang); }).catch(() => {});
     if (autoSpeak) speak(out.text, to, voice[speakerSide]);
   } catch { if (my === job) { L.big.textContent = "⚠"; st("翻訳できませんでした。電波を確認してください"); } }
 }
