@@ -303,6 +303,28 @@ function wavBlob(pcm, rate) {
   for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, pcm[i])); dv.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true); }
   return new Blob([dv.buffer], { type: "audio/wav" });
 }
+
+// Long text is cut at sentence/comma breaks; the first piece plays while the next is being made
+function splitForVoice(text) {
+  const parts = text.match(/[^.!?。！？,，、;:]+[.!?。！？,，、;:]*\s*/g) || [text];
+  const out = []; let cur = "";
+  for (const p of parts) { if ((cur + p).length < 40 || !cur) cur += p; else { out.push(cur); cur = p; } }
+  if (cur.trim()) out.push(cur);
+  return out.map(x => x.trim()).filter(Boolean);
+}
+let voiceRun = 0;
+async function speakPiper(text, id, speed = 1) {
+  const my = ++voiceRun, parts = splitForVoice(text);
+  const made = []; let chain = Promise.resolve();
+  parts.forEach((p, i) => { chain = chain.then(() => synth(p, id)); made[i] = chain; });
+  for (let i = 0; i < parts.length; i++) {
+    const { pcm, rate } = await made[i];
+    if (my !== voiceRun) return;
+    playPCM(pcm, rate, speed);
+    await new Promise(r => { player.onended = r; setTimeout(r, pcm.length / rate * 1000 / speed + 400); });
+    if (my !== voiceRun) return;
+  }
+}
 let lastUrl = null;
 function playPCM(pcm, rate, speed = 1) {
   try { speechSynthesis.cancel(); } catch {}
@@ -335,11 +357,8 @@ async function speak(text, lang, g = "f") {
     const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.pitch = plan.pitch;
     speechSynthesis.speak(u); return;
   }
-  try {
-    st("🔊 …");
-    const { pcm, rate } = await synth(text, plan.id);
-    playPCM(pcm, rate, plan.rate); st("✓ OK", true);
-  } catch (e) { st("⚠ " + (e?.message || e)); }
+  try { await speakPiper(text, plan.id, plan.rate); st("✓ OK", true); }
+  catch (e) { st("⚠ " + (e?.message || e)); }
 }
 speechSynthesis?.addEventListener?.("voiceschanged", () => {});
 
@@ -350,6 +369,29 @@ let rec = null, active = null;
 function sideEls(side) { return side === "me"
   ? { mic: $("meMic"), big: $("meBig"), small: $("meSmall"), rom: $("meRom") }
   : { mic: $("themMic"), big: $("themBig"), small: $("themSmall"), rom: $("themRom") }; }
+
+// AI polish: Google answers instantly; the AI gets ~2.5 s to return a more natural translation
+// that knows the conversation so far and the shop's words. Whichever is ready is shown and read aloud.
+let AIcfg = null; import("./config.js").then(m => AIcfg = m.AI).catch(() => {});
+const recent = [];   // last few lines, so the AI understands the context
+const AI_NAMES = { ja: "Japanese", en: "English", ka: "Georgian", ru: "Russian", ko: "Korean", zh: "Simplified Chinese" };
+async function aiTranslate(text, from, to, draft) {
+  if (!AIcfg?.proxy) return null;
+  const words = GLOSS.map(g => `${g[from] || g.ja} = ${g[to] || g.en}`).join("; ");
+  const prompt = `You are a live interpreter at a Japanese restaurant (Omurice Land) in Tbilisi. Translate the last line from ${AI_NAMES[from]} to ${AI_NAMES[to]} so it sounds natural and polite, the way a native speaker would say it out loud. Fix obvious speech-recognition mistakes using context. Keep names. Shop words: ${words}.
+Conversation so far:\n${recent.slice(-6).join("\n") || "(none)"}
+Machine draft: ${draft}
+Last line: ${text}
+Reply ONLY JSON: {"text":"translation","rom":"Latin-letter reading of the translation (empty for English)"}`;
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 2500);
+  try {
+    const r = await fetch(AIcfg.proxy, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
+    const j = await r.json(), raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+    const o = JSON.parse(raw.replace(/^```json|```$/g, "").trim());
+    return o.text ? o : null;
+  } catch { return null; } finally { clearTimeout(t); }
+}
 
 // The last thing someone said, in its original language. Changing a language re-translates it,
 // so nobody has to say it again.
@@ -372,6 +414,13 @@ async function show(o) {
     if (my !== job) return; // a newer sentence or language change took over
     L.big.textContent = out.text; L.rom.textContent = out.rom; last[listenerSide] = { text: out.text, lang: to, g: voice[speakerSide] };
     if (out.srcRom) { o.srcRom = out.srcRom; S.rom.textContent = out.srcRom; }
+    const better = await aiTranslate(o.text, o.lang, to, out.text);
+    if (my !== job) return;
+    if (better && better.text.trim() !== out.text.trim()) {
+      out.text = better.text; if (better.rom && to !== "en") out.rom = better.rom;
+      L.big.textContent = out.text; L.rom.textContent = out.rom; last[listenerSide].text = out.text;
+    }
+    recent.push(`${AI_NAMES[o.lang]}: ${o.text}`, `${AI_NAMES[to]}: ${out.text}`); if (recent.length > 12) recent.splice(0, 2);
     // Check: translate the result back into the speaker's language, so they can see if the meaning survived
     translateRaw(out.text, to, o.lang).then(b => { if (my === job && b.text && b.text.trim() !== o.text.trim()) S.small.textContent = "↩ " + restore(b.text, o.lang); }).catch(() => {});
     if (autoSpeak) speak(out.text, to, voice[speakerSide]);
@@ -386,13 +435,13 @@ function langChanged() { save(); last.me = last.them = null; paint(); warmVoice(
 
 // Long recording: keeps listening until you tap again, or after a few seconds of silence.
 // Browsers stop on their own after a short pause, so it quietly restarts and keeps the text.
-const SILENCE_MS = 5000, MAX_MS = 180000;
+const SILENCE_MS = 1800, MAX_MS = 180000;  // stop 1.8 s after the last word; tap again to stop sooner
 let stopWanted = false, silenceTimer = null, maxTimer = null, forceFinish = null, restarts = 0;
 function startRec(side) {
   if (!SR) { showType(side); st("このブラウザは音声入力に未対応。⌨で入力してください"); return; }
   if (active) { const was = active; stopRec(); if (was === side) return; forceFinish?.(); }
   // The phone can't listen while it is talking: stop any read-aloud first
-  try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {}
+  try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} voiceRun++;
   const lang = side === "me" ? me : them, E = sideEls(side);
   let done = "", interim = "", finished = false;
   stopWanted = false; active = side; restarts = 0;
@@ -414,7 +463,7 @@ function startRec(side) {
     r.onresult = e => { let fin = "", tmp = "";
       for (let i = e.resultIndex; i < e.results.length; i++) { const x = e.results[i]; if (x.isFinal) fin += x[0].transcript; else tmp += x[0].transcript; }
       if (fin) done = (done + " " + fin).trim();
-      interim = tmp; E.big.textContent = (done + " " + interim).trim() || "…"; bump(); };
+      interim = tmp; E.big.textContent = (done + " " + interim).trim() || "…"; bump(); preview(side, (done + " " + interim).trim()); };
     r.onerror = e => {
       if (e.error === "no-speech" || e.error === "aborted") return;
       stopWanted = true;
@@ -430,6 +479,16 @@ function startRec(side) {
     r.start();
   };
   try { begin(); } catch { finish(); }
+}
+// While someone is still talking, show a rough translation on the other side so nobody waits
+let previewTimer = null, previewText = "";
+function preview(side, text) {
+  clearTimeout(previewTimer); if (!text || text === previewText) return;
+  previewTimer = setTimeout(async () => {
+    previewText = text;
+    const from = side === "me" ? me : them, to = side === "me" ? them : me, L = sideEls(side === "me" ? "them" : "me");
+    try { const r = await translateRaw(protect(text), from, to); if (active === side) { L.big.className = "big"; L.big.textContent = restore(r.text, to); L.rom.textContent = ""; } } catch {}
+  }, 450);
 }
 function stopRec() {
   stopWanted = true; clearTimeout(silenceTimer); try { rec?.stop(); } catch {}

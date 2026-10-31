@@ -727,7 +727,7 @@ Answer as JSON: {"reply": "...", "meaning": "the reply translated into ${LANG[ex
     systemInstruction: { parts: [{ text: sys }] },
     contents: history.length ? history.map(m => ({ role: m.who === "me" ? "user" : "model", parts: [{ text: m.who === "me" ? m.text : JSON.stringify({ reply: m.text }) }] }))
                              : [{ role: "user", parts: [{ text: "(Start the scene with your first line.)" }] }],
-    generationConfig: { responseMimeType: "application/json", temperature: 0.7, maxOutputTokens: 400 },
+    generationConfig: { responseMimeType: "application/json", temperature: 0.7, maxOutputTokens: 400, thinkingConfig: { thinkingLevel: "minimal" } },
   };
   const j = await callAI(body);
   const txt = j.candidates?.[0]?.content?.parts?.map(p => p.text).join("") || "{}";
