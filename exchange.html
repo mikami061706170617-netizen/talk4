@@ -486,8 +486,8 @@ const NAMES = { ja: "Japanese", en: "English", ka: "Georgian", ru: "Russian", ko
 async function judge(a, lang, question, answer, guess) {
   try {
     const o = await callAI(`A ${NAMES[a.native]} speaker learning ${NAMES[lang]} asked: "${question}". Their partner answered in ${NAMES[lang]}: "${answer}". The learner says it means (in ${NAMES[a.native]}): "${guess || "(no idea)"}".
-Judge how well the learner understood the meaning (0-100, be kind: the gist counts). Write everything for the learner in ${NAMES[a.native]}.
-Reply ONLY JSON {"score":0,"meaning":"natural ${NAMES[a.native]} translation of the answer","comment":"one short encouraging sentence on what they got or missed","words":[{"w":"key ${NAMES[lang]} word or phrase from the answer","m":"its meaning in ${NAMES[a.native]}"}]} with 2-4 words.`);
+Score 0-100 for how much of the meaning they understood (all of it = 100, about half = 50, wrong or nothing = 0; small wording differences do not matter). Write everything for the learner in ${NAMES[a.native]}.
+Reply ONLY JSON {"score":0,"meaning":"just the natural ${NAMES[a.native]} translation of the answer, nothing else","comment":"one short encouraging sentence on what they got or missed","words":[{"w":"key ${NAMES[lang]} word or phrase from the answer","m":"its meaning in ${NAMES[a.native]}"}]} with 2-4 words.`);
     return o;
   } catch {
     const t = await translate(answer, lang, a.native);
