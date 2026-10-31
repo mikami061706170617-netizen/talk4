@@ -496,8 +496,67 @@ function langChanged() { save(); last.me = last.them = null; paint(); warmVoice(
 // Browsers stop on their own after a short pause, so it quietly restarts and keeps the text.
 const SILENCE_MS = 1800, MAX_MS = 180000;  // stop 1.8 s after the last word; tap again to stop sooner
 let stopWanted = false, silenceTimer = null, maxTimer = null, forceFinish = null, restarts = 0;
+/* AI listening: records the voice and lets the AI write it down. Used when the phone's own voice input
+   can't (iPhone has no Georgian, home-screen apps on iPhone often block it, some browsers have none). */
+const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const aiOnly = (() => { try { return JSON.parse(localStorage.getItem("t4-aiears") || "{}"); } catch { return {}; } })();
+const needAI = lang => !SR || aiOnly[lang] || (IOS && (lang === "ka" || navigator.standalone));
+let aiRec = null;
+async function aiListen(side) {
+  if (aiRec) { aiRec.stop(); return; }
+  const lang = side === "me" ? me : them, E = sideEls(side);
+  try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} voiceRun++;
+  let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } }); }
+  catch { st("マイクを許可してください（ブラウザの設定）"); return; }
+  const ctx = new (window.AudioContext || window.webkitAudioContext)(); try { await ctx.resume(); } catch {}
+  const src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1);
+  let chunks = [], heard = false, lastLoud = 0, noise = 0.01, done = false; const t0 = Date.now();
+  active = side; E.mic.classList.add("on"); E.mic.textContent = "■ " + LANG[lang].hold; E.big.className = "big"; E.big.textContent = "🎙 …"; E.small.textContent = ""; E.rom.textContent = "";
+  const stop = async () => {
+    if (done) return; done = true; aiRec = null;
+    try { proc.disconnect(); src.disconnect(); stream.getTracks().forEach(t => t.stop()); ctx.close(); } catch {}
+    E.mic.classList.remove("on"); E.mic.textContent = LANG[lang].talk; active = null;
+    if (!heard) { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; st("聞こえませんでした。もう一度どうぞ"); return; }
+    E.big.textContent = "⏳ …"; st("AIが聞き取っています…");
+    try {
+      const r = await fetch(AIcfg.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ request: { contents: [{ parts: [{ inline_data: { mime_type: "audio/wav", data: toWav(chunks, ctx.sampleRate) } },
+          { text: `Write down exactly what is said in this recording. The speaker is speaking ${AI_NAMES[lang]}. Use ${AI_NAMES[lang]} script. Reply ONLY JSON {"text":""}; empty text if there is no speech.` }] }],
+          generationConfig: { responseMimeType: "application/json", temperature: 0, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
+      const j = await r.json(), raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+      const text = (JSON.parse(raw.replace(/^```json|```$/g, "").trim()).text || "").trim();
+      st(""); if (text) handle(text, side); else { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; st("聞こえませんでした。もう一度どうぞ"); }
+    } catch { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; st("聞き取れませんでした。電波を確認して、もう一度どうぞ"); }
+  };
+  aiRec = { stop };
+  proc.onaudioprocess = e => {
+    if (done) return;
+    const d = e.inputBuffer.getChannelData(0); chunks.push(new Float32Array(d));
+    let sum = 0; for (let k = 0; k < d.length; k += 8) sum += d[k] * d[k]; const rms = Math.sqrt(sum / (d.length / 8));
+    if (!heard) noise = noise * 0.9 + rms * 0.1;
+    if (rms > Math.max(0.006, noise * 2.5)) { if (!heard) { heard = true; } lastLoud = Date.now(); E.big.textContent = "🎙 ●"; }
+    const now = Date.now();
+    if ((heard && now - lastLoud > 1500) || (!heard && now - t0 > 8000) || now - t0 > 60000) stop();
+  };
+  src.connect(proc); proc.connect(ctx.destination);
+}
+function toWav(chunks, rate) {
+  const target = 16000, len = chunks.reduce((a, c) => a + c.length, 0), ratio = rate / target, n = Math.floor(len / ratio);
+  const all = new Float32Array(len); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
+  let peak = 0; for (let k = 0; k < len; k += 4) peak = Math.max(peak, Math.abs(all[k]));
+  const boost = peak > 0 ? Math.min(12, 0.9 / peak) : 1;   // quiet or far voices are made as loud as close ones
+  const buf = new DataView(new ArrayBuffer(44 + n * 2)), w = (p, t) => [...t].forEach((ch, k) => buf.setUint8(p + k, ch.charCodeAt(0)));
+  w(0, "RIFF"); buf.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt "); buf.setUint32(16, 16, true); buf.setUint16(20, 1, true); buf.setUint16(22, 1, true);
+  buf.setUint32(24, target, true); buf.setUint32(28, target * 2, true); buf.setUint16(32, 2, true); buf.setUint16(34, 16, true); w(36, "data"); buf.setUint32(40, n * 2, true);
+  for (let k = 0; k < n; k++) { const v = Math.max(-1, Math.min(1, all[Math.floor(k * ratio)] * boost)); buf.setInt16(44 + k * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true); }
+  let bin = ""; const u8 = new Uint8Array(buf.buffer); for (let k = 0; k < u8.length; k += 0x8000) bin += String.fromCharCode(...u8.subarray(k, k + 0x8000));
+  return btoa(bin);
+}
+
 function startRec(side) {
-  if (!SR) { showType(side); st("このブラウザは音声入力に未対応。⌨で入力してください"); return; }
+  const lang0 = side === "me" ? me : them;
+  if (aiRec) { const was = active; aiRec.stop(); if (was === side) return; }
+  if (needAI(lang0)) { if (active) stopRec(); aiListen(side); return; }
   if (active) { const was = active; stopRec(); if (was === side) return; forceFinish?.(); }
   // The phone can't listen while it is talking: stop any read-aloud first
   try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} voiceRun++;
@@ -529,9 +588,11 @@ function startRec(side) {
     r.onerror = e => {
       if (e.error === "no-speech" || e.error === "aborted") return;
       stopWanted = true;
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") st("マイクを許可してください（ブラウザの設定）");
-      else if (e.error === "language-not-supported") { st(`この端末は${LANG[lang].name}の音声入力に未対応。⌨で入力`); showType(side); }
-      else st("マイクが使えませんでした（" + e.error + "）。もう一度押してください");
+      if (["service-not-allowed", "language-not-supported", "network", "audio-capture", "not-allowed"].includes(e.error)) {
+        // this phone can't do it itself: from now on the AI listens for this language
+        aiOnly[lang] = true; try { localStorage.setItem("t4-aiears", JSON.stringify(aiOnly)); } catch {}
+        st("🎙 AIで聞き取ります。もう一度🎤を押して話してください");
+      } else st("マイクが使えませんでした（" + e.error + "）。もう一度押してください");
     };
     r.onend = () => {
       if (rec !== r) return;
