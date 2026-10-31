@@ -29,6 +29,10 @@ body{background:var(--bg);color:var(--fg);font-family:var(--font);
   display:flex;flex-direction:column;overflow:hidden;-webkit-tap-highlight-color:transparent}
 .half{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;padding:12px 16px}
 .half.them{transform:rotate(180deg)}
+body.linked .half.them{display:none}
+.linkqr{background:#fff;border-radius:12px;padding:10px;width:240px;height:240px;margin:8px auto;display:block}
+.logrow{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left}
+.logrow .w{font-size:12px;color:var(--muted)}
 .half.solo .them{display:none}
 .lang{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;color:var(--muted)}
 .lang b{color:var(--gold);font-size:15px}
@@ -87,6 +91,8 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <select id="meSel" aria-label="自分の言語"></select>
   <button class="sw" id="swap" aria-label="入れ替え">⇅</button>
   <select id="themSel" aria-label="相手の言語"></select>
+  <button class="tog" id="linkBtn">📱 2台でつなぐ</button>
+  <button class="tog" id="logBtn">📜 記録</button>
   <button class="tog" id="qpBtn">⚡ 定型文</button>
   <button class="tog" id="camBtn">📷 写して訳す</button>
   <button class="tog" id="autoSpeak">🔊 ON</button>
@@ -98,6 +104,19 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <div class="typerow" id="meType" hidden><input id="meInput" enterkeyhint="send" placeholder="文字で入力"><button id="meSend">訳す</button></div>
   <div class="said" id="meSaid"><div class="big wait" id="meBig"></div><div class="rom" id="meRom"></div><div class="small" id="meSmall"></div></div>
   <div class="lang"><span id="meLabel"></span><button class="gbtn" id="meG" aria-label="声"></button></div>
+</section>
+
+<section class="cam" id="link" hidden>
+  <div class="camtop"><b>📱 2台でつなぐ</b><button id="linkClose">✕</button></div>
+  <div class="camsum" id="linkText">相手のスマホでこのQRを読んでもらうと、それぞれ自分のスマホで話せます。相手の画面には相手の言葉で訳が出て、読み上げます。</div>
+  <img class="linkqr" id="linkQr" alt="QR">
+  <div class="row" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="tog" id="linkCopy">🔗 リンクをコピー</button><button class="tog" id="linkOff">切る</button></div>
+</section>
+
+<section class="cam" id="log" hidden>
+  <div class="camtop"><b>📜 会話の記録</b><button id="logCopy">コピー</button><button id="logSave">保存</button><button id="logClear">消す</button><button id="logClose">✕</button></div>
+  <div class="camsum">話したことと訳が、新しい順に残ります（このスマホの中だけ・最新200件）。</div>
+  <div class="camlist" id="logList"></div>
 </section>
 
 <section class="cam" id="qp" hidden>
@@ -420,6 +439,78 @@ Reply ONLY JSON: {"text":"translation","rom":"Latin-letter reading of the transl
 
 
 
+
+// ---------- Conversation log: everything said and its translation, kept on this phone ----------
+let convo = (() => { try { return JSON.parse(localStorage.getItem("talk4-log") || "[]"); } catch { return []; } })();
+function logIt(from, text, to, tr) {
+  convo.unshift({ t: Date.now(), from, text, to, tr }); convo = convo.slice(0, 200);
+  try { localStorage.setItem("talk4-log", JSON.stringify(convo)); } catch {}
+}
+const logText = () => convo.slice().reverse().map(e => `${new Date(e.t).toLocaleString()}  [${LANG[e.from]?.name}] ${e.text}\n    → [${LANG[e.to]?.name}] ${e.tr}`).join("\n");
+function logPaint() {
+  const box = $("logList"); box.innerHTML = "";
+  if (!convo.length) { box.textContent = "まだありません"; return; }
+  for (const e of convo) {
+    const d = document.createElement("div"); d.className = "logrow";
+    d.innerHTML = `<div class="w"></div><div class="t" style="font-weight:700"></div><div class="o" style="color:var(--gold)"></div>`;
+    d.children[0].textContent = `${new Date(e.t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${LANG[e.from]?.name} → ${LANG[e.to]?.name}`;
+    d.children[1].textContent = e.text; d.children[2].textContent = e.tr; box.append(d);
+  }
+}
+$("logBtn").onclick = () => { $("log").hidden = false; logPaint(); };
+$("logClose").onclick = () => { $("log").hidden = true; };
+$("logCopy").onclick = async () => { try { await navigator.clipboard.writeText(logText()); st("コピーしました", true); } catch { st("コピーできませんでした"); } };
+$("logSave").onclick = () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([logText()], { type: "text/plain" })); a.download = `talk4-${new Date().toISOString().slice(0, 10)}.txt`; a.click(); };
+$("logClear").onclick = () => { convo = []; try { localStorage.removeItem("talk4-log"); } catch {} logPaint(); };
+
+// ---------- Two phones, one conversation: each person speaks into their own phone ----------
+// Messages go through a public relay, end-to-end encrypted with a key that only lives in the QR link.
+let link = null; // { room, key, client, topic }
+const b64u = b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const unb64u = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+async function linkJoin(room, keyStr) {
+  const key = await crypto.subtle.importKey("raw", unb64u(keyStr), "AES-GCM", false, ["encrypt", "decrypt"]);
+  const mqtt = (await import("https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.esm.js")).default;
+  const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt", { clientId: "t4_" + Math.random().toString(36).slice(2, 10), clean: true, reconnectPeriod: 2000 });
+  const topic = "talk4/v1/" + room, self = Math.random().toString(36).slice(2);
+  link = { room, keyStr, key, client, topic, self };
+  client.on("connect", () => { client.subscribe(topic); st("🔗 2台でつながっています", true); document.body.classList.add("linked"); });
+  client.on("offline", () => st("🔗 つなぎ直しています…"));
+  client.on("message", async (t, payload) => {
+    try {
+      const buf = new Uint8Array(payload), iv = buf.slice(0, 12);
+      const m = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv }, link.key, buf.slice(12))));
+      if (m.from === link.self || !m.text) return;
+      if (LANG[m.lang] && m.lang !== them && m.lang !== me) { them = m.lang; save(); paint(); }
+      orig = { text: m.text, lang: m.lang, side: "them", remote: true }; show(orig);
+    } catch {}
+  });
+}
+async function linkSend(text, lang) {
+  if (!link?.client?.connected) return;
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, link.key, new TextEncoder().encode(JSON.stringify({ text, lang, from: link.self }))));
+  const out = new Uint8Array(12 + data.length); out.set(iv); out.set(data, 12);
+  link.client.publish(link.topic, out);
+}
+function linkUrl() { return `${location.origin}${location.pathname}#room=${link.room}&k=${link.keyStr}&me=${them}&them=${me}`; }
+$("linkBtn").onclick = async () => {
+  $("link").hidden = false;
+  if (!link) { const room = b64u(crypto.getRandomValues(new Uint8Array(9))), k = b64u(crypto.getRandomValues(new Uint8Array(16))); await linkJoin(room, k); }
+  const url = linkUrl();
+  try { const QR = (await import("https://cdn.jsdelivr.net/npm/qrcode@1.5.4/+esm")).default; $("linkQr").src = await QR.toDataURL(url, { margin: 1, width: 480 }); } catch { $("linkText").textContent = "QRが作れませんでした。リンクをコピーして送ってください。"; }
+};
+$("linkCopy").onclick = async () => { if (!link) return; try { await navigator.clipboard.writeText(linkUrl()); st("リンクをコピーしました", true); } catch {} };
+$("linkOff").onclick = () => { try { link?.client.end(true); } catch {} link = null; document.body.classList.remove("linked"); $("link").hidden = true; st("つなぐのをやめました"); history.replaceState(null, "", location.pathname); };
+$("linkClose").onclick = () => { $("link").hidden = true; };
+// Opened from a partner's QR: take the languages from the link and join
+setTimeout(() => {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (!h.get("room") || !h.get("k")) return;
+  if (LANG[h.get("me")]) me = h.get("me"); if (LANG[h.get("them")] && h.get("them") !== me) them = h.get("them");
+  save(); paint(); linkJoin(h.get("room"), h.get("k")).catch(() => st("つなげませんでした。もう一度QRを読んでください"));
+}, 0);
+
 // ---------- Quick phrases: ready-made, checked sentences in all six languages, no waiting for translation ----------
 const QP_CATS = [["greet", "👋 あいさつ"], ["restaurant", "🍽 注文"], ["cafe", "☕ カフェ"], ["money", "💰 お会計"], ["help", "🆘 困った"], ["taxi", "🚕 タクシー"], ["hotel", "🏨 ホテル"], ["health", "💊 体調"]];
 let qpLessons = null, qpCat = "restaurant", qpFrom = "me";
@@ -453,7 +544,8 @@ function qpSay(p) {
   L.big.className = "big"; L.big.textContent = p[to]; L.rom.textContent = qpRead(p, to); L.small.textContent = p[from];
   orig = { text: p[from], lang: from, side: speakerSide };
   last[speakerSide] = { text: p[from], lang: from, own: true, g: voice[speakerSide] }; last[listenerSide] = { text: p[to], lang: to, g: voice[speakerSide] };
-  $("qp").hidden = true;
+  $("qp").hidden = true; logIt(from, p[from], to, p[to]);
+  if (link && speakerSide === "me") { linkSend(p[from], from); return; }
   if (autoSpeak) speak(p[to], to, voice[speakerSide]);
 }
 $("qpBtn").onclick = qpOpen;
@@ -531,12 +623,14 @@ async function show(o) {
     recent.push(`${AI_NAMES[o.lang]}: ${o.text}`, `${AI_NAMES[to]}: ${out.text}`); if (recent.length > 12) recent.splice(0, 2);
     // Check: translate the result back into the speaker's language, so they can see if the meaning survived
     translateRaw(out.text, to, o.lang).then(b => { if (my === job && b.text && b.text.trim() !== o.text.trim()) S.small.textContent = "↩ " + restore(b.text, o.lang); }).catch(() => {});
-    if (autoSpeak) speak(out.text, to, voice[speakerSide]);
+    logIt(o.lang, o.text, to, out.text);
+    if (autoSpeak && !(link && speakerSide === "me")) speak(out.text, to, voice[speakerSide]);
   } catch { if (my === job) { L.big.textContent = "⚠"; st("翻訳できませんでした。電波を確認してください"); } }
 }
 async function handle(text, speakerSide) {
   text = text.trim(); if (!text) return;
   orig = { text, lang: speakerSide === "me" ? me : them, side: speakerSide };
+  if (link && speakerSide === "me") linkSend(text, me);
   show(orig);
 }
 function langChanged() { save(); last.me = last.them = null; paint(); warmVoice(); if (orig) show(orig); }
