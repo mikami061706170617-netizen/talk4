@@ -76,27 +76,27 @@ button,select{font:inherit;color:inherit}
 
   <section class="hero">
     <h1 id="h1"><em>Speak</em> from day one.</h1>
-    <p id="lead">Learn Japanese, English, Georgian or Russian at Japan Food Hub in Tbilisi or online. Every class comes with the Talk4 app: hear the model voice, say it, and get a star score on your pronunciation.</p>
+    <p id="lead">Learn Japanese, English, Georgian or Russian by talking with people who speak it — at Japan Food Hub in Tbilisi or online. No teacher: the Talk4 app pairs you up, gives you topics, the model voice, a timer and a star score. An AI partner is there whenever nobody else is.</p>
     <div class="langs"><span>日本語</span><span>English</span><span>ქართული</span><span>Русский</span></div>
   </section>
 
   <section class="grid" id="plans"></section>
 
   <section class="table">
-    <h2 id="feeH">Class fees</h2>
+    <h2 id="feeH">Exchange nights</h2>
     <div class="rows">
-      <div class="row"><span id="f1a">1 person</span><b>₾75</b><span class="note" id="f1b">per 60-minute class</span></div>
-      <div class="row"><span id="f2a">2 people</span><b>₾45</b><span class="note" id="f2b">each, per 60-minute class</span></div>
-      <div class="row"><span id="f3a">3 or more</span><b>₾120</b><span class="note" id="f3b">per person, 4 classes a month</span></div>
+      <div class="row"><span id="f1a">Drop in</span><b>₾20</b><span class="note" id="f1b">one 60-minute exchange night, one drink included</span></div>
+      <div class="row"><span id="f2a">Members</span><b>4×</b><span class="note" id="f2b">four exchange nights a month are included in every plan</span></div>
+      <div class="row"><span id="f3a">Online</span><b>✓</b><span class="note" id="f3b">pair up over a video call; each person uses the app on their own phone</span></div>
     </div>
-    <p class="note" id="feeNote">The more people join the same time slot, the lower the price for everyone. The app for your level is included. Russian has a teacher once a week; on the other days you practise with the app.</p>
+    <p class="note" id="feeNote">You're paired with someone who speaks the language you're learning and wants to learn yours. Half the time in each language; the app switches you over. One drink is included each night.</p>
   </section>
 
   <section class="table">
     <h2 id="exH">Also at the restaurant</h2>
     <div class="rows">
-      <div class="row"><span id="x1a">Language exchange night</span><b>₾20</b><span class="note" id="x1b">60 minutes, one drink included. Half the time in each language, with a partner who speaks the language you're learning.</span></div>
-      <div class="row"><span id="x2a">Class + lunch</span><b>−10%</b><span class="note" id="x2b">10% off lunch at the restaurant on your class day.</span></div>
+      <div class="row"><span id="x1a">Group interpreter</span><b>2–4</b><span class="note" id="x1b">Free Talk4 Group on the table: up to four people, each in their own language.</span></div>
+      <div class="row"><span id="x2a">Exchange + lunch</span><b>−10%</b><span class="note" id="x2b">10% off lunch at the restaurant on your exchange day.</span></div>
       <div class="row"><span id="x3a">AI conversation practice</span><b>✓</b><span class="note" id="x3b">Included in every plan. Talk with an AI partner in each lesson's scene; it corrects your mistakes. 5 free replies in the trial.</span></div>
     </div>
     <p class="note" id="exNote">Every lesson ends with a real-world mission at the restaurant — order a drink, ask a price, tell the staff about your weekend. Complete it and the drink is on us.</p>
@@ -105,10 +105,10 @@ button,select{font:inherit;color:inherit}
   <section class="how">
     <h2 id="howH">How it works</h2>
     <div class="steps">
-      <div id="st1">Try the app free for 30 minutes, or book a free 30-minute trial class.</div>
+      <div id="st1">Try the app free for 30 minutes — no sign-up.</div>
       <div id="st2">Choose your level and message us on WhatsApp.</div>
       <div id="st3">Pay at the restaurant or by transfer. We send your unlock code.</div>
-      <div id="st4">Join classes in person or online, and practise with the app every day.</div>
+      <div id="st4">Come to exchange nights (or join online), and practise with the app and AI every day.</div>
     </div>
   </section>
 
@@ -128,40 +128,40 @@ const T = {
   en: {
     tagFree: "Start here", tagBeg: "Level 1", tagMid: "Level 2", tagAdv: "Level 3",
     free: "Free trial", beg: "Beginner", mid: "Intermediate", adv: "Advanced",
-    priceFree: "30 minutes", priceFreeSub: "no sign-up, no card", priceFrom: "from", per: "per class",
-    canFree: "Try every Beginner lesson in the app for 30 minutes, or come for a free 30-minute class.",
+    priceFree: "30 minutes", priceFreeSub: "no sign-up, no card", priceFrom: "", per: "/ month",
+    canFree: "Try every Beginner lesson in the app for 30 minutes, and 5 replies with the AI partner.",
     canBeg: "Get through travel and daily life: greetings, numbers, restaurants, shopping, taxis.",
     canMid: "Live there without stress: bookings, doctors, renting a flat, work, messaging.",
     canAdv: "Use it at work: meetings, negotiation, opinions, online calls.",
-    incFree: ["Beginner lessons in the app", "Pronunciation stars", "Free 30-min class (booking needed)"],
-    incBeg: ["12 lessons: Basics + Everyday conversation", "Classes with a teacher", "App: voice, role-play, quizzes"],
-    incMid: ["Everything in Beginner", "+6 lessons: reservations, health, renting, work, messages, past", "Role-play conversations"],
+    incFree: ["Beginner lessons in the app", "Pronunciation stars", "5 AI conversation replies"],
+    incBeg: ["12 lessons: Basics + Everyday conversation", "4 exchange nights a month (drink included)", "AI conversation partner", "App: voice, role-play, quizzes"],
+    incMid: ["Everything in Beginner", "+6 lessons: reservations, health, renting, work, messages, past", "Exchange topics at your level"],
     incAdv: ["Everything in Intermediate", "+4 lessons: business meeting, negotiation, opinions, online calls", "All 22 lessons"],
     ctaFree: "Start free", ctaPlan: "Apply on WhatsApp",
     applyMsg: "Hello! I'd like to join the Talk4 Class {p} plan.",
-    trialMsg: "Hello! I'd like to book a free 30-minute trial class.",
+    trialMsg: "Hello! I'd like to join a language exchange night.",
   },
   ja: {
     tagFree: "まずはここから", tagBeg: "レベル1", tagMid: "レベル2", tagAdv: "レベル3",
     free: "無料体験", beg: "初心者", mid: "中級", adv: "上級",
-    priceFree: "30分", priceFreeSub: "登録・カード不要", priceFrom: "", per: "1回",
-    canFree: "アプリで初心者レッスンを30分ためせます。店での30分無料体験レッスンもできます。",
+    priceFree: "30分", priceFreeSub: "登録・カード不要", priceFrom: "", per: "／月",
+    canFree: "アプリの初心者レッスンを30分、AI会話を5回まで無料でためせます。",
     canBeg: "あいさつ・数字・レストラン・買い物・タクシーなど、旅行と毎日のやりとりができる。",
     canMid: "予約・病院・部屋探し・仕事・メッセージまで、住んで困らない会話ができる。",
     canAdv: "商談・交渉・意見・オンライン会議まで、仕事で使える会話ができる。",
-    incFree: ["アプリで初心者レッスン", "発音の★採点", "店で30分の無料体験レッスン（予約制）"],
-    incBeg: ["12レッスン：入門＋日常会話", "先生の授業", "アプリ：お手本の声・ロールプレイ・クイズ"],
-    incMid: ["初心者の内容すべて", "＋6レッスン：予約・体調・部屋探し・仕事・メッセージ・過去の話", "ロールプレイ会話"],
+    incFree: ["アプリで初心者レッスン", "発音の★採点", "AI会話5回"],
+    incBeg: ["12レッスン：入門＋日常会話", "言語交換会 月4回（ドリンク付き）", "AIの会話相手", "アプリ：お手本の声・ロールプレイ・クイズ"],
+    incMid: ["初心者の内容すべて", "＋6レッスン：予約・体調・部屋探し・仕事・メッセージ・過去の話", "レベルに合った交換会の話題"],
     incAdv: ["中級の内容すべて", "＋4レッスン：商談・交渉・意見・オンライン会議", "全22レッスン"],
     ctaFree: "無料ではじめる", ctaPlan: "WhatsAppで申し込む",
     applyMsg: "こんにちは！Talk4 Class の「{p}」プランに申し込みたいです。",
-    trialMsg: "こんにちは！30分の無料体験レッスンを予約したいです。",
-    h1: "<em>初日から</em>話せる。", lead: "トビリシのJapan Food Hubかオンラインで、日本語・英語・ジョージア語・ロシア語が学べます。授業にはTalk4アプリが付いていて、お手本を聞いて、言って、発音を★で採点できます。",
-    feeH: "授業料", f1a: "1人", f1b: "60分の授業1回", f2a: "2人", f2b: "1人あたり・60分1回", f3a: "3人以上", f3b: "1人あたり・月4回",
-    feeNote: "同じ時間に人が増えるほど、全員の料金が下がります。レベルに合ったアプリは授業料に含まれます。ロシア語は先生の授業が週1回、ほかの日はアプリで練習します。",
-    howH: "はじめ方", st1: "アプリを30分無料でためす。または店の30分無料体験レッスンを予約する。", st2: "レベルを選んでWhatsAppで連絡する。", st3: "店か振込で支払うと、解除コードが届く。", st4: "対面かオンラインで授業に出て、毎日アプリで練習する。",
-    exH: "店でできること", x1a: "言語交換会", x1b: "60分・ドリンク1杯付き。学びたい言葉を話す人とペアになり、半分ずつお互いの言葉で話します。",
-    x2a: "授業＋ランチ", x2b: "授業の日は店のランチが10%引き。", x3a: "AI会話の練習", x3b: "全プランに含まれます。レッスンの場面でAIと自由に会話でき、間違いも直してくれます。無料体験では5回まで。",
+    trialMsg: "こんにちは！言語交換会に参加したいです。",
+    h1: "<em>初日から</em>話せる。", lead: "その言葉を話す人と実際に話して、日本語・英語・ジョージア語・ロシア語を覚えます。トビリシのJapan Food Hubでもオンラインでも。先生はいません。ペア作り・話題・お手本の声・タイマー・★採点はTalk4アプリが進めます。相手がいない時はAIが会話の相手になります。",
+    feeH: "言語交換会", f1a: "1回だけ参加", f1b: "60分1回・ドリンク1杯付き", f2a: "メンバー", f2b: "どのプランにも月4回分が含まれます", f3a: "オンライン", f3b: "ビデオ通話でペアになり、それぞれ自分のスマホでアプリを使います",
+    feeNote: "学びたい言葉を話し、あなたの言葉を学びたい人とペアになります。半分ずつお互いの言葉で話し、交代はアプリが知らせます。毎回ドリンク1杯付きです。",
+    howH: "はじめ方", st1: "アプリを30分無料でためす（登録不要）。", st2: "レベルを選んでWhatsAppで連絡する。", st3: "店か振込で支払うと、解除コードが届く。", st4: "交換会に来る（オンラインでも可）。毎日アプリとAIで練習する。",
+    exH: "店でできること", x1a: "グループ通訳", x1b: "テーブルで無料のTalk4グループが使えます。4人まで、それぞれ自分の言葉で話せます。",
+    x2a: "交換会＋ランチ", x2b: "交換会の日は店のランチが10%引き。", x3a: "AI会話の練習", x3b: "全プランに含まれます。レッスンの場面でAIと自由に会話でき、間違いも直してくれます。無料体験では5回まで。",
     exNote: "どのレッスンも最後は店での「実践ミッション」。ドリンクを注文する、値段を聞く、週末の話をする。達成したらドリンク1杯サービスです。",
     conH: "お問い合わせ", addr: "Japan Food Hub・1 Davit Gamrekeli St, トビリシ", lLang: "言語",
   },
@@ -215,9 +215,9 @@ async function paint() {
   const applyMsg = k => t.applyMsg.replace("{p}", t[k]) + (lang === "en" ? "" : "\n" + T.en.applyMsg.replace("{p}", enName[k]));
   document.getElementById("plans").innerHTML =
     plan("free", "free", t.tagFree, t.free, `<b>₾0</b>${esc(t.priceFree)} · ${esc(t.priceFreeSub)}`, t.canFree, t.incFree, t.ctaFree, `class.html?mode=study&ex=${lang}`, true) +
-    plan("beg", "", t.tagBeg, t.beg, from("₾45–75"), t.canBeg, t.incBeg, t.ctaPlan, wa(applyMsg("beg")), true) +
-    plan("mid", "", t.tagMid, t.mid, from("₾45–75"), t.canMid, t.incMid, t.ctaPlan, wa(applyMsg("mid"))) +
-    plan("adv", "", t.tagAdv, t.adv, from("₾45–75"), t.canAdv, t.incAdv, t.ctaPlan, wa(applyMsg("adv")));
+    plan("beg", "", t.tagBeg, t.beg, from("₾39"), t.canBeg, t.incBeg, t.ctaPlan, wa(applyMsg("beg")), true) +
+    plan("mid", "", t.tagMid, t.mid, from("₾59"), t.canMid, t.incMid, t.ctaPlan, wa(applyMsg("mid"))) +
+    plan("adv", "", t.tagAdv, t.adv, from("₾79"), t.canAdv, t.incAdv, t.ctaPlan, wa(applyMsg("adv")));
   document.getElementById("waBtn").href = wa(t.trialMsg + (lang === "en" ? "" : "\n" + T.en.trialMsg));
 }
 paint();

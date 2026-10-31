@@ -167,7 +167,7 @@ h2.head{margin:0;font-size:clamp(24px,3.4vw,40px);text-wrap:balance}
 </head>
 <body>
 <header class="top">
-  <div class="brand">TALK4 <b>CLASS</b> <a href="./">← Talk4</a></div>
+  <div class="brand">TALK4 <b>CLASS</b> <a href="./">← Talk4</a> <a href="exchange.html">🤝 Exchange</a></div>
   <label class="field"><span id="lLesson">レッスン</span><select id="lessonSel"></select></label>
   <label class="field"><span id="lLearn">学ぶ言語</span><select id="learnSel"></select></label>
   <label class="field"><span id="lEx">説明の言語</span><select id="exSel"></select></label>
@@ -213,7 +213,7 @@ const st = t => { $("status").textContent = t; };
 
 /* ---------- Screen words (Japanese and English here; other languages are translated once and cached) ---------- */
 const UI = {
-  ja: { lesson:"レッスン", learn:"学ぶ言語", ex:"説明の言語", class:"授業", study:"自習", share:"生徒用リンク",
+  ja: { lesson:"レッスン", learn:"学ぶ言語", ex:"説明の言語", class:"みんなで", study:"ひとりで", share:"生徒用リンク",
         s0:"ねらい", s1:"練習", s2:"会話", s3:"聞き取り", s4:"クイズ", s5:"まとめ",
         goal:"今日のゴール", words:"今日の言葉", tip:"ワンポイント", start:"練習をはじめる →",
         listen:"▶ 聞く", slow:"🐢 ゆっくり", speak:"🎤 言ってみる", stop:"■ 止める", prev:"← 前へ", next:"次へ →", nextStep:"次のステップへ →",
@@ -222,15 +222,15 @@ const UI = {
         lq:"聞こえた言葉はどれ？", q:"これはどれ？", right:"正解！", wrong:"ざんねん", again:"もう一回", done:"終了！",
         canDo:"できるようになったこと", homework:"宿題", print:"🖨 印刷・PDF", nextLesson:"次のレッスンへ →",
         shareTitle:"生徒はこのQRを読むと、同じレッスンを自分のスマホで練習できます", copy:"リンクをコピー", copied:"コピーしました",
-        script:"先生の台本", basics:"入門", daily:"日常会話", midL:"中級", advL:"上級",
+        script:"進行役の台本", basics:"入門", daily:"日常会話", midL:"中級", advL:"上級",
         trialLeft:"無料体験 残り{n}分", trialOver:"無料体験は終わりました", paid:"ここからは有料です", trialEnd:"30分の無料体験が終わりました",
-        paidSub:"続きは、プランに申し込むと使えます。先生の授業（対面・オンライン）とアプリがセットです。", lockedLv:"このレッスンは「{lv}」プランから使えます",
+        paidSub:"続きは、プランに申し込むと使えます。アプリ・AI会話・言語交換会（月4回）がセットです。", lockedLv:"このレッスンは「{lv}」プランから使えます",
         planBeg:"初心者", planMid:"中級", planAdv:"上級", planFree:"無料体験",
         canBeg:"あいさつ・数字・レストラン・買い物・タクシーなど、旅行と毎日のやりとりができる（12レッスン）",
         canMid:"予約・病院・部屋探し・仕事・メッセージ・旅の話まで、住んで困らない会話ができる（初心者＋6レッスン）",
         canAdv:"商談・交渉・意見・オンライン会議まで、仕事で使える会話ができる（全22レッスン）",
-        price60:"授業60分", p1:"1人 ₾75", p2:"2人なら 1人₾45", p3:"3人以上 月4回 ₾120", appIncl:"アプリは授業料に含まれます",
-        ruNote:"ロシア語は先生の授業が週1回。ほかの日はアプリで練習します。", apply:"WhatsAppで申し込む",
+        price60:"月額", p1:"", p2:"言語交換会 月4回（ドリンク付き）", p3:"AI会話・全レッスン", appIncl:"1回だけの交換会参加は₾20",
+        ruNote:"先生はいません。学びたい言葉を話す人とペアになって話します。", apply:"WhatsAppで申し込む",
         haveCode:"解除コードをお持ちの方", unlock:"解除する", badCode:"コードが違います。もう一度確かめてください", unlocked:"解除しました",
         seePlans:"プランを詳しく見る",
         mission:"実践ミッション", missionDone:"ミッション達成！", missionDid:"達成しました ✓",
@@ -238,7 +238,7 @@ const UI = {
         aiTitle:"AIと会話", aiStart:"🤖 AIと会話をはじめる", aiHint:"この場面の相手役をAIがやります。自由に話しかけてください。間違いはAIが直してくれます",
         aiType:"文字で入力もできます", aiSend:"送る", aiFix:"こう言うともっと自然", aiOff:"AI会話は準備中です（先生がAIの設定をするまでお待ちください）",
         aiFreeLeft:"無料体験：AIとあと{n}回話せます", aiLocked:"AI会話の続きは有料プランで使えます", aiErr:"AIが返事できませんでした。もう一度話しかけてください", aiEnd:"終わる", current:"{lv}プラン ✓", applyMsg:"Talk4 Class の「{lv}」プランに申し込みたいです。", noMic:"このブラウザでは発音チェックが使えません（Chromeかスマホで開いてください）", micErr:"マイクが使えませんでした。もう一度押してください" },
-  en: { lesson:"Lesson", learn:"Learn", ex:"Explain in", class:"Class", study:"Self-study", share:"Student link",
+  en: { lesson:"Lesson", learn:"Learn", ex:"Explain in", class:"Group", study:"Solo", share:"Student link",
         s0:"Goal", s1:"Practice", s2:"Talk", s3:"Listen", s4:"Quiz", s5:"Review",
         goal:"Today's goal", words:"Today's words", tip:"Tip", start:"Start practising →",
         listen:"▶ Listen", slow:"🐢 Slow", speak:"🎤 Try it", stop:"■ Stop", prev:"← Back", next:"Next →", nextStep:"Next step →",
@@ -247,15 +247,15 @@ const UI = {
         lq:"Which did you hear?", q:"Which one is it?", right:"Correct!", wrong:"Not quite", again:"Play again", done:"Finished!",
         canDo:"I can now…", homework:"Homework", print:"🖨 Print / PDF", nextLesson:"Next lesson →",
         shareTitle:"Students scan this to practise the same lesson on their phone", copy:"Copy link", copied:"Copied",
-        script:"Teacher script", basics:"Basics", daily:"Everyday conversation", midL:"Intermediate", advL:"Advanced",
+        script:"Host script", basics:"Basics", daily:"Everyday conversation", midL:"Intermediate", advL:"Advanced",
         trialLeft:"Free trial: {n} min left", trialOver:"Free trial finished", paid:"The rest is part of a plan", trialEnd:"Your 30-minute free trial is over",
-        paidSub:"Join a plan to keep going. Every plan includes classes with a teacher (in person or online) and the app.", lockedLv:"This lesson is part of the {lv} plan",
+        paidSub:"Join a plan to keep going. Every plan includes the app, the AI partner and four exchange nights a month.", lockedLv:"This lesson is part of the {lv} plan",
         planBeg:"Beginner", planMid:"Intermediate", planAdv:"Advanced", planFree:"Free trial",
         canBeg:"Greetings, numbers, restaurants, shopping, taxis — get through travel and daily life (12 lessons)",
         canMid:"Bookings, doctors, renting, work, messaging and stories — enough to live there (Beginner + 6 lessons)",
         canAdv:"Meetings, negotiation, opinions and online calls — ready for business (all 22 lessons)",
-        price60:"60-minute class", p1:"1 person ₾75", p2:"2 people ₾45 each", p3:"3 or more: 4 classes a month ₾120", appIncl:"The app is included in the class fee",
-        ruNote:"Russian has a teacher once a week; on the other days you practise with the app.", apply:"Apply on WhatsApp",
+        price60:"Monthly", p1:"", p2:"4 exchange nights a month (drink included)", p3:"AI partner and lessons", appIncl:"Drop-in exchange night: ₾20",
+        ruNote:"No teacher: you practise with people who speak the language you're learning.", apply:"Apply on WhatsApp",
         haveCode:"Have an unlock code?", unlock:"Unlock", badCode:"That code didn't work. Please check it and try again", unlocked:"Unlocked",
         seePlans:"See plans in detail",
         mission:"Real-world mission", missionDone:"Mission complete!", missionDid:"Completed ✓",
@@ -303,8 +303,8 @@ const SCRIPT = {
     { say: () => "\"That's all for today. Well done!\"", steps: ["Tick what everyone can now do.", "Read out the homework.", "Use \"Print / PDF\" to hand out a sheet.", "Send the student link so they can review on their phones."] },
   ],
 };
-const TEACH_TIP = { ja: "先生役は答えを知らなくて大丈夫です。お手本の声と★の点数はアプリが出すので、台本どおりに進めるだけ。オンライン授業では、この画面を画面共有して「生徒用リンク」をチャットに貼ると、生徒は自分のスマホで発音チェックができます。",
-  en: "You don't need to know the language to lead this class. The app gives the model voice and the star score; you just follow the script. Online, share this screen and paste the student link in the chat so everyone can check their pronunciation on their own phone." };
+const TEACH_TIP = { ja: "進行役は生徒のだれでもできます。答えを知らなくて大丈夫です。お手本の声と★の点数はアプリが出すので、台本どおりに進めるだけ。オンライン授業では、この画面を画面共有して「生徒用リンク」をチャットに貼ると、生徒は自分のスマホで発音チェックができます。",
+  en: "Any student can host. You don't need to know the language. The app gives the model voice and the star score; you just follow the script. Online, share this screen and paste the student link in the chat so everyone can check their pronunciation on their own phone." };
 
 /* ---------- Readings ---------- */
 const KA = {"ა":"a","ბ":"b","გ":"g","დ":"d","ე":"e","ვ":"v","ზ":"z","თ":"t","ი":"i","კ":"k'","ლ":"l","მ":"m","ნ":"n","ო":"o","პ":"p'","ჟ":"zh","რ":"r","ს":"s","ტ":"t'","უ":"u","ფ":"p","ქ":"k","ღ":"gh","ყ":"q'","შ":"sh","ჩ":"ch","ც":"ts","ძ":"dz","წ":"ts'","ჭ":"ch'","ხ":"kh","ჯ":"j","ჰ":"h"};
@@ -548,7 +548,7 @@ async function paywall(card, L, ex) {
     plans.append(h("div", { class: `plan${r === need ? " hot" : ""}` },
       h("h3", {}, lvName(r)),
       h("div", { class: "can" }, can),
-      h("div", { class: "price", html: `${ui.price60}<br><b>${ui.p1}</b><br>${ui.p2}<br>${ui.p3}<br><small>${ui.appIncl}</small>` }),
+      h("div", { class: "price", html: `${ui.price60}<br><b>₾${[0, 39, 59, 79][r]}</b><br>${ui.p2}<br>${ui.p3}<br><small>${ui.appIncl}</small>` }),
       h("a", { class: `btn${r === need ? " main" : ""}`, href: `https://wa.me/${WA}?text=${msg}`, target: "_blank", rel: "noopener" }, "💬 " + ui.apply)));
   }
   card.append(plans, h("div", { class: "heard", style: "text-align:center" }, ui.ruNote));
