@@ -108,9 +108,9 @@ function paint() {
   $("autoSpeak").textContent = "🔊 自動 " + (autoSpeak ? "ON" : "OFF");
   $("themInput").placeholder = LANG[them].name;
 }
-$("meSel").onchange = e => { const v = e.target.value; if (v === them) them = me; me = v; save(); paint(); warmVoice(); };
-$("themSel").onchange = e => { const v = e.target.value; if (v === me) me = them; them = v; save(); paint(); warmVoice(); };
-$("swap").onclick = () => { [me, them] = [them, me]; save(); paint(); warmVoice(); };
+$("meSel").onchange = e => { unlockAudio(); const v = e.target.value; if (v === them) them = me; me = v; langChanged(); };
+$("themSel").onchange = e => { unlockAudio(); const v = e.target.value; if (v === me) me = them; them = v; langChanged(); };
+$("swap").onclick = () => { unlockAudio(); [me, them] = [them, me]; langChanged(); };
 $("autoSpeak").onclick = () => { autoSpeak = !autoSpeak; save(); paint(); };
 
 /* ---------- Translation (free) ---------- */
@@ -237,41 +237,76 @@ function sideEls(side) { return side === "me"
   ? { mic: $("meMic"), big: $("meBig"), small: $("meSmall") }
   : { mic: $("themMic"), big: $("themBig"), small: $("themSmall") }; }
 
-async function handle(text, speakerSide) {
-  text = text.trim(); if (!text) return;
-  const from = speakerSide === "me" ? me : them, to = speakerSide === "me" ? them : me;
+// The last thing someone said, in its original language. Changing a language re-translates it,
+// so nobody has to say it again.
+let orig = null; // {text, lang, side}
+let job = 0;
+
+async function show(o) {
+  const my = ++job;
+  // Whoever's language matches the original is the speaker; otherwise keep the side it was said on
+  const speakerSide = o.lang === me ? "me" : o.lang === them ? "them" : o.side;
   const listenerSide = speakerSide === "me" ? "them" : "me";
+  const to = listenerSide === "me" ? me : them;
   const L = sideEls(listenerSide), S = sideEls(speakerSide);
-  S.small.textContent = ""; // speaker's own panel shows what they said
-  S.big.className = "big"; S.big.textContent = text; last[speakerSide] = { text, lang: from, own: true };
-  L.big.className = "big"; L.big.textContent = "…"; L.small.textContent = text;
+  S.small.textContent = ""; S.big.className = "big"; S.big.textContent = o.text;
+  last[speakerSide] = { text: o.text, lang: o.lang, own: true };
+  L.big.className = "big"; L.big.textContent = "…"; L.small.textContent = o.text;
+  if (o.lang === to) { L.big.textContent = o.text; last[listenerSide] = { text: o.text, lang: to }; return; }
   try {
-    const out = await translate(text, from, to);
+    const out = await translate(o.text, o.lang, to);
+    if (my !== job) return; // a newer sentence or language change took over
     L.big.textContent = out; last[listenerSide] = { text: out, lang: to };
     if (autoSpeak) speak(out, to);
-  } catch { L.big.textContent = "⚠"; st("翻訳できませんでした。電波を確認してください"); }
+  } catch { if (my === job) { L.big.textContent = "⚠"; st("翻訳できませんでした。電波を確認してください"); } }
 }
+async function handle(text, speakerSide) {
+  text = text.trim(); if (!text) return;
+  orig = { text, lang: speakerSide === "me" ? me : them, side: speakerSide };
+  show(orig);
+}
+function langChanged() { save(); last.me = last.them = null; paint(); warmVoice(); if (orig) show(orig); }
 
+// Long recording: keeps listening until you tap again, or after a few seconds of silence.
+// Browsers stop on their own after a short pause, so it quietly restarts and keeps the text.
+const SILENCE_MS = 5000, MAX_MS = 180000;
+let stopWanted = false, silenceTimer = null, maxTimer = null;
 function startRec(side) {
   if (!SR) { showType(side); st("このブラウザは音声入力に未対応。⌨で入力してください"); return; }
-  if (active) { rec.stop(); if (active === side) return; }
+  if (active) { const was = active; stopRec(); if (was === side) return; }
   const lang = side === "me" ? me : them, E = sideEls(side);
-  rec = new SR(); rec.lang = LANG[lang].sr; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
-  let finalText = "";
-  rec.onstart = () => { active = side; E.mic.classList.add("on"); E.mic.textContent = LANG[lang].hold; E.big.className = "big"; E.big.textContent = "…"; E.small.textContent = ""; };
-  rec.onresult = e => { let t = ""; finalText = "";
-    for (const r of e.results) { t += r[0].transcript; if (r.isFinal) finalText += r[0].transcript; }
-    E.big.textContent = t; };
-  rec.onerror = e => {
-    if (e.error === "not-allowed") st("マイクを許可してください（ブラウザの設定）");
-    else if (e.error === "language-not-supported") { st(`この端末は${LANG[lang].name}の音声入力に未対応。⌨で入力`); showType(side); }
-    else if (e.error !== "no-speech" && e.error !== "aborted") st("聞き取れませんでした: " + e.error);
+  let done = "", interim = "";
+  stopWanted = false; active = side;
+  E.mic.classList.add("on"); E.mic.textContent = "■ " + LANG[lang].hold; E.big.className = "big"; E.big.textContent = "…"; E.small.textContent = "";
+  const bump = () => { clearTimeout(silenceTimer); silenceTimer = setTimeout(stopRec, SILENCE_MS); };
+  maxTimer = setTimeout(stopRec, MAX_MS);
+  bump();
+  const finish = () => {
+    clearTimeout(silenceTimer); clearTimeout(maxTimer);
+    E.mic.classList.remove("on"); E.mic.textContent = LANG[lang].talk; active = null; rec = null;
+    const t = (done + " " + interim).trim();
+    if (t) handle(t, side); else if (!last[side]) { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; }
   };
-  rec.onend = () => { E.mic.classList.remove("on"); E.mic.textContent = LANG[lang].talk; const s = active; active = null;
-    const t = finalText || (E.big.textContent !== "…" ? E.big.textContent : "");
-    if (t) handle(t, s); else if (!last[s]) { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; } };
-  try { rec.start(); } catch { active = null; }
+  const begin = () => {
+    const r = new SR(); rec = r; r.lang = LANG[lang].sr; r.interimResults = true; r.continuous = true; r.maxAlternatives = 1;
+    r.onresult = e => { let fin = "", tmp = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) { const x = e.results[i]; if (x.isFinal) fin += x[0].transcript; else tmp += x[0].transcript; }
+      if (fin) done = (done + " " + fin).trim();
+      interim = tmp; E.big.textContent = (done + " " + interim).trim() || "…"; bump(); };
+    r.onerror = e => {
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") { st("マイクを許可してください（ブラウザの設定）"); stopWanted = true; }
+      else if (e.error === "language-not-supported") { st(`この端末は${LANG[lang].name}の音声入力に未対応。⌨で入力`); showType(side); stopWanted = true; }
+    };
+    r.onend = () => {
+      if (rec !== r) return;
+      if (interim) { done = (done + " " + interim).trim(); interim = ""; }
+      if (stopWanted) finish(); else { try { begin(); } catch { finish(); } }
+    };
+    r.start();
+  };
+  try { begin(); } catch { finish(); }
 }
+function stopRec() { stopWanted = true; clearTimeout(silenceTimer); try { rec?.stop(); } catch {} }
 $("meMic").onclick = () => { unlockAudio(); startRec("me"); };
 $("themMic").onclick = () => { unlockAudio(); startRec("them"); };
 
