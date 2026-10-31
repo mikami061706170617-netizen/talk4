@@ -312,17 +312,43 @@ async function tr(text, from, to) {
   const ks = Object.keys(memo); if (ks.length > 400) delete memo[ks[0]]; keep("t4w-cache", memo); return memo[key];
 }
 let job = 0, timer = null, lastQ = "";
-$("q").oninput = () => { clearTimeout(timer); timer = setTimeout(run, 300); };
+$("q").oninput = () => { clearTimeout(timer); timer = setTimeout(run, 600); };
 $("q").onkeydown = e => { if (e.key === "Enter") { clearTimeout(timer); run(true); $("q").blur(); } };
 async function run(force) {
   const text = $("q").value.trim(); if (!text) { $("out").innerHTML = ""; lastQ = ""; return; }
   if (text === lastQ && !force) return; lastQ = text;
   const my = ++job; $("out").innerHTML = "";
   const cards = targets.map(to => { const c = h("div", { class: "card" }, h("div", { class: "lg" }, LANG[to].name), h("div", { class: "t" }, "…"), h("div", { class: "r" }), h("div", { class: "acts" })); $("out").append(c); return [to, c]; });
+  // 1) Instant machine translation  2) the AI's natural, real-life phrasing replaces it a moment later
+  const ai = aiPhrases(text, targets);
   await Promise.all(cards.map(async ([to, c]) => {
-    try { const r = await tr(text, mine, to); if (my !== job) return; fill(c, text, to, r); }
-    catch { if (my === job) c.children[1].textContent = "⚠ 電波を確認してください"; }
+    try { const r = await tr(text, mine, to); if (my !== job) return; if (!c.dataset.ai) fill(c, text, to, r); }
+    catch { if (my === job && !c.dataset.ai) c.children[1].textContent = "⚠ 電波を確認してください"; }
   }));
+  const better = await ai; if (my !== job || !better) return;
+  for (const [to, c] of cards) { const b = better[to]; if (!b?.text) continue;
+    const g = memo[mine + ">" + to + ":" + text];
+    c.dataset.ai = "1"; fill(c, text, to, { text: b.text, rom: to === "en" ? "" : to === "ka" ? kaRoman(b.text) : to === "ru" ? translit(b.text, RU) : (b.rom || "") });
+    c.children[0].textContent = LANG[to].name + "  ✓ 自然な言い方" + (g && g.text.replace(/[.!?。]$/, "") !== b.text.replace(/[.!?。]$/, "") ? "（直訳: " + g.text + "）" : ""); }
+}
+const RU = {"а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"yo","ж":"zh","з":"z","и":"i","й":"y","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r","с":"s","т":"t","у":"u","ф":"f","х":"kh","ц":"ts","ч":"ch","ш":"sh","щ":"shch","ъ":"","ы":"y","ь":"'","э":"e","ю":"yu","я":"ya"};
+const translit = (t, map) => [...t].map(c => { const lo = c.toLowerCase(), r = map[lo]; if (r == null) return c; return c !== lo && r ? r[0].toUpperCase() + r.slice(1) : r; }).join("");
+let AIcfg = null; const aiReady = import("./config.js").then(m => AIcfg = m.AI).catch(() => {});
+const aiMemo = load("t4w-ai", {});
+async function aiPhrases(text, langs) {
+  const key = mine + ":" + langs.join(",") + ":" + text; if (aiMemo[key]) return aiMemo[key];
+  await aiReady; if (!AIcfg?.proxy) return null;
+  const NAMES = { ja: "Japanese", en: "English", ka: "Georgian", ru: "Russian", ko: "Korean", zh: "Simplified Chinese" };
+  const shape = "{" + langs.map(l => `"${l}":{"text":"","rom":""}`).join(",") + "}";
+  const prompt = `A ${NAMES[mine]} speaker living in Tbilisi wants to learn how to say this in real life (shop, restaurant, taxi, daily talk): "${text}". For each language give what a native speaker would actually say — short, natural, polite everyday phrasing with correct grammar, not a word-for-word translation. "rom" = reading in Latin letters (empty for English). Reply ONLY JSON ${shape} with keys: ${langs.map(l => l + "=" + NAMES[l]).join(", ")}.`;
+  try {
+    const r = await fetch(AIcfg.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
+    const j = await r.json(), raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+    const o = JSON.parse(raw.replace(/^```json|```$/g, "").trim());
+    aiMemo[key] = o; const ks = Object.keys(aiMemo); if (ks.length > 300) delete aiMemo[ks[0]]; keep("t4w-ai", aiMemo);
+    return o;
+  } catch { return null; }
 }
 function fill(c, text, to, r) {
   c.children[1].textContent = r.text; c.children[2].textContent = r.rom || "";
