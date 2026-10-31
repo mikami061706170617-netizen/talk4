@@ -395,7 +395,7 @@ const AI_NAMES = { ja: "Japanese", en: "English", ka: "Georgian", ru: "Russian",
 async function aiTranslate(text, from, to, draft) {
   if (!AIcfg?.proxy || to === "ka") return null;   // Google is still more accurate for Georgian grammar than the free AI
   const words = GLOSS.map(g => `${g[from] || g.ja} = ${g[to] || g.en}`).join("; ");
-  const prompt = `You are a live interpreter at a Japanese restaurant (Omurice Land) in Tbilisi. Translate the last line from ${AI_NAMES[from]} to ${AI_NAMES[to]} so it sounds natural and polite, the way a native speaker would say it out loud. Fix obvious speech-recognition mistakes using context. Keep names. Shop words: ${words}.
+  const prompt = `You are a live interpreter at a Japanese restaurant (Omurice Land) in Tbilisi. Translate the last line from ${AI_NAMES[from]} to ${AI_NAMES[to]} so it sounds natural and polite, the way a native speaker would say it out loud. Fix obvious speech-recognition mistakes using context. Keep names. Never add greetings or words that were not said. Shop words: ${words}.
 Conversation so far:\n${recent.slice(-6).join("\n") || "(none)"}
 Machine draft: ${draft}
 Last line: ${text}
