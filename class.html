@@ -661,6 +661,18 @@ async function stepGoal(card, L, ex) {
   card.append(h("div", { class: "nav" }, h("span"), h("button", { class: "btn main", onclick: () => goStep(1) }, ui.start)));
 }
 
+/* ⭐ Put a lesson phrase into the same word list as the 📝 覚える tab, for flashcards later */
+function wordStar(P, ex) {
+  const get = () => { try { return JSON.parse(localStorage.getItem("t4w-words")) || []; } catch { return []; } };
+  const has = () => get().some(w => w.t === P[S.learn] && w.lang === S.learn);
+  const b = h("button", { class: "btn" }, has() ? "⭐ ✓" : "⭐");
+  b.title = "単語帳に入れる / Save"; 
+  b.onclick = async () => { if (has()) return; const ws = get();
+    ws.unshift({ a: await meaningOf(P, ex), mine: ex, lang: S.learn, t: P[S.learn], rom: reading(P, S.learn) || "", n: 0, at: Date.now() });
+    try { localStorage.setItem("t4w-words", JSON.stringify(ws)); } catch {} b.textContent = "⭐ ✓"; };
+  return b;
+}
+
 /* ② Phrase practice */
 async function stepPractice(card, L, ex) {
   const P = L.phrases[S.i];
@@ -678,7 +690,7 @@ async function stepPractice(card, L, ex) {
   mic.onclick = async () => { unlockAudio(); const r = await tryIt(P[S.learn], mic); if (!r) return; S.score = r; const n = starsFor(r.s), k = starKey(S.i); if (n > (stars[k] || 0)) stars[k] = n; save(); render(); };
   card.append(h("div", { class: "actions" },
     h("button", { class: "btn main", onclick: () => { unlockAudio(); say(P[S.learn], S.learn); } }, ui.listen),
-    h("button", { class: "btn", onclick: () => { unlockAudio(); say(P[S.learn], S.learn, true); } }, ui.slow), mic));
+    h("button", { class: "btn", onclick: () => { unlockAudio(); say(P[S.learn], S.learn, true); } }, ui.slow), mic, wordStar(P, ex)));
   const last = S.i === L.phrases.length - 1;
   card.append(h("div", { class: "nav" },
     h("button", { class: "btn", onclick: () => { if (S.i > 0) { S.i--; S.shown = false; S.score = null; render(); } else goStep(0); } }, ui.prev),
