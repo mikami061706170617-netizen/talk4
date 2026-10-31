@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Talk4 Class</title>
+<meta name="theme-color" content="#111010">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+Georgian:wght@400;700&family=Noto+Sans:wght@400;700&display=swap">
+<script type="importmap">
+{"imports":{"onnxruntime-web":"https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/esm/ort.min.js"}}
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+/* Projector-first lesson screen: one huge phrase card, teacher script beside it (below on phones) */
+:root{
+  --bg:#111010; --panel:#1c1a18; --panel2:#24211e; --fg:#f4efe6; --muted:#a39d90; --line:#33302b;
+  --gold:#d8ae55; --red:#d8443a; --ok:#5fb37a;
+  --font:"Noto Sans JP","Noto Sans Georgian","Noto Sans",system-ui,sans-serif;
+  --display:Oswald,"Noto Sans JP","Noto Sans Georgian",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);
+  padding:env(safe-area-inset-top,0px) max(16px,env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) max(16px,env(safe-area-inset-left,0px))}
+button,select{font:inherit;color:inherit}
+button{cursor:pointer;touch-action:manipulation}
+button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.top{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding-block:12px;border-bottom:1px solid var(--line)}
+.brand{font-family:var(--display);font-weight:700;letter-spacing:.06em;font-size:20px;margin-right:auto;display:flex;gap:10px;align-items:baseline}
+.brand b{color:var(--gold)}
+.brand a{font-family:var(--font);font-weight:400;font-size:13px;color:var(--muted);letter-spacing:0}
+.field{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted);letter-spacing:.04em}
+.field select{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px;max-width:46vw}
+.tabs{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px}
+.tabs button{border:none;background:none;border-radius:9px;padding:8px 12px;font-size:14px}
+.tabs button[aria-pressed="true"]{background:var(--gold);color:#1a1307;font-weight:700}
+.tool{border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:8px 12px;font-size:14px}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding-block:16px;max-width:1500px;margin:0 auto}
+.wrap.solo{grid-template-columns:minmax(0,1fr)}
+@media (max-width:900px){.wrap{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:clamp(18px,3vw,40px);display:flex;flex-direction:column;gap:18px;min-height:60vh}
+.meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:14px}
+.meta .lesson{color:var(--gold);font-weight:700}
+.dots{display:flex;gap:6px;flex-wrap:wrap}
+.dots button{width:14px;height:14px;border-radius:50%;border:1px solid var(--line);background:var(--panel2);padding:0}
+.dots button.cur{outline:2px solid var(--gold);outline-offset:2px}
+.dots button.s1{background:#6b5a35}.dots button.s2{background:#a8853f}.dots button.s3{background:var(--gold)}
+.stage{flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px;text-align:center}
+.target{font-size:clamp(34px,7vw,88px);font-weight:700;line-height:1.2;overflow-wrap:anywhere;text-wrap:balance}
+.reading{font-size:clamp(18px,3vw,34px);color:var(--gold);overflow-wrap:anywhere}
+.meaning{font-size:clamp(17px,2.4vw,28px);color:var(--muted);overflow-wrap:anywhere}
+.reveal{align-self:center;border:1px dashed var(--gold);background:none;color:var(--gold);border-radius:999px;padding:10px 20px;font-size:16px}
+.actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.btn{border:1px solid var(--line);background:var(--panel2);border-radius:999px;padding:14px 22px;font-size:18px;min-height:52px}
+.btn.main{background:var(--gold);color:#1a1307;border-color:var(--gold);font-weight:700}
+.btn.mic{background:var(--red);border-color:var(--red);color:#fff;font-weight:700}
+.btn.mic.on{animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.6}}
+@media (prefers-reduced-motion:reduce){.btn.mic.on{animation:none}}
+.nav{display:flex;justify-content:space-between;gap:10px}
+.score{min-height:54px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.stars{font-size:34px;letter-spacing:6px;color:var(--gold)}
+.stars .off{color:#3d3830}
+.heard{font-size:15px;color:var(--muted)}
+.side{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:20px;display:flex;flex-direction:column;gap:14px;align-self:start}
+.side h2{margin:0;font-family:var(--display);font-weight:500;font-size:18px;letter-spacing:.08em;color:var(--gold);text-transform:uppercase}
+.side ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:10px;line-height:1.55;font-size:15px}
+.side .say{background:var(--panel2);border-radius:12px;padding:10px 12px;font-size:15px;line-height:1.5}
+.side .say b{color:var(--gold)}
+.side .tip{font-size:13px;color:var(--muted);line-height:1.6;border-top:1px solid var(--line);padding-top:12px}
+.choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (max-width:560px){.choices{grid-template-columns:minmax(0,1fr)}}
+.choice{border:1px solid var(--line);background:var(--panel2);border-radius:16px;padding:16px;text-align:center;display:flex;flex-direction:column;gap:4px}
+.choice .t{font-size:clamp(20px,3vw,32px);font-weight:700}
+.choice .r{font-size:15px;color:var(--gold)}
+.choice.right{border-color:var(--ok);background:#1f3326}
+.choice.wrong{border-color:var(--red);background:#3a1f1c}
+.result{font-family:var(--display);font-size:clamp(40px,8vw,90px);color:var(--gold)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
+.modal .box{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:22px;max-width:420px;width:100%;display:flex;flex-direction:column;gap:14px;align-items:center;text-align:center}
+#qr{background:#fff;padding:14px;border-radius:14px}
+.url{font-size:13px;color:var(--muted);word-break:break-all;user-select:all}
+.status{font-size:12px;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">TALK4 <b>CLASS</b> <a href="./">← Talk4</a></div>
+  <label class="field"><span id="lLesson">レッスン</span><select id="lessonSel"></select></label>
+  <label class="field"><span id="lLearn">学ぶ言語</span><select id="learnSel"></select></label>
+  <label class="field"><span id="lEx">説明の言語</span><select id="exSel"></select></label>
+  <div class="tabs" role="group" aria-label="mode">
+    <button id="mClass"></button><button id="mStudy"></button><button id="mQuiz"></button>
+  </div>
+  <button class="tool" id="share"></button>
+  <button class="tool" id="full" aria-label="fullscreen">⛶</button>
+</header>
+
+<main class="wrap" id="wrap">
+  <section class="card" id="card"></section>
+  <aside class="side" id="side"></aside>
+</main>
+<p class="status" id="status"></p>
+
+<div class="modal" id="modal" hidden>
+  <div class="box">
+    <h2 id="shareTitle" style="margin:0;font-size:18px"></h2>
+    <div id="qr"></div>
+    <div class="url" id="shareUrl"></div>
+    <div class="actions"><button class="btn main" id="copy"></button><button class="btn" id="close">✕</button></div>
+  </div>
+</div>
+
+<script type="module">
+import { LESSONS } from "./lessons.js";
+
+const LANG = {
+  ja:{name:"日本語", g:"ja", sr:"ja-JP", tts:null},
+  en:{name:"English",g:"en", sr:"en-US", tts:"en_US-hfc_female-medium"},
+  ka:{name:"ქართული",g:"ka", sr:"ka-GE", tts:"ka_GE-natia-medium"},
+  ru:{name:"Русский",g:"ru", sr:"ru-RU", tts:"ru_RU-irina-medium"},
+  ko:{name:"한국어", g:"ko", sr:"ko-KR", tts:null},
+  zh:{name:"中文",   g:"zh-CN", sr:"zh-CN", tts:"zh_CN-huayan-medium"},
+};
+const LEARN = ["ja","en","ru","ka"];
+const $ = id => document.getElementById(id);
+const st = t => { $("status").textContent = t; };
+
+/* ---------- Screen words (Japanese and English written here; others translated once and cached) ---------- */
+const UI = {
+  ja: { lesson:"レッスン", learn:"学ぶ言語", ex:"説明の言語", class:"授業", study:"自習", quiz:"クイズ", share:"生徒用リンク",
+        listen:"▶ 聞く", slow:"🐢 ゆっくり", speak:"🎤 言ってみる", stop:"■ 止める", prev:"← 前へ", next:"次へ →",
+        showMeaning:"意味を見る", heard:"聞こえた言葉", tryAgain:"もう一度", great:"合格！", good:"おしい！", toQuiz:"クイズで確認 →",
+        q:"これはどれ？", right:"正解！", wrong:"ざんねん", again:"もう一回", done:"終了！", shareTitle:"生徒はこのQRを読むと、同じレッスンを自分のスマホで練習できます", copy:"リンクをコピー", copied:"コピーしました",
+        script:"先生の台本", noMic:"このブラウザでは発音チェックが使えません（Chromeかスマホで開いてください）" },
+  en: { lesson:"Lesson", learn:"Learn", ex:"Explain in", class:"Class", study:"Self-study", quiz:"Quiz", share:"Student link",
+        listen:"▶ Listen", slow:"🐢 Slow", speak:"🎤 Try it", stop:"■ Stop", prev:"← Back", next:"Next →",
+        showMeaning:"Show meaning", heard:"We heard", tryAgain:"Try again", great:"Perfect!", good:"Almost!", toQuiz:"Quiz time →",
+        q:"Which one is it?", right:"Correct!", wrong:"Not quite", again:"Play again", done:"Finished!", shareTitle:"Students scan this to practise the same lesson on their phone", copy:"Copy link", copied:"Copied",
+        script:"Teacher script", noMic:"Pronunciation check needs Chrome or a phone browser" },
+};
+const cache = (() => { try { return JSON.parse(localStorage.getItem("t4c-tr") || "{}"); } catch { return {}; } })();
+async function gtr(text, from, to) {
+  if (from === to) return text;
+  const k = from + ">" + to + ":" + text; if (cache[k]) return cache[k];
+  try {
+    const j = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=${LANG[from].g}&tl=${LANG[to].g}&q=${encodeURIComponent(text)}`).then(r => r.json());
+    const out = j[0].filter(x => x[0] != null).map(x => x[0]).join("");
+    cache[k] = out; try { localStorage.setItem("t4c-tr", JSON.stringify(cache)); } catch {}
+    return out;
+  } catch { return text; }
+}
+let ui = UI.ja;
+async function loadUI(lang) {
+  if (UI[lang]) { ui = UI[lang]; return; }
+  const out = {}; const keys = Object.keys(UI.en);
+  const vals = await Promise.all(keys.map(k => gtr(UI.en[k], "en", lang)));
+  keys.forEach((k, i) => out[k] = vals[i]); UI[lang] = out; ui = out;
+}
+
+/* ---------- Teacher script ---------- */
+const SCRIPT = {
+  ja: {
+    start: (l, goal) => `<div class="say">最初にこう言います：<br><b>「今日のテーマは『${l}』です。ゴールは、${goal}ことです」</b></div>`,
+    steps: [
+      "「▶ 聞く」を押して、お手本を2回聞かせます。",
+      "みんなで声をそろえて2回まねします。むずかしい時は「🐢 ゆっくり」。",
+      "1人ずつ「🎤 言ってみる」。★★★で合格。★が少なくても、ほめてから次の人へ。",
+      "「これはどういう意味だと思う？」と聞いてから「意味を見る」を押します。",
+      "「次へ →」で次のフレーズへ。",
+    ],
+    end: `<div class="say">最後に：<br><b>「よくできました！クイズで確認しましょう」</b>と言って、「クイズで確認 →」を押します。</div>`,
+    tip: "先生役は答えを知らなくて大丈夫です。お手本の声と★の点数をアプリが出すので、進行役になるだけでOK。オンライン授業では、この画面を画面共有して、「生徒用リンク」をチャットに貼ると、生徒は自分のスマホで発音チェックができます。",
+  },
+  en: {
+    start: (l, goal) => `<div class="say">Open with:<br><b>"Today's topic is ${l}. By the end you'll be able to ${goal.toLowerCase()}."</b></div>`,
+    steps: [
+      "Press \"▶ Listen\" and play the example twice.",
+      "Everyone repeats it together, twice. Use \"🐢 Slow\" if it's hard.",
+      "One by one, press \"🎤 Try it\". Three stars is a pass. Praise every try, then move on.",
+      "Ask \"What do you think it means?\", then press \"Show meaning\".",
+      "Press \"Next →\" for the next phrase.",
+    ],
+    end: `<div class="say">To finish, say:<br><b>"Well done! Let's check with a quiz."</b> Then press "Quiz time →".</div>`,
+    tip: "You don't need to know the language to lead this class. The app gives the model voice and the star score; you just run the steps. For online classes, share this screen and paste the student link in the chat so everyone can check their pronunciation on their own phone.",
+  },
+};
+
+/* ---------- Readings ---------- */
+const KA = {"ა":"a","ბ":"b","გ":"g","დ":"d","ე":"e","ვ":"v","ზ":"z","თ":"t","ი":"i","კ":"k'","ლ":"l","მ":"m","ნ":"n","ო":"o","პ":"p'","ჟ":"zh","რ":"r","ს":"s","ტ":"t'","უ":"u","ფ":"p","ქ":"k","ღ":"gh","ყ":"q'","შ":"sh","ჩ":"ch","ც":"ts","ძ":"dz","წ":"ts'","ჭ":"ch'","ხ":"kh","ჯ":"j","ჰ":"h"};
+const RU = {"а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"yo","ж":"zh","з":"z","и":"i","й":"y","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r","с":"s","т":"t","у":"u","ф":"f","х":"kh","ц":"ts","ч":"ch","ш":"sh","щ":"shch","ъ":"","ы":"y","ь":"'","э":"e","ю":"yu","я":"ya"};
+const translit = (t, map) => [...t].map(c => { const lo = c.toLowerCase(), r = map[lo]; if (r == null) return c; return c !== lo && r ? r[0].toUpperCase() + r.slice(1) : r; }).join("");
+function reading(p, lang) {
+  if (lang === "ja") return p.jr;
+  if (lang === "ru") return translit(p.ru, RU);
+  if (lang === "ka") return translit(p.ka, KA);
+  return "";
+}
+async function meaningOf(p, lang) { return p[lang] ?? await gtr(p.en, "en", lang); }
+const titleOf = (l, lang) => l.title[lang] ?? l.title.en;
+
+/* ---------- Voice (same free engine as Talk4) ---------- */
+const HF = "https://huggingface.co/diffusionstudio/piper-voices/resolve/main/";
+const VPATH = {
+  "ka_GE-natia-medium": "ka/ka_GE/natia/medium/ka_GE-natia-medium.onnx",
+  "ru_RU-irina-medium": "ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx",
+  "en_US-hfc_female-medium": "en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx",
+  "zh_CN-huayan-medium": "zh/zh_CN/huayan/medium/zh_CN-huayan-medium.onnx",
+  "en_US-hfc_male-medium": "en/en_US/hfc_male/medium/en_US-hfc_male-medium.onnx",
+  "ru_RU-dmitri-medium": "ru/ru_RU/dmitri/medium/ru_RU-dmitri-medium.onnx",
+};
+// Male voices where a free one exists; otherwise the female voice is played lower
+const MALE = { en: "en_US-hfc_male-medium", ru: "ru_RU-dmitri-medium" };
+const isMale = v => /(?:^|[^e])male|otoya|hattori|ichiro|daniel|aaron|alex\b|fred|arthur|gordon|rishi|reed|eddy|rocko|grandpa|ralph|albert|bruce|junior|yuri|xander|li-mu|yu-shu|injoon|eric|thomas|dmitri|pavel/i.test(v.name);
+const PHON = "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize";
+let ort = null, phonMod = null, actx = null, unlocked = false, playing = null;
+const sessions = {}, configs = {};
+
+function nativeVoices(lang) {
+  const vs = speechSynthesis?.getVoices?.() || [];
+  const l = v => (v.lang || "").toLowerCase().replace("_", "-");
+  const list = vs.filter(v => l(v).startsWith(lang));
+  return lang === "zh" ? list.sort((a, b) => (l(b) === "zh-cn") - (l(a) === "zh-cn")) : list;
+}
+function nativeVoice(lang) { return nativeVoices(lang)[0]; }
+// How to say something in this language with this gender: a phone voice, or a downloaded one
+function voicePlan(lang, g) {
+  const vs = nativeVoices(lang);
+  if (g === "m") {
+    const m = vs.find(isMale); if (m) return { nv: m, pitch: 1 };
+    if (MALE[lang]) return { id: MALE[lang], rate: 1 };
+    if (vs.length) return { nv: vs[0], pitch: 0.65 };
+    if (LANG[lang].tts) return { id: LANG[lang].tts, rate: 0.86 };
+    return { nv: null, pitch: 0.65 };
+  }
+  const f = vs.find(v => !isMale(v)) || vs[0];
+  if (f) return { nv: f, pitch: isMale(f) ? 1.4 : 1 };
+  if (LANG[lang].tts) return { id: LANG[lang].tts, rate: 1 };
+  return { nv: null, pitch: 1 };
+}
+async function cachedFetch(url, onProgress) {
+  let cache = null;
+  try { cache = await caches.open("talk4-voices"); const hit = await cache.match(url); if (hit) return await hit.arrayBuffer(); } catch {}
+  const res = await fetch(url); if (!res.ok) throw new Error("download " + res.status);
+  const total = +(res.headers.get("Content-Length") || 0); const reader = res.body.getReader(); const parts = []; let got = 0;
+  for (;;) { const { done, value } = await reader.read(); if (done) break; parts.push(value); got += value.length; if (total && onProgress) onProgress(got / total); }
+  const blob = new Blob(parts);
+  try { if (cache) await cache.put(url, new Response(blob)); } catch {}
+  return await blob.arrayBuffer();
+}
+async function loadVoice(id, onProgress) {
+  if (sessions[id]) return sessions[id];
+  ort ??= await import("onnxruntime-web");
+  ort.env.wasm.wasmPaths = "https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.18.0/";
+  ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
+  const cfgBuf = await cachedFetch(HF + VPATH[id] + ".json");
+  configs[id] = JSON.parse(new TextDecoder().decode(cfgBuf));
+  const model = await cachedFetch(HF + VPATH[id], onProgress);
+  sessions[id] = await ort.InferenceSession.create(model);
+  return sessions[id];
+}
+async function phonemize(text, espeakVoice) {
+  phonMod ??= (await import("https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/dist/piper-DeOu3H9E.js")).createPiperPhonemize;
+  return new Promise(async (resolve, reject) => {
+    try {
+      (await phonMod({
+        print: l => resolve(JSON.parse(l).phoneme_ids),
+        printErr: () => {},
+        locateFile: f => f.endsWith(".wasm") ? PHON + ".wasm" : f.endsWith(".data") ? PHON + ".data" : f,
+      })).callMain(["-l", espeakVoice, "--input", JSON.stringify([{ text }]), "--espeak_data", "/espeak-ng-data"]);
+    } catch (e) { reject(e); }
+  });
+}
+async function synth(text, id) {
+  const sess = await loadVoice(id), cfg = configs[id];
+  const ids = await phonemize(text, cfg.espeak.voice);
+  const feeds = {
+    input: new ort.Tensor("int64", BigInt64Array.from(ids.map(BigInt)), [1, ids.length]),
+    input_lengths: new ort.Tensor("int64", BigInt64Array.from([BigInt(ids.length)])),
+    scales: new ort.Tensor("float32", Float32Array.from([cfg.inference.noise_scale, cfg.inference.length_scale, cfg.inference.noise_w])),
+  };
+  if (Object.keys(cfg.speaker_id_map || {}).length) feeds.sid = new ort.Tensor("int64", BigInt64Array.from([0n]));
+  const out = await sess.run(feeds);
+  return { pcm: out.output.data, rate: cfg.audio.sample_rate };
+}
+function unlockAudio() {
+  // Must run inside a tap: lets the phone play sound later, after translation finishes
+  try { actx ??= new (window.AudioContext || window.webkitAudioContext)(); if (actx.state !== "running") actx.resume();
+    const b = actx.createBuffer(1, 1, 22050), s = actx.createBufferSource(); s.buffer = b; s.connect(actx.destination); s.start(0); } catch {}
+  if (!unlocked) { unlocked = true; try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch {} }
+}
+function playPCM(pcm, rate, speed = 1) {
+  if (!actx) unlockAudio();
+  if (actx.state !== "running") actx.resume();
+  try { playing?.stop(); } catch {}
+  const buf = actx.createBuffer(1, pcm.length, rate); buf.copyToChannel(pcm instanceof Float32Array ? pcm : Float32Array.from(pcm), 0);
+  const s = actx.createBufferSource(); s.buffer = buf; s.playbackRate.value = speed; s.connect(actx.destination); s.start(0); playing = s;
+}
+
+async function say(text, lang, slow = false) {
+  text = text.replace(/＿＿|__/g, lang === "ja" ? "、" : ", ");
+  speechSynthesis?.cancel?.(); try { playing?.stop(); } catch {}
+  const plan = voicePlan(lang, "f");
+  if (!plan.id) {
+    const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.rate = slow ? 0.6 : 0.95;
+    speechSynthesis.speak(u); return;
+  }
+  try {
+    st("🔊 …");
+    const { pcm, rate } = await synth(text, plan.id);
+    playPCM(pcm, rate, slow ? 0.75 : 1); st("");
+  } catch (e) { st("⚠ " + (e?.message || e)); }
+}
+async function warm(lang) {
+  const id = voicePlan(lang, "f").id; if (!id || sessions[id]) return;
+  try { await loadVoice(id, p => st(`🔊 ${LANG[lang].name} ${Math.round(p * 100)}%`)); await synth("a", id); st(""); } catch { st("⚠ voice download failed"); }
+}
+
+/* ---------- Pronunciation check ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const kataToHira = s => s.replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+const norm = (s, lang) => { s = s.toLowerCase().replace(/＿＿|__/g, ""); if (lang === "ja") s = kataToHira(s); return s.replace(/[\s、。，,.!?！？「」'"’\-—〜～・:;()（）]/g, ""); };
+function lcs(a, b) { const m = Array(b.length + 1).fill(0); for (const ca of a) { let prev = 0; for (let j = 1; j <= b.length; j++) { const tmp = m[j]; m[j] = ca === b[j - 1] ? prev + 1 : Math.max(m[j], m[j - 1]); prev = tmp; } } return m[b.length]; }
+function scoreOf(target, heard, lang) {
+  const t = norm(target, lang), h = norm(heard, lang); if (!t || !h) return 0;
+  const l = lcs(t, h);
+  return /＿＿|__/.test(target) ? l / t.length : (2 * l) / (t.length + h.length);
+}
+const starsFor = s => s >= 0.8 ? 3 : s >= 0.55 ? 2 : s >= 0.3 ? 1 : 0;
+let rec = null;
+function listenOnce(lang) {
+  return new Promise((resolve, reject) => {
+    if (!SR) return reject(new Error("nosr"));
+    const r = new SR(); rec = r; r.lang = LANG[lang].sr; r.interimResults = false; r.maxAlternatives = 3; r.continuous = false;
+    let best = [];
+    r.onresult = e => { best = [...e.results[0]].map(a => a.transcript); };
+    r.onerror = e => { if (e.error !== "no-speech" && e.error !== "aborted") reject(new Error(e.error)); };
+    r.onend = () => { rec = null; resolve(best); };
+    r.start();
+  });
+}
+
+/* ---------- State ---------- */
+const qs = new URLSearchParams(location.search);
+let saved = {}; try { saved = JSON.parse(localStorage.getItem("t4c") || "{}"); } catch {}
+const pickLang = c => { c = (c || "").toLowerCase(); return c.startsWith("zh") ? "zh" : LANG[c.slice(0, 2)] ? c.slice(0, 2) : null; };
+const phoneLang = (navigator.languages || [navigator.language]).map(pickLang).find(Boolean) || "en";
+let S = {
+  lesson: LESSONS.find(l => l.id === qs.get("l")) ? qs.get("l") : saved.lesson || LESSONS[0].id,
+  learn: LEARN.includes(qs.get("learn")) ? qs.get("learn") : saved.learn || "ja",
+  ex: LANG[qs.get("ex")] ? qs.get("ex") : saved.ex || phoneLang,
+  mode: ["class", "study", "quiz"].includes(qs.get("mode")) ? qs.get("mode") : saved.mode || "class",
+  i: 0, shown: false, score: null, quiz: null,
+};
+let stars = {}; try { stars = JSON.parse(localStorage.getItem("t4c-stars") || "{}"); } catch {}
+const save = () => { try { localStorage.setItem("t4c", JSON.stringify({ lesson: S.lesson, learn: S.learn, ex: S.ex, mode: S.mode })); localStorage.setItem("t4c-stars", JSON.stringify(stars)); } catch {} };
+const lesson = () => LESSONS.find(l => l.id === S.lesson);
+const exLang = () => S.ex === S.learn ? (S.learn === "en" ? "ja" : "en") : S.ex;
+const starKey = i => `${S.learn}:${S.lesson}:${i}`;
+
+/* ---------- Header ---------- */
+for (const l of LESSONS) $("lessonSel").add(new Option("", l.id));
+for (const k of LEARN) $("learnSel").add(new Option(LANG[k].name, k));
+for (const k in LANG) $("exSel").add(new Option(LANG[k].name, k));
+$("lessonSel").onchange = e => { S.lesson = e.target.value; S.i = 0; S.shown = false; S.score = null; S.quiz = null; save(); render(); };
+$("learnSel").onchange = e => { S.learn = e.target.value; S.score = null; S.quiz = null; save(); render(); warm(S.learn); };
+$("exSel").onchange = async e => { S.ex = e.target.value; save(); await loadUI(S.ex); render(); };
+for (const [id, m] of [["mClass","class"],["mStudy","study"],["mQuiz","quiz"]]) $(id).onclick = () => { unlockAudio(); S.mode = m; S.quiz = null; S.score = null; save(); render(); };
+$("full").onclick = () => { const d = document.documentElement; (document.fullscreenElement ? document.exitFullscreen() : d.requestFullscreen?.())?.catch?.(() => {}); };
+$("share").onclick = () => {
+  const u = new URL(location.href.split("?")[0]); u.search = new URLSearchParams({ l: S.lesson, learn: S.learn, mode: "study" }).toString();
+  $("shareUrl").textContent = u.href; $("qr").innerHTML = "";
+  try { new QRCode($("qr"), { text: u.href, width: 220, height: 220, colorDark: "#111010", colorLight: "#ffffff" }); } catch {}
+  $("modal").hidden = false;
+};
+$("copy").onclick = async () => { try { await navigator.clipboard.writeText($("shareUrl").textContent); $("copy").textContent = ui.copied; } catch { getSelection().selectAllChildren($("shareUrl")); } };
+$("close").onclick = () => { $("modal").hidden = true; $("copy").textContent = ui.copy; };
+
+function paintHeader() {
+  [...$("lessonSel").options].forEach((o, i) => o.textContent = `${LESSONS[i].icon} ${titleOf(LESSONS[i], S.ex)}`);
+  $("lessonSel").value = S.lesson; $("learnSel").value = S.learn; $("exSel").value = S.ex;
+  $("lLesson").textContent = ui.lesson; $("lLearn").textContent = ui.learn; $("lEx").textContent = ui.ex;
+  $("mClass").textContent = ui.class; $("mStudy").textContent = ui.study; $("mQuiz").textContent = ui.quiz;
+  for (const [id, m] of [["mClass","class"],["mStudy","study"],["mQuiz","quiz"]]) $(id).setAttribute("aria-pressed", S.mode === m);
+  $("share").textContent = "📱 " + ui.share; $("shareTitle").textContent = ui.shareTitle; $("copy").textContent = ui.copy;
+  document.documentElement.lang = S.ex;
+}
+
+/* ---------- Rendering ---------- */
+const h = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k.startsWith("on")) e[k] = v; else if (k === "html") e.innerHTML = v; else e.setAttribute(k, v); } for (const c of kids) if (c != null) e.append(c); return e; };
+
+async function render() {
+  paintHeader();
+  const showSide = S.mode === "class";
+  $("wrap").classList.toggle("solo", !showSide); $("side").hidden = !showSide;
+  if (S.mode === "quiz") return renderQuiz();
+  const L = lesson(), P = L.phrases[S.i], ex = exLang();
+  const meaning = await meaningOf(P, ex);
+  const card = $("card"); card.innerHTML = "";
+  const dots = h("div", { class: "dots" });
+  L.phrases.forEach((_, i) => dots.append(h("button", { class: `${i === S.i ? "cur" : ""} s${stars[starKey(i)] || 0}`, "aria-label": `${i + 1}`, onclick: () => { S.i = i; S.shown = false; S.score = null; render(); } })));
+  card.append(h("div", { class: "meta" }, h("span", { class: "lesson" }, `${L.icon} ${titleOf(L, S.ex)}`), h("span", {}, `${S.i + 1} / ${L.phrases.length}`)), dots);
+  const stage = h("div", { class: "stage" },
+    h("div", { class: "target", lang: S.learn }, P[S.learn]),
+    reading(P, S.learn) ? h("div", { class: "reading" }, reading(P, S.learn)) : null);
+  const hideMeaning = S.mode === "class" && !S.shown;
+  stage.append(hideMeaning ? h("button", { class: "reveal", onclick: () => { S.shown = true; render(); } }, ui.showMeaning) : h("div", { class: "meaning", lang: ex }, meaning));
+  card.append(stage);
+  const score = h("div", { class: "score" });
+  if (S.score) {
+    const n = starsFor(S.score.s);
+    score.append(h("div", { class: "stars", html: "★".repeat(n) + `<span class="off">${"★".repeat(3 - n)}</span>` }),
+      h("div", { class: "heard" }, `${n === 3 ? ui.great : n ? ui.good : ui.tryAgain} · ${ui.heard}: “${S.score.heard || "…"}”`));
+  }
+  card.append(score);
+  const mic = h("button", { class: "btn mic", id: "micBtn" }, ui.speak);
+  mic.onclick = async () => {
+    unlockAudio();
+    if (rec) { rec.stop(); return; }
+    mic.classList.add("on"); mic.textContent = ui.stop;
+    try {
+      const alts = await listenOnce(S.learn);
+      let best = { s: 0, heard: alts[0] || "" };
+      for (const a of alts) { const s = scoreOf(P[S.learn], a, S.learn); if (s > best.s) best = { s, heard: a }; }
+      S.score = best; const n = starsFor(best.s); const k = starKey(S.i); if (n > (stars[k] || 0)) stars[k] = n; save();
+    } catch (e) { st(e.message === "nosr" ? ui.noMic : "⚠ " + e.message); }
+    render();
+  };
+  card.append(h("div", { class: "actions" },
+    h("button", { class: "btn main", onclick: () => { unlockAudio(); say(P[S.learn], S.learn); } }, ui.listen),
+    h("button", { class: "btn", onclick: () => { unlockAudio(); say(P[S.learn], S.learn, true); } }, ui.slow),
+    mic));
+  const last = S.i === L.phrases.length - 1;
+  card.append(h("div", { class: "nav" },
+    h("button", { class: "btn", onclick: () => { if (S.i > 0) { S.i--; S.shown = false; S.score = null; render(); } } }, ui.prev),
+    last ? h("button", { class: "btn main", onclick: () => { S.mode = "quiz"; S.quiz = null; save(); render(); } }, ui.toQuiz)
+         : h("button", { class: "btn main", onclick: () => { S.i++; S.shown = false; S.score = null; render(); } }, ui.next)));
+  if (showSide) renderScript(L, last);
+}
+
+async function renderScript(L, last) {
+  const sl = S.ex === "ja" ? "ja" : "en", sc = SCRIPT[sl], side = $("side"); side.innerHTML = "";
+  const goal = L.goal[sl];
+  side.append(h("h2", {}, ui.script));
+  if (S.i === 0) side.append(h("div", { html: sc.start(titleOf(L, sl), goal) }));
+  const ol = h("ol"); sc.steps.forEach(s => ol.append(h("li", {}, s))); side.append(ol);
+  if (last) side.append(h("div", { html: sc.end }));
+  side.append(h("div", { class: "tip" }, sc.tip));
+  if (!UI[S.ex] || (S.ex !== "ja" && S.ex !== "en")) {
+    // Script in the teacher's own language when it isn't Japanese or English
+    for (const li of ol.children) li.textContent = await gtr(li.textContent, "en", S.ex);
+  }
+}
+
+function newQuiz() {
+  const ps = lesson().phrases.map((p, i) => ({ p, i })).sort(() => Math.random() - 0.5);
+  return { order: ps, n: 0, right: 0, picked: null };
+}
+async function renderQuiz() {
+  S.quiz ??= newQuiz();
+  const Q = S.quiz, L = lesson(), ex = exLang(), card = $("card"); card.innerHTML = "";
+  if (Q.n >= Q.order.length) {
+    card.append(h("div", { class: "stage" },
+      h("div", { class: "result" }, `${Q.right} / ${Q.order.length}`),
+      h("div", { class: "meaning" }, ui.done)),
+      h("div", { class: "actions" }, h("button", { class: "btn main", onclick: () => { S.quiz = null; render(); } }, ui.again)));
+    return;
+  }
+  const cur = Q.order[Q.n];
+  if (!cur.opts) {
+    const others = L.phrases.filter(p => p !== cur.p).sort(() => Math.random() - 0.5).slice(0, 3);
+    cur.opts = [cur.p, ...others].sort(() => Math.random() - 0.5);
+  }
+  card.append(h("div", { class: "meta" }, h("span", { class: "lesson" }, `${L.icon} ${titleOf(L, S.ex)} · ${ui.quiz}`), h("span", {}, `${Q.n + 1} / ${Q.order.length} · ✓ ${Q.right}`)));
+  card.append(h("div", { class: "stage" }, h("div", { class: "meaning" }, ui.q), h("div", { class: "target", lang: ex, style: "font-size:clamp(28px,5vw,64px)" }, await meaningOf(cur.p, ex))));
+  const grid = h("div", { class: "choices" });
+  for (const o of cur.opts) {
+    let cls = "choice";
+    if (Q.picked) { if (o === cur.p) cls += " right"; else if (o === Q.picked) cls += " wrong"; }
+    const b = h("button", { class: cls, onclick: () => {
+      unlockAudio(); if (Q.picked) return; Q.picked = o; if (o === cur.p) Q.right++; say(cur.p[S.learn], S.learn); render(); } },
+      h("span", { class: "t", lang: S.learn }, o[S.learn]), reading(o, S.learn) ? h("span", { class: "r" }, reading(o, S.learn)) : null);
+    grid.append(b);
+  }
+  card.append(grid);
+  if (Q.picked) {
+    card.append(h("div", { class: "score" }, h("div", { class: "stars" }, Q.picked === cur.p ? ui.right : ui.wrong)));
+    card.append(h("div", { class: "nav" }, h("span"), h("button", { class: "btn main", onclick: () => { Q.n++; Q.picked = null; render(); } }, ui.next)));
+  }
+}
+
+document.addEventListener("pointerdown", unlockAudio, { passive: true });
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "SELECT" || S.mode === "quiz") return;
+  if (e.key === "ArrowRight" && S.i < lesson().phrases.length - 1) { S.i++; S.shown = false; S.score = null; render(); }
+  if (e.key === "ArrowLeft" && S.i > 0) { S.i--; S.shown = false; S.score = null; render(); }
+});
+await loadUI(S.ex);
+render();
+warm(S.learn);
+</script>
+</body>
+</html>
