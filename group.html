@@ -98,7 +98,7 @@ button{cursor:pointer;touch-action:manipulation}
 </div>
 
 <script type="module">
-let AI = { key: "", model: "" };
+let AI = { proxy: "" };
 try { AI = { ...AI, ...(await import("./config.js?v=" + Date.now())).AI }; } catch {}
 
 const LANG = {
@@ -325,7 +325,7 @@ function paint() {
     b.onclick = () => { unlockAudio(); listenFor(i); };
     nav.append(b);
   });
-  $("autoBtn").hidden = !AI.key; $("autoBtn").textContent = ui.auto;
+  $("autoBtn").hidden = !AI.proxy; $("autoBtn").textContent = ui.auto;
   paintLog();
 }
 function paintLog() {
@@ -454,15 +454,11 @@ function toWav(chunks, rate) {
   let bin = ""; const u8 = new Uint8Array(buf.buffer); for (let k = 0; k < u8.length; k += 0x8000) bin += String.fromCharCode(...u8.subarray(k, k + 0x8000));
   return btoa(bin);
 }
-let aiModel = AI.model || null;
-async function pickModel() {
-  if (aiModel) return aiModel;
-  const j = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${encodeURIComponent(AI.key)}`).then(r => r.json());
-  const ok = (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
-    .map(m => m.name.replace("models/", "")).filter(n => /flash/.test(n) && !/(lite|image|tts|audio|live|thinking|exp|8b|embedding)/.test(n));
-  const ver = n => parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/) || [0, 0])[1]);
-  ok.sort((a, b) => (/preview/.test(a) - /preview/.test(b)) || ver(b) - ver(a) || a.length - b.length);
-  return (aiModel = ok[0] || "gemini-2.5-flash");
+async function callAI(request) {
+  const r = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ request }) });
+  const j = await r.json();
+  if (j.error) throw new Error(j.error.message || "AI error");
+  return j;
 }
 async function stopAuto() {
   const R = recording; if (!R) return; recording = null;
@@ -476,8 +472,7 @@ async function stopAuto() {
       { inline_data: { mime_type: "audio/wav", data: toWav(R.chunks, R.rate) } },
       { text: `Transcribe this speech. The speaker uses one of these languages: ${langs.map(l => `${l} (${LANG[l].name})`).join(", ")}. Answer as JSON {"lang": one of [${langs.map(l => `"${l}"`).join(",")}], "text": "exact transcript in that language"}. If there is no speech, answer {"lang":"","text":""}.` }] }],
       generationConfig: { responseMimeType: "application/json", temperature: 0 } };
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${await pickModel()}:generateContent?key=${encodeURIComponent(AI.key)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const j = await r.json(); if (!r.ok) throw new Error(j.error?.message || r.status);
+    const j = await callAI(body);
     const out = JSON.parse((j.candidates?.[0]?.content?.parts || []).map(p => p.text).join("") || "{}");
     if (!out.text || !LANG[out.lang]) { st(""); return; }
     const i = people.findIndex(p => p.lang === out.lang);

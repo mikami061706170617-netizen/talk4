@@ -1,10 +1,7 @@
-// Talk4 Class settings.
-// AI conversation partner: paste your Gemini API key between the quotes below
-// (get one free at https://aistudio.google.com/apikey).
-// Restrict the key to this website in Google Cloud (HTTP referrer: mikami061706170617-netizen.github.io/*)
-// so nobody else can use it.
+// Talk4 settings.
+// AI features go through a private relay (Google Apps Script) that holds the Gemini key.
+// The key itself is never stored in this public website.
 export const AI = {
-  key: "",
-  model: "",        // leave empty: the app picks the newest Flash model automatically
+  proxy: "",        // the Apps Script web app URL (https://script.google.com/macros/s/.../exec)
   freeTurns: 5,     // AI replies allowed during the free trial
 };

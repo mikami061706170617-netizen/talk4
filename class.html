@@ -196,7 +196,7 @@ h2.head{margin:0;font-size:clamp(24px,3.4vw,40px);text-wrap:balance}
 
 <script type="module">
 import { LESSONS, MISSIONS, MISSION_REWARD } from "./lessons.js";
-let AI = { key: "", model: "", freeTurns: 5 };
+let AI = { proxy: "", freeTurns: 5 };
 try { AI = { ...AI, ...(await import("./config.js?v=" + Date.now())).AI }; } catch {}
 
 const LANG = {
@@ -692,21 +692,15 @@ async function runTalk(role) {
   if (my === talkRun) { S.playing = false; S.line = -1; render(); }
 }
 /* ---------- AI conversation partner (Gemini) ---------- */
-let aiModel = AI.model || null;
-async function pickModel() {
-  if (aiModel) return aiModel;
-  const j = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${encodeURIComponent(AI.key)}`).then(r => r.json());
-  const ok = (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
-    .map(m => m.name.replace("models/", "")).filter(n => /flash/.test(n) && !/(lite|image|tts|audio|live|thinking|exp|8b|embedding)/.test(n));
-  const ver = n => parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/) || [0, 0])[1]);
-  ok.sort((a, b) => (/preview/.test(a) - /preview/.test(b)) || ver(b) - ver(a) || a.length - b.length);
-  aiModel = ok[0] || "gemini-2.5-flash";
-  return aiModel;
+async function callAI(request) {
+  const r = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ request }) });
+  const j = await r.json();
+  if (j.error) throw new Error(j.error.message || "AI error");
+  return j;
 }
 let aiUsed = 0; try { aiUsed = +localStorage.getItem("t4c-ai") || 0; } catch {}
 const aiAllowed = () => tier !== "none" || aiUsed < AI.freeTurns;
 async function askAI(L, ex, history) {
-  const model = await pickModel();
   const roles = L.roles || {};
   const sys = `You are a friendly conversation partner in a language class.
 The student is learning ${LANG[S.learn].name} (${S.learn}). Their own language is ${LANG[ex].name} (${ex}).
@@ -721,10 +715,7 @@ Answer as JSON: {"reply": "...", "meaning": "the reply translated into ${LANG[ex
                              : [{ role: "user", parts: [{ text: "(Start the scene with your first line.)" }] }],
     generationConfig: { responseMimeType: "application/json", temperature: 0.7, maxOutputTokens: 400 },
   };
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(AI.key)}`,
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  const j = await r.json();
-  if (!r.ok) throw new Error(j.error?.message || r.status);
+  const j = await callAI(body);
   const txt = j.candidates?.[0]?.content?.parts?.map(p => p.text).join("") || "{}";
   return JSON.parse(txt.replace(/^```json|```$/g, ""));
 }
@@ -745,7 +736,7 @@ async function aiTurn(L, ex, userText) {
 }
 async function aiPanel(L, ex) {
   const box = h("div", { class: "ai" }, h("h3", {}, "🤖 " + ui.aiTitle));
-  if (!AI.key) { box.append(h("div", { class: "heard" }, ui.aiOff)); return box; }
+  if (!AI.proxy) { box.append(h("div", { class: "heard" }, ui.aiOff)); return box; }
   if (!S.ai || S.ai.lesson !== L.id + S.learn) {
     box.append(h("div", { class: "heard" }, ui.aiHint));
     if (tier === "none") box.append(h("div", { class: "lockline" }, ui.aiFreeLeft.replace("{n}", Math.max(0, AI.freeTurns - aiUsed))));
