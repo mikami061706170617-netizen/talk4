@@ -150,10 +150,10 @@ function romFor(text, lang, given) {
 // Shop words: always translated the same way. Each is swapped for a code before translating
 // (the free translator leaves codes like ZQX1 alone) and swapped back afterwards.
 const GLOSS = [
-  { ja:"オムライスランド", en:"Omurice Land", ka:"ომურაისლენდ", ru:"Омурайс Лэнд", ko:"오므라이스 랜드", zh:"蛋包饭乐园",
+  { ja:"オムライスランド", en:"Omurice Land", ka:"ომურაისლენდ", kaStem:"ომურაისლენდ", ru:"Омурайс Лэнд", ko:"오므라이스 랜드", zh:"蛋包饭乐园",
     rom:{ ja:"Omuraisu Rando", ka:"omuraislend", ru:"Omurays Lend", ko:"omeulaiseu laendeu", zh:"Dànbāofàn Lèyuán" },
     alt:["omurice land","omelet land","omelette land","オムレットランド"] },
-  { ja:"オムライス", en:"Omurice", ka:"ომურაისი", ru:"омурайс", ko:"오므라이스", zh:"蛋包饭",
+  { ja:"オムライス", en:"Omurice", ka:"ომურაისი", kaStem:"ომურაის", ru:"омурайс", ko:"오므라이스", zh:"蛋包饭",
     rom:{ ja:"omuraisu", ka:"omuraisi", ru:"omurays", ko:"omeulaiseu", zh:"dànbāofàn" },
     alt:["omurice","omu rice","omelet rice","omelette rice","ომურაის","омурайс","омурис","омурайса","омурайсом"] },
 ];
@@ -170,7 +170,10 @@ const KO_P = { "은":"는","는":"는","이":"가","가":"가","을":"를","를"
 function restore(out, lang) {
   if (lang === "ko") out = out.replace(/ZQX(\d)\s?(은|는|이|가|을|를)?/g, (m, d, p) => {
     const w = GLOSS[d - 1].ko; return p ? w + (batchim(w.at(-1)) ? KO_P2[p] : KO_P[p]) : w; });
+  // Georgian puts case endings on the code ("ZQX2-ის"): join them to the word's stem
+  if (lang === "ka") out = out.replace(/ZQX(\d)-?([ა-ჰ]{1,4})?(?![ა-ჰ])/g, (m, d, suf) => suf ? GLOSS[d - 1].kaStem + suf : GLOSS[d - 1].ka);
   out = out.replace(/ZQX(\d)/gi, (m, d) => GLOSS[d - 1][lang]).replace(/ +([。、，．！？])/g, "$1");
+  if (lang === "zh" || lang === "ja") out = out.replace(/([。、，！？\u3040-\u30ff\u4e00-\u9fff]) +/g, "$1").replace(/ +([\u3040-\u30ff\u4e00-\u9fff])/g, "$1");
   return lang === "ru" ? out.replace(/(^|[.!?]\s+)([а-яё])/g, (m, a, c) => a + c.toUpperCase()) : out;
 }
 const restoreRom = (r, lang) => r && r.replace(/zqx\s?(\d)/gi, (m, d) => GLOSS[d - 1].rom[lang] || GLOSS[d - 1].en);
