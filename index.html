@@ -57,12 +57,13 @@ body{background:var(--bg);color:var(--fg);font-family:var(--font);
 button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){.mic.on{animation:none}}
 .log{display:none}
+.gbtn{border:1px solid var(--line);background:var(--panel2);color:var(--fg);border-radius:999px;padding:4px 12px;font:inherit;font-size:14px;cursor:pointer}
 </style>
 </head>
 <body>
 
 <section class="half them" id="themHalf">
-  <div class="lang"><span id="themLabel"></span><span id="themHint"></span></div>
+  <div class="lang"><span id="themLabel"></span><button class="gbtn" id="themG" aria-label="voice"></button></div>
   <div class="said" id="themSaid"><div class="big wait" id="themBig"></div><div class="rom" id="themRom"></div><div class="small" id="themSmall"></div></div>
   <div class="typerow" id="themType" hidden><input id="themInput" enterkeyhint="send"><button id="themSend">OK</button></div>
   <div class="ctrl"><button class="mic" id="themMic"></button><button class="icon" id="themKb" aria-label="keyboard">⌨</button><button class="icon" id="themRe" aria-label="replay">🔊</button></div>
@@ -72,7 +73,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <select id="meSel" aria-label="自分の言語"></select>
   <button class="sw" id="swap" aria-label="入れ替え">⇅</button>
   <select id="themSel" aria-label="相手の言語"></select>
-  <button class="tog" id="autoSpeak">🔊 自動 ON</button>
+  <button class="tog" id="autoSpeak">🔊 ON</button>
   <span class="st" id="status">準備中…</span>
 </div>
 
@@ -80,7 +81,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <div class="ctrl"><button class="mic" id="meMic"></button><button class="icon" id="meKb" aria-label="キーボード">⌨</button><button class="icon" id="meRe" aria-label="もう一度読む">🔊</button></div>
   <div class="typerow" id="meType" hidden><input id="meInput" enterkeyhint="send" placeholder="文字で入力"><button id="meSend">訳す</button></div>
   <div class="said" id="meSaid"><div class="big wait" id="meBig"></div><div class="rom" id="meRom"></div><div class="small" id="meSmall"></div></div>
-  <div class="lang"><span id="meLabel"></span><span id="meHint"></span></div>
+  <div class="lang"><span id="meLabel"></span><button class="gbtn" id="meG" aria-label="声"></button></div>
 </section>
 
 <script type="module">
@@ -95,10 +96,26 @@ const LANG = {
 const $ = id => document.getElementById(id);
 const st = (t, ok) => { $("status").textContent = t; $("status").classList.toggle("ok", !!ok); };
 
-let me = "ja", them = "ka", autoSpeak = true;
-try { const s = JSON.parse(localStorage.getItem("talk4") || "{}");
-  if (LANG[s.me]) me = s.me; if (LANG[s.them] && s.them !== me) them = s.them; if (typeof s.autoSpeak === "boolean") autoSpeak = s.autoSpeak; } catch {}
-const save = () => { try { localStorage.setItem("talk4", JSON.stringify({ me, them, autoSpeak })); } catch {} };
+let me = "ja", them = "ka", autoSpeak = true, voice = { me: "m", them: "f" };
+let saved = null;
+try { saved = JSON.parse(localStorage.getItem("talk4") || "null"); } catch {}
+if (saved) {
+  if (LANG[saved.me]) me = saved.me; if (LANG[saved.them] && saved.them !== me) them = saved.them;
+  if (typeof saved.autoSpeak === "boolean") autoSpeak = saved.autoSpeak;
+  if (saved.voice) voice = { me: saved.voice.me === "f" ? "f" : "m", them: saved.voice.them === "m" ? "m" : "f" };
+} else {
+  // First visit (e.g. a guest scanning the table QR): start in the phone's own language,
+  // facing the staff language given in the link (?to=ka), or Georgian by default
+  const pick = c => { c = (c || "").toLowerCase(); return c.startsWith("zh") ? "zh" : LANG[c.slice(0, 2)] ? c.slice(0, 2) : null; };
+  const mine = (navigator.languages || [navigator.language]).map(pick).find(Boolean);
+  const to = pick(new URLSearchParams(location.search).get("to"));
+  if (mine) me = mine;
+  them = to && to !== me ? to : (me === "ka" ? "ja" : "ka");
+  if (them === me) them = me === "en" ? "ka" : "en";
+  voice = { me: "f", them: "m" };
+  if (me === "ja" && !to) voice = { me: "m", them: "f" };
+}
+const save = () => { try { localStorage.setItem("talk4", JSON.stringify({ me, them, autoSpeak, voice })); } catch {} };
 
 for (const sel of [$("meSel"), $("themSel")]) for (const k in LANG) sel.add(new Option(LANG[k].name, k));
 const last = { me: null, them: null }; // last translation shown on each side: {text, lang}
@@ -109,13 +126,16 @@ function paint() {
   $("meMic").textContent = LANG[me].talk; $("themMic").textContent = LANG[them].talk;
   if (!last.me) { $("meBig").textContent = LANG[me].wait; $("meBig").className = "big wait"; $("meRom").textContent = ""; $("meSmall").textContent = ""; }
   if (!last.them) { $("themBig").textContent = LANG[them].wait; $("themBig").className = "big wait"; $("themRom").textContent = ""; $("themSmall").textContent = ""; }
-  $("autoSpeak").textContent = "🔊 自動 " + (autoSpeak ? "ON" : "OFF");
+  $("autoSpeak").textContent = "🔊 " + (autoSpeak ? "ON" : "OFF");
+  $("meG").textContent = voice.me === "m" ? "♂" : "♀"; $("themG").textContent = voice.them === "m" ? "♂" : "♀";
   $("themInput").placeholder = LANG[them].name;
 }
 $("meSel").onchange = e => { unlockAudio(); const v = e.target.value; if (v === them) them = me; me = v; langChanged(); };
 $("themSel").onchange = e => { unlockAudio(); const v = e.target.value; if (v === me) me = them; them = v; langChanged(); };
 $("swap").onclick = () => { unlockAudio(); [me, them] = [them, me]; langChanged(); };
 $("autoSpeak").onclick = () => { autoSpeak = !autoSpeak; save(); paint(); };
+for (const side of ["me", "them"]) $(side + "G").onclick = () => { unlockAudio(); voice[side] = voice[side] === "m" ? "f" : "m"; save(); paint(); warmVoice();
+  const l = last[side === "me" ? "them" : "me"]; if (l && !l.own) speak(l.text, l.lang, voice[side]); };
 
 /* ---------- Translation (free) ---------- */
 // Georgian → Latin (national romanization), used when the free service gives none
@@ -127,7 +147,38 @@ function romFor(text, lang, given) {
   if (lang === "ka") return kaRoman(text);
   return "";
 }
+// Shop words: always translated the same way. Each is swapped for a code before translating
+// (the free translator leaves codes like ZQX1 alone) and swapped back afterwards.
+const GLOSS = [
+  { ja:"オムライスランド", en:"Omurice Land", ka:"ომურაისლენდ", ru:"Омурайс Лэнд", ko:"오므라이스 랜드", zh:"蛋包饭乐园",
+    rom:{ ja:"Omuraisu Rando", ka:"omuraislend", ru:"Omurays Lend", ko:"omeulaiseu laendeu", zh:"Dànbāofàn Lèyuán" },
+    alt:["omurice land","omelet land","omelette land","オムレットランド"] },
+  { ja:"オムライス", en:"Omurice", ka:"ომურაისი", ru:"омурайс", ko:"오므라이스", zh:"蛋包饭",
+    rom:{ ja:"omuraisu", ka:"omuraisi", ru:"omurays", ko:"omeulaiseu", zh:"dànbāofàn" },
+    alt:["omurice","omu rice","omelet rice","omelette rice","ომურაის","омурайс","омурис","омурайса","омурайсом"] },
+];
+const esc = x => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function protect(text) {
+  GLOSS.forEach((g, i) => {
+    const forms = [...new Set([g.ja, g.en, g.ka, g.ru, g.ko, g.zh, ...g.alt])].sort((a, b) => b.length - a.length);
+    text = text.replace(new RegExp(forms.map(esc).join("|"), "gi"), ` ZQX${i + 1} `);
+  });
+  return text.replace(/ +/g, " ").trim();
+}
+const batchim = ch => { const c = ch.charCodeAt(0) - 0xAC00; return c >= 0 && c < 11172 && c % 28 !== 0; };
+const KO_P = { "은":"는","는":"는","이":"가","가":"가","을":"를","를":"를" }, KO_P2 = { "은":"은","는":"은","이":"이","가":"이","을":"을","를":"을" };
+function restore(out, lang) {
+  if (lang === "ko") out = out.replace(/ZQX(\d)\s?(은|는|이|가|을|를)?/g, (m, d, p) => {
+    const w = GLOSS[d - 1].ko; return p ? w + (batchim(w.at(-1)) ? KO_P2[p] : KO_P[p]) : w; });
+  out = out.replace(/ZQX(\d)/gi, (m, d) => GLOSS[d - 1][lang]).replace(/ +([。、，．！？])/g, "$1");
+  return lang === "ru" ? out.replace(/(^|[.!?]\s+)([а-яё])/g, (m, a, c) => a + c.toUpperCase()) : out;
+}
+const restoreRom = (r, lang) => r && r.replace(/zqx\s?(\d)/gi, (m, d) => GLOSS[d - 1].rom[lang] || GLOSS[d - 1].en);
 async function translate(text, from, to) {
+  const res = await translateRaw(protect(text), from, to);
+  return { text: restore(res.text, to), rom: restoreRom(res.rom, to), srcRom: restoreRom(res.srcRom, from) };
+}
+async function translateRaw(text, from, to) {
   const sl = LANG[from].g, tl = LANG[to].g;
   try {
     const u = `https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&dt=rm&sl=${sl}&tl=${tl}&q=${encodeURIComponent(text)}`;
@@ -152,14 +203,37 @@ const VPATH = {
   "ru_RU-irina-medium": "ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx",
   "en_US-hfc_female-medium": "en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx",
   "zh_CN-huayan-medium": "zh/zh_CN/huayan/medium/zh_CN-huayan-medium.onnx",
+  "en_US-hfc_male-medium": "en/en_US/hfc_male/medium/en_US-hfc_male-medium.onnx",
+  "ru_RU-dmitri-medium": "ru/ru_RU/dmitri/medium/ru_RU-dmitri-medium.onnx",
 };
+// Male voices where a free one exists; otherwise the female voice is played lower
+const MALE = { en: "en_US-hfc_male-medium", ru: "ru_RU-dmitri-medium" };
+const isMale = v => /(?:^|[^e])male|otoya|hattori|ichiro|daniel|aaron|alex\b|fred|arthur|gordon|rishi|reed|eddy|rocko|grandpa|ralph|albert|bruce|junior|yuri|xander|li-mu|yu-shu|injoon|eric|thomas|dmitri|pavel/i.test(v.name);
 const PHON = "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize";
 let ort = null, phonMod = null, actx = null, unlocked = false, playing = null;
 const sessions = {}, configs = {};
 
-function nativeVoice(lang) {
+function nativeVoices(lang) {
   const vs = speechSynthesis?.getVoices?.() || [];
-  return vs.find(v => v.lang && v.lang.toLowerCase().replace("_","-").startsWith(lang));
+  const l = v => (v.lang || "").toLowerCase().replace("_", "-");
+  const list = vs.filter(v => l(v).startsWith(lang));
+  return lang === "zh" ? list.sort((a, b) => (l(b) === "zh-cn") - (l(a) === "zh-cn")) : list;
+}
+function nativeVoice(lang) { return nativeVoices(lang)[0]; }
+// How to say something in this language with this gender: a phone voice, or a downloaded one
+function voicePlan(lang, g) {
+  const vs = nativeVoices(lang);
+  if (g === "m") {
+    const m = vs.find(isMale); if (m) return { nv: m, pitch: 1 };
+    if (MALE[lang]) return { id: MALE[lang], rate: 1 };
+    if (vs.length) return { nv: vs[0], pitch: 0.65 };
+    if (LANG[lang].tts) return { id: LANG[lang].tts, rate: 0.86 };
+    return { nv: null, pitch: 0.65 };
+  }
+  const f = vs.find(v => !isMale(v)) || vs[0];
+  if (f) return { nv: f, pitch: isMale(f) ? 1.4 : 1 };
+  if (LANG[lang].tts) return { id: LANG[lang].tts, rate: 1 };
+  return { nv: null, pitch: 1 };
 }
 async function cachedFetch(url, onProgress) {
   let cache = null;
@@ -212,39 +286,40 @@ function unlockAudio() {
     const b = actx.createBuffer(1, 1, 22050), s = actx.createBufferSource(); s.buffer = b; s.connect(actx.destination); s.start(0); } catch {}
   if (!unlocked) { unlocked = true; try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch {} }
 }
-function playPCM(pcm, rate) {
+function playPCM(pcm, rate, speed = 1) {
   if (!actx) unlockAudio();
   if (actx.state !== "running") actx.resume();
   try { playing?.stop(); } catch {}
   const buf = actx.createBuffer(1, pcm.length, rate); buf.copyToChannel(pcm instanceof Float32Array ? pcm : Float32Array.from(pcm), 0);
-  const s = actx.createBufferSource(); s.buffer = buf; s.connect(actx.destination); s.start(0); playing = s;
+  const s = actx.createBufferSource(); s.buffer = buf; s.playbackRate.value = speed; s.connect(actx.destination); s.start(0); playing = s;
 }
 async function warmVoice() {
   // Download (first time only) and load the voice for any chosen language this phone can't speak itself
-  for (const lang of [me, them]) {
-    const id = LANG[lang].tts;
-    if (!id || nativeVoice(lang) || sessions[id]) continue;
+  // My words are read in their language with my voice type, and the other way round
+  for (const [lang, g] of [[them, voice.me], [me, voice.them]]) {
+    const id = voicePlan(lang, g).id;
+    if (!id || sessions[id]) continue;
     try {
-      st(`${LANG[lang].name}の声を準備中…`);
-      await loadVoice(id, p => st(`${LANG[lang].name}の声 ${Math.round(p * 100)}%（初回だけ）`));
+      st(`🔊 ${LANG[lang].name} …`);
+      await loadVoice(id, p => st(`🔊 ${LANG[lang].name} ${Math.round(p * 100)}%`));
       await synth("a", id); // warm up so the first real sentence is quick
-    } catch (e) { st(`${LANG[lang].name}の声を準備できませんでした。電波を確認して再読み込みしてください`); return; }
+    } catch (e) { st(`⚠ ${LANG[lang].name} voice: Wi-Fi?`); return; }
   }
-  st("準備OK", true);
+  st("✓ OK", true);
 }
-async function speak(text, lang) {
+async function speak(text, lang, g = "f") {
   if (!text) return;
   speechSynthesis?.cancel?.(); try { playing?.stop(); } catch {}
-  const nv = nativeVoice(lang);
-  if (nv || !LANG[lang].tts) {
-    const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (nv) u.voice = nv;
+  const plan = voicePlan(lang, g);
+  if (!plan.id) {
+    const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.pitch = plan.pitch;
     speechSynthesis.speak(u); return;
   }
   try {
-    st("🔊 音声を作っています…");
-    const { pcm, rate } = await synth(text, LANG[lang].tts);
-    playPCM(pcm, rate); st("準備OK", true);
-  } catch (e) { st("読み上げできませんでした: " + (e?.message || e)); }
+    st("🔊 …");
+    const { pcm, rate } = await synth(text, plan.id);
+    playPCM(pcm, rate, plan.rate); st("✓ OK", true);
+  } catch (e) { st("⚠ " + (e?.message || e)); }
 }
 speechSynthesis?.addEventListener?.("voiceschanged", () => {});
 
@@ -269,15 +344,15 @@ async function show(o) {
   const to = listenerSide === "me" ? me : them;
   const L = sideEls(listenerSide), S = sideEls(speakerSide);
   S.small.textContent = ""; S.big.className = "big"; S.big.textContent = o.text; S.rom.textContent = romFor(o.text, o.lang, o.srcRom);
-  last[speakerSide] = { text: o.text, lang: o.lang, own: true };
+  last[speakerSide] = { text: o.text, lang: o.lang, own: true, g: voice[speakerSide] };
   L.big.className = "big"; L.big.textContent = "…"; L.rom.textContent = ""; L.small.textContent = o.text;
   if (o.lang === to) { L.big.textContent = o.text; L.rom.textContent = romFor(o.text, to); last[listenerSide] = { text: o.text, lang: to }; return; }
   try {
     const out = await translate(o.text, o.lang, to);
     if (my !== job) return; // a newer sentence or language change took over
-    L.big.textContent = out.text; L.rom.textContent = out.rom; last[listenerSide] = { text: out.text, lang: to };
+    L.big.textContent = out.text; L.rom.textContent = out.rom; last[listenerSide] = { text: out.text, lang: to, g: voice[speakerSide] };
     if (out.srcRom) { o.srcRom = out.srcRom; S.rom.textContent = out.srcRom; }
-    if (autoSpeak) speak(out.text, to);
+    if (autoSpeak) speak(out.text, to, voice[speakerSide]);
   } catch { if (my === job) { L.big.textContent = "⚠"; st("翻訳できませんでした。電波を確認してください"); } }
 }
 async function handle(text, speakerSide) {
@@ -337,8 +412,9 @@ for (const side of ["me", "them"]) {
   $(side + "Send").onclick = send;
   $(side + "Input").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) send(); });
 }
-$("meRe").onclick = () => { unlockAudio(); const l = last.me; if (l && !l.own) speak(l.text, l.lang); else if (last.them) speak(last.them.text, last.them.lang); };
-$("themRe").onclick = () => { unlockAudio(); const l = last.them; if (l && !l.own) speak(l.text, l.lang); else if (last.me) speak(last.me.text, last.me.lang); };
+for (const side of ["me", "them"]) $(side + "Re").onclick = () => { unlockAudio();
+  const other = side === "me" ? "them" : "me"; const l = last[side] && !last[side].own ? last[side] : last[other];
+  if (l) speak(l.text, l.lang, l.g); };
 
 document.addEventListener("pointerdown", unlockAudio, { passive: true });
 try { navigator.wakeLock?.request("screen").catch(() => {}); } catch {}
