@@ -7,6 +7,8 @@
 const OK = { ja: "はい、どうぞ", jr: "Hai, dōzo", en: "Yes, of course", ru: "Да, конечно", ka: "დიახ, რა თქმა უნდა", ko: "네, 그럼요", kr: "ne, geureomyo", zh: "好的，当然", zr: "hǎo de, dāngrán" };
 const THANKS = { ja: "ありがとう", jr: "Arigatō", en: "Thank you", ru: "Спасибо", ka: "მადლობა", ko: "고마워요", kr: "gomawoyo", zh: "谢谢", zr: "xièxie" };
 
+import { MORE, MORE_MISSIONS } from "./lessons2.js";
+
 export const LESSONS = [
   {
     id: "greet", icon: "👋",
@@ -743,3 +745,9 @@ export const MISSIONS = {
   online:     { ja: "先生とオンラインで5分の会議をして、司会をする", en: "Host a 5-minute online meeting with the teacher" },
 };
 export const MISSION_REWARD = { ja: "達成したらスタッフに画面を見せてください。ドリンク1杯サービス（店で受講の方）", en: "Show this screen to the staff when you've done it — one free drink (in-restaurant students)" };
+
+// Lessons 23–40 live in lessons2.js; keep the list ordered basic → everyday → intermediate → advanced
+const ORDER = { basic: 0, daily: 1, mid: 2, adv: 3 };
+LESSONS.push(...MORE);
+LESSONS.sort((a, b) => ORDER[a.level || "basic"] - ORDER[b.level || "basic"]);
+Object.assign(MISSIONS, MORE_MISSIONS);
