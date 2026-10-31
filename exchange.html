@@ -201,18 +201,14 @@ function nativeVoices(lang) {
 function nativeVoice(lang) { return nativeVoices(lang)[0]; }
 // How to say something in this language with this gender: a phone voice, or a downloaded one
 function voicePlan(lang, g) {
-  const vs = nativeVoices(lang);
-  if (g === "m") {
-    const m = vs.find(isMale); if (m) return { nv: m, pitch: 1 };
-    if (MALE[lang]) return { id: MALE[lang], rate: 1 };
-    if (vs.length) return { nv: vs[0], pitch: 0.85 };
-    if (LANG[lang].tts) return { id: LANG[lang].tts, rate: 1 };
-    return { nv: null, pitch: 0.85 };
-  }
-  const f = vs.find(v => !isMale(v)) || vs[0];
-  if (f) return { nv: f, pitch: isMale(f) ? 1.4 : 1 };
+  // Russian, Georgian, English and Chinese always use the downloaded voices: phones often list a
+  // built-in voice for these that is not actually installed, and then nothing is heard.
+  if (g === "m" && MALE[lang]) return { id: MALE[lang], rate: 1 };
   if (LANG[lang].tts) return { id: LANG[lang].tts, rate: 1 };
-  return { nv: null, pitch: 1 };
+  const vs = nativeVoices(lang);
+  if (g === "m") { const m = vs.find(isMale); if (m) return { nv: m, pitch: 1 }; return { nv: vs[0] || null, pitch: 0.85 }; }
+  const f = vs.find(v => !isMale(v)) || vs[0];
+  return { nv: f || null, pitch: f && isMale(f) ? 1.4 : 1 };
 }
 async function cachedFetch(url, onProgress) {
   let cache = null;
