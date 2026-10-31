@@ -376,14 +376,14 @@ let AIcfg = null; import("./config.js").then(m => AIcfg = m.AI).catch(() => {});
 const recent = [];   // last few lines, so the AI understands the context
 const AI_NAMES = { ja: "Japanese", en: "English", ka: "Georgian", ru: "Russian", ko: "Korean", zh: "Simplified Chinese" };
 async function aiTranslate(text, from, to, draft) {
-  if (!AIcfg?.proxy) return null;
+  if (!AIcfg?.proxy || to === "ka") return null;   // Google is still more accurate for Georgian grammar than the free AI
   const words = GLOSS.map(g => `${g[from] || g.ja} = ${g[to] || g.en}`).join("; ");
   const prompt = `You are a live interpreter at a Japanese restaurant (Omurice Land) in Tbilisi. Translate the last line from ${AI_NAMES[from]} to ${AI_NAMES[to]} so it sounds natural and polite, the way a native speaker would say it out loud. Fix obvious speech-recognition mistakes using context. Keep names. Shop words: ${words}.
 Conversation so far:\n${recent.slice(-6).join("\n") || "(none)"}
 Machine draft: ${draft}
 Last line: ${text}
 Reply ONLY JSON: {"text":"translation","rom":"Latin-letter reading of the translation (empty for English)"}`;
-  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 2500);
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 3000);
   try {
     const r = await fetch(AIcfg.proxy, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
