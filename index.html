@@ -50,7 +50,9 @@ function go(id, query) {
   if (!f || query !== undefined) {
     if (!f) { f = document.createElement("iframe"); f.allow = "microphone; camera; autoplay; clipboard-write; fullscreen"; f.title = t.name;
       f.onload = () => hook(f); document.getElementById("main").append(f); frames[t.id] = f; }
-    f.src = t.file + (query || "");
+    // always fetch the newest version of the tool (big voice files are cached separately, so this stays fast)
+    const q = new URLSearchParams((query || "").replace(/^\?/, "")); q.set("v", Date.now().toString(36));
+    f.src = t.file + "?" + q;
   }
   for (const k in frames) frames[k].hidden = k !== t.id;
   for (const x of TABS) { const b = document.getElementById("tab-" + x.id); if (x.id === t.id) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
