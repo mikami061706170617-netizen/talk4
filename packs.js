@@ -18,7 +18,7 @@ export const PACKS = [
   ] },
   { id: "drinks", icon: "🥤", name: { ja: "飲み物", en: "Drinks" }, words: [
     w("水", "mizu", "water", "вода", "წყალი", "물", "mul", "水", "shuǐ"),
-    w("炭酸水", "tansansui", "sparkling water", "газированная вода", "მინერალური წყალი", "탄산수", "tansansu", "气泡水", "qìpàoshuǐ"),
+    w("炭酸水", "tansansui", "sparkling water", "газированная вода", "გაზიანი წყალი", "탄산수", "tansansu", "气泡水", "qìpàoshuǐ"),
     w("コーヒー", "kōhī", "coffee", "кофе", "ყავა", "커피", "keopi", "咖啡", "kāfēi"),
     w("紅茶", "kōcha", "tea", "чай", "ჩაი", "홍차", "hongcha", "红茶", "hóngchá"),
     w("ビール", "bīru", "beer", "пиво", "ლუდი", "맥주", "maekju", "啤酒", "píjiǔ"),
@@ -83,7 +83,7 @@ export const PACKS = [
     w("来る", "kuru", "to come", "приходить", "მოსვლა", "오다", "oda", "来", "lái"),
     w("買う", "kau", "to buy", "покупать", "ყიდვა", "사다", "sada", "买", "mǎi"),
     w("話す", "hanasu", "to speak", "говорить", "ლაპარაკი", "말하다", "malhada", "说", "shuō"),
-    w("分かる", "wakaru", "to understand", "понимать", "გაგება", "알다", "alda", "明白", "míngbai"),
+    w("分かる", "wakaru", "to understand", "понимать", "გაგება", "이해하다", "ihaehada", "明白", "míngbai"),
     w("待つ", "matsu", "to wait", "ждать", "ლოდინი", "기다리다", "gidarida", "等", "děng"),
     w("働く", "hataraku", "to work", "работать", "მუშაობა", "일하다", "ilhada", "工作", "gōngzuò"),
     w("休む", "yasumu", "to rest", "отдыхать", "დასვენება", "쉬다", "swida", "休息", "xiūxi"),
