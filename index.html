@@ -3,585 +3,72 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Talk4 通訳</title>
+<title>Talk4</title>
 <meta name="theme-color" content="#111010">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+Georgian:wght@400;700&family=Noto+Sans:wght@400;700&display=swap">
-<script type="importmap">
-{"imports":{"onnxruntime-web":"https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/esm/ort.min.js"}}
-</script>
 <style>
-/* Table-top layout: partner half (rotated 180°) on top, my half on bottom, settings bar between */
-:root{
-  --bg:#111010; --panel:#1c1a18; --panel2:#24211e; --fg:#f4efe6; --muted:#9d968a; --line:#33302b;
-  --gold:#d8ae55; --red:#d8443a; --ok:#5fb37a;
-  --font:"Noto Sans JP","Noto Sans Georgian","Noto Sans",system-ui,sans-serif;
-  color-scheme:dark;
-}
+/* One address for everything: each tool opens in this frame, the tab bar at the bottom switches between them */
+:root{--bg:#111010;--panel:#1c1a18;--fg:#f4efe6;--muted:#9d968a;--line:#33302b;--gold:#d8ae55;color-scheme:dark}
 *{box-sizing:border-box}
-html,body{height:100%;margin:0}
-body{background:var(--bg);color:var(--fg);font-family:var(--font);
-  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);
-  display:flex;flex-direction:column;overflow:hidden;-webkit-tap-highlight-color:transparent}
-.half{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;padding:12px 16px}
-.half.them{transform:rotate(180deg)}
-.half.solo .them{display:none}
-.lang{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;color:var(--muted)}
-.lang b{color:var(--gold);font-size:15px}
-.said{flex:1;min-height:0;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;
-  display:flex;flex-direction:column;gap:6px}
-.big{font-size:clamp(22px,6.2vw,34px);line-height:1.35;font-weight:700;overflow-wrap:anywhere}
-.big.wait{font-weight:400;color:var(--muted);font-size:18px}
-.small{font-size:14px;color:var(--muted);overflow-wrap:anywhere}
-.rom{font-size:clamp(15px,4.2vw,20px);color:var(--gold);line-height:1.4;overflow-wrap:anywhere}
-.rom:empty{display:none}
-.ctrl{display:flex;gap:8px;align-items:stretch}
-.mic{flex:1;border:none;border-radius:999px;background:var(--red);color:#fff;font:inherit;font-size:18px;font-weight:700;
-  padding:16px 12px;cursor:pointer;touch-action:manipulation}
-.mic.on{background:var(--gold);color:#1a1307;animation:pulse 1s infinite}
-@keyframes pulse{50%{opacity:.65}}
-.icon{border:1px solid var(--line);background:var(--panel2);color:var(--fg);border-radius:999px;min-width:54px;font-size:20px;cursor:pointer}
-.typerow{display:flex;gap:8px}
-.typerow[hidden]{display:none}
-.typerow input{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:12px;padding:12px;font:inherit;font-size:16px}
-.typerow button{border:none;background:var(--gold);color:#1a1307;border-radius:12px;padding:0 16px;font:inherit;font-weight:700}
-.bar{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--panel);border-block:1px solid var(--line);flex-wrap:wrap}
-.bar select{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:8px;font:inherit;font-size:14px}
-.bar .sw{border:none;background:none;color:var(--gold);font-size:20px;cursor:pointer}
-.bar .st{flex:1;min-width:120px;text-align:right;font-size:12px;color:var(--muted)}
-.bar .st.ok{color:var(--ok)}
-.bar .tog{border:1px solid var(--line);background:var(--panel2);color:var(--fg);border-radius:10px;padding:8px 10px;font:inherit;font-size:13px}
-button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
-@media (prefers-reduced-motion:reduce){.mic.on{animation:none}}
-.log{display:none}
-.gbtn{border:1px solid var(--line);background:var(--panel2);color:var(--fg);border-radius:999px;padding:4px 12px;font:inherit;font-size:14px;cursor:pointer}
-.cam{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px))}
-.cam[hidden]{display:none!important}
-.camtop{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.camtop b{color:var(--gold);flex:1}
-.camtop select,.camtop button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;font-size:14px}
-.camimg{max-height:28vh;object-fit:contain;border-radius:12px;margin:10px 0;background:#000}
-.camsum{color:var(--muted);font-size:14px;margin-bottom:6px}
-.camlist{flex:1;overflow:auto;display:flex;flex-direction:column;gap:8px}
-.camitem{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;text-align:left;color:var(--fg);font:inherit}
-.camitem .t{font-size:19px;font-weight:700}
-.camitem .o{font-size:14px;color:var(--muted)}
-.camitem .r{font-size:14px;color:var(--gold)}
-.campick{background:var(--red);color:#fff;border:none;border-radius:999px;padding:14px;font:inherit;font-size:17px;font-weight:700;margin-top:10px}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans JP",system-ui,sans-serif}
+body{display:flex;flex-direction:column;overflow:hidden}
+main{flex:1;min-height:0;position:relative}
+iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
+iframe[hidden]{display:none}
+nav{display:flex;background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;border:0;background:none;color:var(--muted);font:inherit;font-size:11px;padding:6px 2px 7px;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+nav button span{font-size:21px;line-height:1.1}
+nav button[aria-current="page"]{color:var(--gold)}
+nav button:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
 </style>
 </head>
 <body>
-
-<section class="half them" id="themHalf">
-  <div class="lang"><span id="themLabel"></span><button class="gbtn" id="themG" aria-label="voice"></button></div>
-  <div class="said" id="themSaid"><div class="big wait" id="themBig"></div><div class="rom" id="themRom"></div><div class="small" id="themSmall"></div></div>
-  <div class="typerow" id="themType" hidden><input id="themInput" enterkeyhint="send"><button id="themSend">OK</button></div>
-  <div class="ctrl"><button class="mic" id="themMic"></button><button class="icon" id="themKb" aria-label="keyboard">⌨</button><button class="icon" id="themRe" aria-label="replay">🔊</button></div>
-</section>
-
-<div class="bar">
-  <select id="meSel" aria-label="自分の言語"></select>
-  <button class="sw" id="swap" aria-label="入れ替え">⇅</button>
-  <select id="themSel" aria-label="相手の言語"></select>
-  <a class="tog" href="group.html" style="text-decoration:none">👥 3-4人</a>
-  <a class="tog" href="exchange.html" style="text-decoration:none">🤝 Exchange</a>
-  <a class="tog" href="class.html" style="text-decoration:none">📘 Class</a>
-  <button class="tog" id="camBtn">📷 写して訳す</button>
-  <button class="tog" id="autoSpeak">🔊 ON</button>
-  <span class="st" id="status">準備中…</span>
-</div>
-
-<section class="half me" id="meHalf">
-  <div class="ctrl"><button class="mic" id="meMic"></button><button class="icon" id="meKb" aria-label="キーボード">⌨</button><button class="icon" id="meRe" aria-label="もう一度読む">🔊</button></div>
-  <div class="typerow" id="meType" hidden><input id="meInput" enterkeyhint="send" placeholder="文字で入力"><button id="meSend">訳す</button></div>
-  <div class="said" id="meSaid"><div class="big wait" id="meBig"></div><div class="rom" id="meRom"></div><div class="small" id="meSmall"></div></div>
-  <div class="lang"><span id="meLabel"></span><button class="gbtn" id="meG" aria-label="声"></button></div>
-</section>
-
-<section class="cam" id="cam" hidden>
-  <div class="camtop"><b>📷 写して訳す</b><select id="camTo" aria-label="訳す言語"></select><button id="camClose">✕</button></div>
-  <img class="camimg" id="camImg" alt="" hidden>
-  <div class="camsum" id="camSum">メニュー・看板・レシート・書類を撮ると、その場で訳します。訳をタップすると読み上げます。</div>
-  <div class="camlist" id="camList"></div>
-  <button class="campick" id="camPick">📷 撮る / 写真を選ぶ</button>
-  <input type="file" id="camFile" accept="image/*" capture="environment" hidden>
-</section>
-
-<script type="module">
-const LANG = {
-  ja:{name:"日本語", g:"ja", sr:"ja-JP", tts:null,                    talk:"🎤 押して話す",     wait:"相手の言葉の訳がここに出ます", hold:"聞いています…"},
-  en:{name:"English",g:"en", sr:"en-US", tts:"en_US-hfc_female-medium",talk:"🎤 Tap to speak",   wait:"Translation will appear here",   hold:"Listening…"},
-  ka:{name:"ქართული",g:"ka", sr:"ka-GE", tts:"ka_GE-natia-medium",    talk:"🎤 დააჭირე და ილაპარაკე", wait:"თარგმანი აქ გამოჩნდება", hold:"გისმენთ…"},
-  ru:{name:"Русский",g:"ru", sr:"ru-RU", tts:"ru_RU-irina-medium",    talk:"🎤 Нажмите и говорите", wait:"Перевод появится здесь", hold:"Слушаю…"},
-  ko:{name:"한국어", g:"ko", sr:"ko-KR", tts:null,                    talk:"🎤 눌러서 말하기", wait:"번역이 여기에 나옵니다", hold:"듣고 있어요…"},
-  zh:{name:"中文",   g:"zh-CN", sr:"zh-CN", tts:"zh_CN-huayan-medium", talk:"🎤 点击说话", wait:"翻译会显示在这里", hold:"正在听…"},
-};
-const $ = id => document.getElementById(id);
-const st = (t, ok) => { $("status").textContent = t; $("status").classList.toggle("ok", !!ok); };
-
-let me = "ja", them = "ka", autoSpeak = true, voice = { me: "m", them: "f" };
-let saved = null;
-try { saved = JSON.parse(localStorage.getItem("talk4") || "null"); } catch {}
-if (saved) {
-  if (LANG[saved.me]) me = saved.me; if (LANG[saved.them] && saved.them !== me) them = saved.them;
-  if (typeof saved.autoSpeak === "boolean") autoSpeak = saved.autoSpeak;
-  if (saved.voice) voice = { me: saved.voice.me === "f" ? "f" : "m", them: saved.voice.them === "m" ? "m" : "f" };
-} else {
-  // First visit (e.g. a guest scanning the table QR): start in the phone's own language,
-  // facing the staff language given in the link (?to=ka), or Georgian by default
-  const pick = c => { c = (c || "").toLowerCase(); return c.startsWith("zh") ? "zh" : LANG[c.slice(0, 2)] ? c.slice(0, 2) : null; };
-  const mine = (navigator.languages || [navigator.language]).map(pick).find(Boolean);
-  const to = pick(new URLSearchParams(location.search).get("to"));
-  if (mine) me = mine;
-  them = to && to !== me ? to : (me === "ka" ? "ja" : "ka");
-  if (them === me) them = me === "en" ? "ka" : "en";
-  voice = { me: "f", them: "m" };
-  if (me === "ja" && !to) voice = { me: "m", them: "f" };
-}
-const save = () => { try { localStorage.setItem("talk4", JSON.stringify({ me, them, autoSpeak, voice })); } catch {} };
-
-for (const sel of [$("meSel"), $("themSel")]) for (const k in LANG) sel.add(new Option(LANG[k].name, k));
-const last = { me: null, them: null }; // last translation shown on each side: {text, lang}
-
-function paint() {
-  $("meSel").value = me; $("themSel").value = them;
-  $("meLabel").innerHTML = `<b>${LANG[me].name}</b>`; $("themLabel").innerHTML = `<b>${LANG[them].name}</b>`;
-  $("meMic").textContent = LANG[me].talk; $("themMic").textContent = LANG[them].talk;
-  if (!last.me) { $("meBig").textContent = LANG[me].wait; $("meBig").className = "big wait"; $("meRom").textContent = ""; $("meSmall").textContent = ""; }
-  if (!last.them) { $("themBig").textContent = LANG[them].wait; $("themBig").className = "big wait"; $("themRom").textContent = ""; $("themSmall").textContent = ""; }
-  $("autoSpeak").textContent = "🔊 " + (autoSpeak ? "ON" : "OFF");
-  $("meG").textContent = voice.me === "m" ? "♂" : "♀"; $("themG").textContent = voice.them === "m" ? "♂" : "♀";
-  $("themInput").placeholder = LANG[them].name;
-}
-$("meSel").onchange = e => { unlockAudio(); const v = e.target.value; if (v === them) them = me; me = v; langChanged(); };
-$("themSel").onchange = e => { unlockAudio(); const v = e.target.value; if (v === me) me = them; them = v; langChanged(); };
-$("swap").onclick = () => { unlockAudio(); [me, them] = [them, me]; langChanged(); };
-$("autoSpeak").onclick = () => { autoSpeak = !autoSpeak; save(); paint(); };
-for (const side of ["me", "them"]) $(side + "G").onclick = () => { unlockAudio(); voice[side] = voice[side] === "m" ? "f" : "m"; save(); paint(); warmVoice();
-  const l = last[side === "me" ? "them" : "me"]; if (l && !l.own) speak(l.text, l.lang, voice[side]); };
-
-/* ---------- Translation (free) ---------- */
-// Georgian → Latin (national romanization), used when the free service gives none
-const KA = {"ა":"a","ბ":"b","გ":"g","დ":"d","ე":"e","ვ":"v","ზ":"z","თ":"t","ი":"i","კ":"k'","ლ":"l","მ":"m","ნ":"n","ო":"o","პ":"p'","ჟ":"zh","რ":"r","ს":"s","ტ":"t'","უ":"u","ფ":"p","ქ":"k","ღ":"gh","ყ":"q'","შ":"sh","ჩ":"ch","ც":"ts","ძ":"dz","წ":"ts'","ჭ":"ch'","ხ":"kh","ჯ":"j","ჰ":"h"};
-const kaRoman = t => [...t].map(c => KA[c] ?? c).join("");
-function romFor(text, lang, given) {
-  if (lang === "en") return "";
-  if (given) return given;
-  if (lang === "ka") return kaRoman(text);
-  return "";
-}
-// Shop words: always translated the same way. Each is swapped for a code before translating
-// (the free translator leaves codes like ZQX1 alone) and swapped back afterwards.
-const GLOSS = [
-  { ja:"オムライスランド", en:"Omurice Land", ka:"ომურაისლენდ", kaStem:"ომურაისლენდ", ru:"Омурайс Лэнд", ko:"오므라이스 랜드", zh:"蛋包饭乐园",
-    rom:{ ja:"Omuraisu Rando", ka:"omuraislend", ru:"Omurays Lend", ko:"omeulaiseu laendeu", zh:"Dànbāofàn Lèyuán" },
-    alt:["omurice land","omelet land","omelette land","オムレットランド"] },
-  { ja:"オムライス", en:"Omurice", ka:"ომურაისი", kaStem:"ომურაის", ru:"омурайс", ko:"오므라이스", zh:"蛋包饭",
-    rom:{ ja:"omuraisu", ka:"omuraisi", ru:"omurays", ko:"omeulaiseu", zh:"dànbāofàn" },
-    alt:["omurice","omu rice","omelet rice","omelette rice","ომურაის","омурайс","омурис","омурайса","омурайсом"] },
+<main id="main"></main>
+<nav id="nav"></nav>
+<script>
+const TABS = [
+  { id: "talk",     file: "talk.html",     icon: "💬", name: "通訳" },
+  { id: "group",    file: "group.html",    icon: "👥", name: "3-4人" },
+  { id: "exchange", file: "exchange.html", icon: "🤝", name: "交流" },
+  { id: "class",    file: "class.html",    icon: "📘", name: "教室" },
+  { id: "plans",    file: "plans.html",    icon: "💳", name: "料金" },
 ];
-const esc = x => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-function protect(text) {
-  GLOSS.forEach((g, i) => {
-    const forms = [...new Set([g.ja, g.en, g.ka, g.ru, g.ko, g.zh, ...g.alt])].sort((a, b) => b.length - a.length);
-    text = text.replace(new RegExp(forms.map(esc).join("|"), "gi"), ` ZQX${i + 1} `);
-  });
-  return text.replace(/ +/g, " ").trim();
+const frames = {};
+for (const t of TABS) {
+  const b = document.createElement("button");
+  b.innerHTML = `<span>${t.icon}</span>${t.name}`; b.onclick = () => go(t.id); b.id = "tab-" + t.id;
+  document.getElementById("nav").append(b);
 }
-const batchim = ch => { const c = ch.charCodeAt(0) - 0xAC00; return c >= 0 && c < 11172 && c % 28 !== 0; };
-const KO_P = { "은":"는","는":"는","이":"가","가":"가","을":"를","를":"를" }, KO_P2 = { "은":"은","는":"은","이":"이","가":"이","을":"을","를":"을" };
-function restore(out, lang) {
-  if (lang === "ko") out = out.replace(/ZQX(\d)\s?(은|는|이|가|을|를)?/g, (m, d, p) => {
-    const w = GLOSS[d - 1].ko; return p ? w + (batchim(w.at(-1)) ? KO_P2[p] : KO_P[p]) : w; });
-  // Georgian puts case endings on the code ("ZQX2-ის"): join them to the word's stem
-  if (lang === "ka") out = out.replace(/ZQX(\d)-?([ა-ჰ]{1,4})?(?![ა-ჰ])/g, (m, d, suf) => suf ? GLOSS[d - 1].kaStem + suf : GLOSS[d - 1].ka);
-  out = out.replace(/ZQX(\d)/gi, (m, d) => GLOSS[d - 1][lang]).replace(/ +([。、，．！？])/g, "$1");
-  if (lang === "zh" || lang === "ja") out = out.replace(/([。、，！？\u3040-\u30ff\u4e00-\u9fff]) +/g, "$1").replace(/ +([\u3040-\u30ff\u4e00-\u9fff])/g, "$1");
-  return lang === "ru" ? out.replace(/(^|[.!?]\s+)([а-яё])/g, (m, a, c) => a + c.toUpperCase()) : out;
+// Open a tab. Frames are kept, so going back to a tab keeps what was on screen.
+function go(id, query) {
+  const t = TABS.find(x => x.id === id) || TABS[0];
+  let f = frames[t.id];
+  if (!f || query !== undefined) {
+    if (!f) { f = document.createElement("iframe"); f.allow = "microphone; camera; autoplay; clipboard-write; fullscreen"; f.title = t.name;
+      f.onload = () => hook(f); document.getElementById("main").append(f); frames[t.id] = f; }
+    f.src = t.file + (query || "");
+  }
+  for (const k in frames) frames[k].hidden = k !== t.id;
+  for (const x of TABS) { const b = document.getElementById("tab-" + x.id); if (x.id === t.id) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
+  history.replaceState(null, "", "#" + t.id + (query || ""));
+  document.title = "Talk4 · " + t.name;
 }
-const restoreRom = (r, lang) => r && r.replace(/zqx\s?(\d)/gi, (m, d) => GLOSS[d - 1].rom[lang] || GLOSS[d - 1].en);
-async function translate(text, from, to) {
-  const res = await translateRaw(protect(text), from, to);
-  return { text: restore(res.text, to), rom: restoreRom(res.rom, to), srcRom: restoreRom(res.srcRom, from) };
-}
-async function translateRaw(text, from, to) {
-  const sl = LANG[from].g, tl = LANG[to].g;
+// Links inside a tool to another tool (e.g. "see plans") switch tabs instead of opening a new address
+function hook(f) {
   try {
-    const u = `https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&dt=rm&sl=${sl}&tl=${tl}&q=${encodeURIComponent(text)}`;
-    const r = await fetch(u); if (!r.ok) throw 0;
-    const j = await r.json();
-    const parts = j[0].filter(x => x[0] != null);
-    const romRow = j[0].find(x => x[0] == null) || [];
-    const out = parts.map(x => x[0]).join("");
-    if (out) return { text: out, rom: romFor(out, to, romRow[2]), srcRom: romFor(text, from, romRow[3]) };
+    f.contentDocument.addEventListener("click", e => {
+      const a = e.target.closest?.("a[href]"); if (!a || a.target === "_blank") return;
+      const u = new URL(a.href, f.contentWindow.location.href); if (u.origin !== location.origin) return;
+      const t = TABS.find(x => u.pathname.endsWith("/" + x.file)) || (u.pathname.endsWith("/") || u.pathname.endsWith("/index.html") ? TABS[0] : null);
+      if (!t) return; e.preventDefault(); go(t.id, u.search);
+    });
   } catch {}
-  const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sl}|${tl}`);
-  const j = await r.json(); const out = j.responseData.translatedText;
-  return { text: out, rom: romFor(out, to), srcRom: romFor(text, from) };
 }
-
-/* ---------- Speech output (free) ---------- */
-// Offline neural voices (Piper, MIT). Stored with the Cache API (works on iPhone Safari too),
-// kept loaded in memory, and played through an AudioContext unlocked on the first tap.
-const HF = "https://huggingface.co/diffusionstudio/piper-voices/resolve/main/";
-const VPATH = {
-  "ka_GE-natia-medium": "ka/ka_GE/natia/medium/ka_GE-natia-medium.onnx",
-  "ru_RU-irina-medium": "ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx",
-  "en_US-hfc_female-medium": "en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx",
-  "zh_CN-huayan-medium": "zh/zh_CN/huayan/medium/zh_CN-huayan-medium.onnx",
-  "en_US-hfc_male-medium": "en/en_US/hfc_male/medium/en_US-hfc_male-medium.onnx",
-  "ru_RU-dmitri-medium": "ru/ru_RU/dmitri/medium/ru_RU-dmitri-medium.onnx",
-};
-// Male voices where a free one exists; otherwise the normal voice (lowering it made speech sound broken)
-const MALE = { en: "en_US-hfc_male-medium", ru: "ru_RU-dmitri-medium" };
-const isMale = v => /(?:^|[^e])male|otoya|hattori|ichiro|daniel|aaron|alex\b|fred|arthur|gordon|rishi|reed|eddy|rocko|grandpa|ralph|albert|bruce|junior|yuri|xander|li-mu|yu-shu|injoon|eric|thomas|dmitri|pavel/i.test(v.name);
-const PHON = "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize";
-let ort = null, phonMod = null, actx = null, unlocked = false, playing = null;
-const sessions = {}, configs = {};
-
-function nativeVoices(lang) {
-  const vs = speechSynthesis?.getVoices?.() || [];
-  const l = v => (v.lang || "").toLowerCase().replace("_", "-");
-  const list = vs.filter(v => l(v).startsWith(lang));
-  return lang === "zh" ? list.sort((a, b) => (l(b) === "zh-cn") - (l(a) === "zh-cn")) : list;
-}
-function nativeVoice(lang) { return nativeVoices(lang)[0]; }
-// How to say something in this language with this gender: a phone voice, or a downloaded one
-function voicePlan(lang, g) {
-  const vs = nativeVoices(lang);
-  if (g === "m") {
-    const m = vs.find(isMale); if (m) return { nv: m, pitch: 1 };
-    if (MALE[lang]) return { id: MALE[lang], rate: 1 };
-    if (vs.length) return { nv: vs[0], pitch: 0.85 };
-    if (LANG[lang].tts) return { id: LANG[lang].tts, rate: 1 };
-    return { nv: null, pitch: 0.85 };
-  }
-  const f = vs.find(v => !isMale(v)) || vs[0];
-  if (f) return { nv: f, pitch: isMale(f) ? 1.4 : 1 };
-  if (LANG[lang].tts) return { id: LANG[lang].tts, rate: 1 };
-  return { nv: null, pitch: 1 };
-}
-async function cachedFetch(url, onProgress) {
-  let cache = null;
-  try { cache = await caches.open("talk4-voices"); const hit = await cache.match(url); if (hit) return await hit.arrayBuffer(); } catch {}
-  const res = await fetch(url); if (!res.ok) throw new Error("download " + res.status);
-  const total = +(res.headers.get("Content-Length") || 0); const reader = res.body.getReader(); const parts = []; let got = 0;
-  for (;;) { const { done, value } = await reader.read(); if (done) break; parts.push(value); got += value.length; if (total && onProgress) onProgress(got / total); }
-  const blob = new Blob(parts);
-  try { if (cache) await cache.put(url, new Response(blob)); } catch {}
-  return await blob.arrayBuffer();
-}
-async function loadVoice(id, onProgress) {
-  if (sessions[id]) return sessions[id];
-  ort ??= await import("onnxruntime-web");
-  ort.env.wasm.wasmPaths = "https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.18.0/";
-  ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
-  const cfgBuf = await cachedFetch(HF + VPATH[id] + ".json");
-  configs[id] = JSON.parse(new TextDecoder().decode(cfgBuf));
-  const model = await cachedFetch(HF + VPATH[id], onProgress);
-  sessions[id] = await ort.InferenceSession.create(model);
-  return sessions[id];
-}
-async function phonemize(text, espeakVoice) {
-  phonMod ??= (await import("https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/dist/piper-DeOu3H9E.js")).createPiperPhonemize;
-  return new Promise(async (resolve, reject) => {
-    try {
-      (await phonMod({
-        print: l => resolve(JSON.parse(l).phoneme_ids),
-        printErr: () => {},
-        locateFile: f => f.endsWith(".wasm") ? PHON + ".wasm" : f.endsWith(".data") ? PHON + ".data" : f,
-      })).callMain(["-l", espeakVoice, "--input", JSON.stringify([{ text }]), "--espeak_data", "/espeak-ng-data"]);
-    } catch (e) { reject(e); }
-  });
-}
-async function synth(text, id) {
-  const sess = await loadVoice(id), cfg = configs[id];
-  const ids = await phonemize(text, cfg.espeak.voice);
-  const feeds = {
-    input: new ort.Tensor("int64", BigInt64Array.from(ids.map(BigInt)), [1, ids.length]),
-    input_lengths: new ort.Tensor("int64", BigInt64Array.from([BigInt(ids.length)])),
-    scales: new ort.Tensor("float32", Float32Array.from([cfg.inference.noise_scale, cfg.inference.length_scale, cfg.inference.noise_w])),
-  };
-  if (Object.keys(cfg.speaker_id_map || {}).length) feeds.sid = new ort.Tensor("int64", BigInt64Array.from([0n]));
-  const out = await sess.run(feeds);
-  return { pcm: out.output.data, rate: cfg.audio.sample_rate };
-}
-// Downloaded voices play through one shared <audio> element. Phones (iPhone especially) keep an
-// element working after the microphone has been used, where Web Audio often stays silent.
-const player = new Audio(); player.preload = "auto"; player.setAttribute("playsinline", "");
-player.stop = () => { try { player.pause(); player.currentTime = 0; } catch {} };
-const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
-function unlockAudio() {
-  // Must run inside a tap: lets the phone play sound later, after translation finishes
-  if (!player.src || player.src === SILENT) { try { player.src = SILENT; player.play().catch(() => {}); } catch {} }
-  if (!unlocked) { unlocked = true; try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch {} }
-}
-function wavBlob(pcm, rate) {
-  const n = pcm.length, dv = new DataView(new ArrayBuffer(44 + n * 2)), w = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
-  w(0, "RIFF"); dv.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
-  dv.setUint32(24, rate, true); dv.setUint32(28, rate * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, "data"); dv.setUint32(40, n * 2, true);
-  for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, pcm[i])); dv.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true); }
-  return new Blob([dv.buffer], { type: "audio/wav" });
-}
-
-// Long text is cut at sentence/comma breaks; the first piece plays while the next is being made
-function splitForVoice(text) {
-  const parts = text.match(/[^.!?。！？,，、;:]+[.!?。！？,，、;:]*\s*/g) || [text];
-  const out = []; let cur = "";
-  for (const p of parts) { if ((cur + p).length < 40 || !cur) cur += p; else { out.push(cur); cur = p; } }
-  if (cur.trim()) out.push(cur);
-  return out.map(x => x.trim()).filter(Boolean);
-}
-let voiceRun = 0;
-async function speakPiper(text, id, speed = 1) {
-  const my = ++voiceRun, parts = splitForVoice(text);
-  const made = []; let chain = Promise.resolve();
-  parts.forEach((p, i) => { chain = chain.then(() => synth(p, id)); made[i] = chain; });
-  for (let i = 0; i < parts.length; i++) {
-    const { pcm, rate } = await made[i];
-    if (my !== voiceRun) return;
-    playPCM(pcm, rate, speed);
-    await new Promise(r => { player.onended = r; setTimeout(r, pcm.length / rate * 1000 / speed + 400); });
-    if (my !== voiceRun) return;
-  }
-}
-let lastUrl = null;
-function playPCM(pcm, rate, speed = 1) {
-  try { speechSynthesis.cancel(); } catch {}
-  player.stop(); player.onended = null;
-  if (lastUrl) URL.revokeObjectURL(lastUrl);
-  lastUrl = URL.createObjectURL(wavBlob(pcm, rate));
-  player.src = lastUrl; player.playbackRate = speed; player.preservesPitch = false;
-  player.play().catch(e => st("🔇 " + (e?.message || e)));
-  playing = player;
-}
-async function warmVoice() {
-  // Download (first time only) and load the voice for any chosen language this phone can't speak itself
-  // My words are read in their language with my voice type, and the other way round
-  for (const [lang, g] of [[them, voice.me], [me, voice.them]]) {
-    const id = voicePlan(lang, g).id;
-    if (!id || sessions[id]) continue;
-    try {
-      st(`🔊 ${LANG[lang].name} …`);
-      await loadVoice(id, p => st(`🔊 ${LANG[lang].name} ${Math.round(p * 100)}%`));
-      await synth("a", id); // warm up so the first real sentence is quick
-    } catch (e) { st(`⚠ ${LANG[lang].name} voice: Wi-Fi?`); return; }
-  }
-  st("✓ OK", true);
-}
-async function speak(text, lang, g = "f") {
-  if (!text) return;
-  speechSynthesis?.cancel?.(); try { playing?.stop(); } catch {}
-  const plan = voicePlan(lang, g);
-  if (!plan.id) {
-    const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.pitch = plan.pitch;
-    speechSynthesis.speak(u); return;
-  }
-  try { await speakPiper(text, plan.id, plan.rate); st("✓ OK", true); }
-  catch (e) { st("⚠ " + (e?.message || e)); }
-}
-speechSynthesis?.addEventListener?.("voiceschanged", () => {});
-
-/* ---------- Speech input ---------- */
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let rec = null, active = null;
-
-function sideEls(side) { return side === "me"
-  ? { mic: $("meMic"), big: $("meBig"), small: $("meSmall"), rom: $("meRom") }
-  : { mic: $("themMic"), big: $("themBig"), small: $("themSmall"), rom: $("themRom") }; }
-
-// AI polish: Google answers instantly; the AI gets ~2.5 s to return a more natural translation
-// that knows the conversation so far and the shop's words. Whichever is ready is shown and read aloud.
-let AIcfg = null; import("./config.js").then(m => AIcfg = m.AI).catch(() => {});
-const recent = [];   // last few lines, so the AI understands the context
-const AI_NAMES = { ja: "Japanese", en: "English", ka: "Georgian", ru: "Russian", ko: "Korean", zh: "Simplified Chinese" };
-async function aiTranslate(text, from, to, draft) {
-  if (!AIcfg?.proxy || to === "ka") return null;   // Google is still more accurate for Georgian grammar than the free AI
-  const words = GLOSS.map(g => `${g[from] || g.ja} = ${g[to] || g.en}`).join("; ");
-  const prompt = `You are a live interpreter at a Japanese restaurant (Omurice Land) in Tbilisi. Translate the last line from ${AI_NAMES[from]} to ${AI_NAMES[to]} so it sounds natural and polite, the way a native speaker would say it out loud. Fix obvious speech-recognition mistakes using context. Keep names. Shop words: ${words}.
-Conversation so far:\n${recent.slice(-6).join("\n") || "(none)"}
-Machine draft: ${draft}
-Last line: ${text}
-Reply ONLY JSON: {"text":"translation","rom":"Latin-letter reading of the translation (empty for English)"}`;
-  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 3000);
-  try {
-    const r = await fetch(AIcfg.proxy, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
-    const j = await r.json(), raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
-    const o = JSON.parse(raw.replace(/^```json|```$/g, "").trim());
-    return o.text ? o : null;
-  } catch { return null; } finally { clearTimeout(t); }
-}
-
-
-// ---------- Camera translate: photo of a menu, sign, receipt or document → every line translated ----------
-let camData = null;
-for (const k in LANG) $("camTo").add(new Option(LANG[k].name, k));
-$("camBtn").onclick = () => { $("camTo").value = me; $("cam").hidden = false; if (!camData) $("camFile").click(); };
-$("camClose").onclick = () => { $("cam").hidden = true; };
-$("camPick").onclick = () => $("camFile").click();
-$("camTo").onchange = () => { if (camData) camRead(); };
-$("camFile").onchange = async e => {
-  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
-  const img = await createImageBitmap(f), k = Math.min(1, 1400 / Math.max(img.width, img.height));
-  const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-  const url = c.toDataURL("image/jpeg", 0.82); camData = url.split(",")[1];
-  $("camImg").src = url; $("camImg").hidden = false; camRead();
-};
-async function camRead() {
-  const to = $("camTo").value, my = Symbol(); camRead.cur = my;
-  $("camList").innerHTML = ""; $("camSum").textContent = "⏳ 読み取り中…";
-  if (!AIcfg?.proxy) { $("camSum").textContent = "⚠ AIにつながりません"; return; }
-  const prompt = `Read ALL text in this photo (menu, sign, label, receipt, document or handwriting), top to bottom. Translate each line into ${AI_NAMES[to]}, naturally, as a local would understand it. For dishes, briefly say what it is if the name alone is unclear. Keep prices and numbers. Shop words: ${GLOSS.map(g => `${g.en} = ${g[to] || g.en}`).join("; ")}.
-Write "summary" and every "tr" in ${AI_NAMES[to]} only. Reply ONLY JSON: {"summary":"one short sentence saying what this is","items":[{"orig":"original text","orom":"reading of the original in Latin letters (empty if already Latin)","tr":"translation"}]}`;
-  try {
-    const r = await fetch(AIcfg.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ request: { contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data: camData } }, { text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
-    const j = await r.json(); if (camRead.cur !== my) return;
-    if (j.error) throw new Error(j.error.message);
-    const raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
-    const o = JSON.parse(raw.replace(/^```json|```$/g, "").trim());
-    $("camSum").textContent = o.summary || "";
-    if (!o.items?.length) { $("camSum").textContent = "文字が見つかりませんでした。近づいて、明るい所で撮ってください"; return; }
-    for (const it of o.items) {
-      const b = document.createElement("button"); b.className = "camitem";
-      b.innerHTML = `<div class="t"></div><div class="o"></div><div class="r"></div>`;
-      b.children[0].textContent = it.tr || ""; b.children[1].textContent = it.orig || ""; b.children[2].textContent = it.orom || "";
-      b.onclick = () => speak(it.tr, to);
-      $("camList").append(b);
-    }
-  } catch (err) { if (camRead.cur === my) $("camSum").textContent = "⚠ 読み取れませんでした。もう一度撮ってください"; }
-}
-
-// The last thing someone said, in its original language. Changing a language re-translates it,
-// so nobody has to say it again.
-let orig = null; // {text, lang, side}
-let job = 0;
-
-async function show(o) {
-  const my = ++job;
-  // Whoever's language matches the original is the speaker; otherwise keep the side it was said on
-  const speakerSide = o.lang === me ? "me" : o.lang === them ? "them" : o.side;
-  const listenerSide = speakerSide === "me" ? "them" : "me";
-  const to = listenerSide === "me" ? me : them;
-  const L = sideEls(listenerSide), S = sideEls(speakerSide);
-  S.small.textContent = ""; S.big.className = "big"; S.big.textContent = o.text; S.rom.textContent = romFor(o.text, o.lang, o.srcRom);
-  last[speakerSide] = { text: o.text, lang: o.lang, own: true, g: voice[speakerSide] };
-  L.big.className = "big"; L.big.textContent = "…"; L.rom.textContent = ""; L.small.textContent = o.text;
-  if (o.lang === to) { L.big.textContent = o.text; L.rom.textContent = romFor(o.text, to); last[listenerSide] = { text: o.text, lang: to }; return; }
-  try {
-    const out = await translate(o.text, o.lang, to);
-    if (my !== job) return; // a newer sentence or language change took over
-    L.big.textContent = out.text; L.rom.textContent = out.rom; last[listenerSide] = { text: out.text, lang: to, g: voice[speakerSide] };
-    if (out.srcRom) { o.srcRom = out.srcRom; S.rom.textContent = out.srcRom; }
-    const better = await aiTranslate(o.text, o.lang, to, out.text);
-    if (my !== job) return;
-    if (better && better.text.trim() !== out.text.trim()) {
-      out.text = better.text; if (better.rom && to !== "en") out.rom = better.rom;
-      L.big.textContent = out.text; L.rom.textContent = out.rom; last[listenerSide].text = out.text;
-    }
-    recent.push(`${AI_NAMES[o.lang]}: ${o.text}`, `${AI_NAMES[to]}: ${out.text}`); if (recent.length > 12) recent.splice(0, 2);
-    // Check: translate the result back into the speaker's language, so they can see if the meaning survived
-    translateRaw(out.text, to, o.lang).then(b => { if (my === job && b.text && b.text.trim() !== o.text.trim()) S.small.textContent = "↩ " + restore(b.text, o.lang); }).catch(() => {});
-    if (autoSpeak) speak(out.text, to, voice[speakerSide]);
-  } catch { if (my === job) { L.big.textContent = "⚠"; st("翻訳できませんでした。電波を確認してください"); } }
-}
-async function handle(text, speakerSide) {
-  text = text.trim(); if (!text) return;
-  orig = { text, lang: speakerSide === "me" ? me : them, side: speakerSide };
-  show(orig);
-}
-function langChanged() { save(); last.me = last.them = null; paint(); warmVoice(); if (orig) show(orig); }
-
-// Long recording: keeps listening until you tap again, or after a few seconds of silence.
-// Browsers stop on their own after a short pause, so it quietly restarts and keeps the text.
-const SILENCE_MS = 1800, MAX_MS = 180000;  // stop 1.8 s after the last word; tap again to stop sooner
-let stopWanted = false, silenceTimer = null, maxTimer = null, forceFinish = null, restarts = 0;
-function startRec(side) {
-  if (!SR) { showType(side); st("このブラウザは音声入力に未対応。⌨で入力してください"); return; }
-  if (active) { const was = active; stopRec(); if (was === side) return; forceFinish?.(); }
-  // The phone can't listen while it is talking: stop any read-aloud first
-  try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} voiceRun++;
-  const lang = side === "me" ? me : them, E = sideEls(side);
-  let done = "", interim = "", finished = false;
-  stopWanted = false; active = side; restarts = 0;
-  E.mic.classList.add("on"); E.mic.textContent = "■ " + LANG[lang].hold; E.big.className = "big"; E.big.textContent = "…"; E.small.textContent = ""; E.rom.textContent = "";
-  // Before the first word: wait up to 8 s (people need a moment to start). After that: stop 1.8 s after the last word.
-  let spoke = false;
-  const bump = () => { clearTimeout(silenceTimer); silenceTimer = setTimeout(stopRec, spoke ? SILENCE_MS : 8000); };
-  maxTimer = setTimeout(stopRec, MAX_MS);
-  bump();
-  const finish = () => {
-    if (finished) return; finished = true; forceFinish = null;
-    clearTimeout(silenceTimer); clearTimeout(maxTimer);
-    const r = rec; rec = null; try { r?.abort(); } catch {}
-    E.mic.classList.remove("on"); E.mic.textContent = LANG[lang].talk; active = null;
-    const t = (done + " " + interim).trim();
-    if (t) handle(t, side); else if (!last[side]) { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; }
-  };
-  forceFinish = finish;
-  const begin = () => {
-    const r = new SR(); rec = r; r.lang = LANG[lang].sr; r.interimResults = true; r.continuous = true; r.maxAlternatives = 1;
-    r.onresult = e => { let fin = "", tmp = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) { const x = e.results[i]; if (x.isFinal) fin += x[0].transcript; else tmp += x[0].transcript; }
-      if (fin) done = (done + " " + fin).trim();
-      if (fin || tmp.trim()) spoke = true;
-      interim = tmp; E.big.textContent = (done + " " + interim).trim() || "…"; bump(); preview(side, (done + " " + interim).trim()); };
-    r.onerror = e => {
-      if (e.error === "no-speech" || e.error === "aborted") return;
-      stopWanted = true;
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") st("マイクを許可してください（ブラウザの設定）");
-      else if (e.error === "language-not-supported") { st(`この端末は${LANG[lang].name}の音声入力に未対応。⌨で入力`); showType(side); }
-      else st("マイクが使えませんでした（" + e.error + "）。もう一度押してください");
-    };
-    r.onend = () => {
-      if (rec !== r) return;
-      if (interim) { done = (done + " " + interim).trim(); interim = ""; }
-      if (stopWanted || ++restarts > 60) finish(); else { try { begin(); } catch { finish(); } }
-    };
-    r.start();
-  };
-  try { begin(); } catch { finish(); }
-}
-// While someone is still talking, show a rough translation on the other side so nobody waits
-let previewTimer = null, previewText = "";
-function preview(side, text) {
-  clearTimeout(previewTimer); if (!text || text === previewText) return;
-  previewTimer = setTimeout(async () => {
-    previewText = text;
-    const from = side === "me" ? me : them, to = side === "me" ? them : me, L = sideEls(side === "me" ? "them" : "me");
-    try { const r = await translateRaw(protect(text), from, to); if (active === side) { L.big.className = "big"; L.big.textContent = restore(r.text, to); L.rom.textContent = ""; } } catch {}
-  }, 450);
-}
-function stopRec() {
-  stopWanted = true; clearTimeout(silenceTimer); try { rec?.stop(); } catch {}
-  // Some phones never report the end: release the button anyway
-  const f = forceFinish; setTimeout(() => { if (f && forceFinish === f) f(); }, 1500);
-}
-$("meMic").onclick = () => { unlockAudio(); startRec("me"); };
-$("themMic").onclick = () => { unlockAudio(); startRec("them"); };
-
-function showType(side) { const row = $(side + "Type"); row.hidden = !row.hidden; if (!row.hidden) $(side + "Input").focus(); }
-$("meKb").onclick = () => showType("me"); $("themKb").onclick = () => showType("them");
-for (const side of ["me", "them"]) {
-  const send = () => { unlockAudio(); const v = $(side + "Input").value; $(side + "Input").value = ""; handle(v, side); };
-  $(side + "Send").onclick = send;
-  $(side + "Input").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) send(); });
-}
-for (const side of ["me", "them"]) $(side + "Re").onclick = () => { unlockAudio();
-  const other = side === "me" ? "them" : "me"; const l = last[side] && !last[side].own ? last[side] : last[other];
-  if (l) speak(l.text, l.lang, l.g); };
-
-document.addEventListener("pointerdown", unlockAudio, { passive: true });
-try { navigator.wakeLock?.request("screen").catch(() => {}); } catch {}
-paint();
-if (!SR) st("音声入力はChromeで開くと使えます。⌨で入力もできます");
-setTimeout(warmVoice, 500);
+const h = location.hash.slice(1), i = h.indexOf("?");
+go(i < 0 ? h : h.slice(0, i), i < 0 ? undefined : h.slice(i));
 </script>
 </body>
 </html>

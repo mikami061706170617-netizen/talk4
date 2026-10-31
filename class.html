@@ -2,6 +2,8 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
+<script>if (window.top === window.self) location.replace("./#class" + location.search);</script>
+
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Talk4 Class</title>
 <meta name="theme-color" content="#111010">
@@ -167,7 +169,7 @@ h2.head{margin:0;font-size:clamp(24px,3.4vw,40px);text-wrap:balance}
 </head>
 <body>
 <header class="top">
-  <div class="brand">TALK4 <b>CLASS</b> <a href="./">← Talk4</a> <a href="exchange.html">🤝 Exchange</a></div>
+  <div class="brand">TALK4 <b>CLASS</b></div>
   <label class="field"><span id="lLesson">レッスン</span><select id="lessonSel"></select></label>
   <label class="field"><span id="lLearn">学ぶ言語</span><select id="learnSel"></select></label>
   <label class="field"><span id="lEx">説明の言語</span><select id="exSel"></select></label>
@@ -591,7 +593,7 @@ for (const [id, m] of [["mClass","class"],["mStudy","study"]]) $(id).onclick = (
 $("full").onclick = () => { const d = document.documentElement; try { (document.fullscreenElement ? document.exitFullscreen() : d.requestFullscreen?.())?.catch?.(() => {}); } catch {} };
 $("planPill").onclick = () => { stopAll(); S.showPlans = !S.showPlans; render(); };
 $("share").onclick = () => {
-  const u = new URL(location.href.split("?")[0]); u.search = new URLSearchParams({ l: S.lesson, learn: S.learn, mode: "study" }).toString();
+  const u = new URL("./", location.href); u.hash = "class?" + new URLSearchParams({ l: S.lesson, learn: S.learn, mode: "study" }).toString();
   $("shareUrl").textContent = u.href; $("qr").innerHTML = "";
   try { new QRCode($("qr"), { text: u.href, width: 220, height: 220, colorDark: "#111010", colorLight: "#ffffff" }); } catch {}
   $("modal").hidden = false;
