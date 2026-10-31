@@ -13,7 +13,7 @@
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
-/* Projector-first lesson screen: one huge phrase card, teacher script beside it (below on phones) */
+/* Projector-first lesson: a 6-step bar, one big working area, the teacher's script beside it (below on phones) */
 :root{
   --bg:#111010; --panel:#1c1a18; --panel2:#24211e; --fg:#f4efe6; --muted:#a39d90; --line:#33302b;
   --gold:#d8ae55; --red:#d8443a; --ok:#5fb37a;
@@ -29,43 +29,75 @@ body{background:var(--bg);color:var(--fg);font-family:var(--font);
 button,select{font:inherit;color:inherit}
 button{cursor:pointer;touch-action:manipulation}
 button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
-.top{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding-block:12px;border-bottom:1px solid var(--line)}
-.brand{font-family:var(--display);font-weight:700;letter-spacing:.06em;font-size:20px;margin-right:auto;display:flex;gap:10px;align-items:baseline}
+.top{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;padding-block:12px;border-bottom:1px solid var(--line)}
+.brand{font-family:var(--display);font-weight:700;letter-spacing:.06em;font-size:20px;margin-right:auto;display:flex;gap:10px;align-items:baseline;align-self:center}
 .brand b{color:var(--gold)}
 .brand a{font-family:var(--font);font-weight:400;font-size:13px;color:var(--muted);letter-spacing:0}
-.field{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted);letter-spacing:.04em}
-.field select{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px;max-width:46vw}
+.field{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted);letter-spacing:.04em;min-width:0}
+.field select{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px;max-width:min(46vw,260px)}
 .tabs{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px}
 .tabs button{border:none;background:none;border-radius:9px;padding:8px 12px;font-size:14px}
 .tabs button[aria-pressed="true"]{background:var(--gold);color:#1a1307;font-weight:700}
 .tool{border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:8px 12px;font-size:14px}
-.wrap{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding-block:16px;max-width:1500px;margin:0 auto}
+.steps{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;padding-top:14px;max-width:1500px;margin:0 auto}
+.steps button{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:10px 6px;font-size:14px;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0}
+.steps button .n{font-family:var(--display);font-size:18px;color:var(--muted)}
+.steps button span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.steps button[aria-current="step"]{border-color:var(--gold);background:#2b2416}
+.steps button[aria-current="step"] .n{color:var(--gold)}
+.steps button.done .n{color:var(--ok)}
+@media (max-width:560px){.steps button{font-size:11px;padding:8px 2px}}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding-block:14px;max-width:1500px;margin:0 auto}
 .wrap.solo{grid-template-columns:minmax(0,1fr)}
 @media (max-width:900px){.wrap{grid-template-columns:minmax(0,1fr)}}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:clamp(18px,3vw,40px);display:flex;flex-direction:column;gap:18px;min-height:60vh}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:clamp(16px,3vw,40px);display:flex;flex-direction:column;gap:18px;min-height:58vh;min-width:0}
 .meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:14px}
 .meta .lesson{color:var(--gold);font-weight:700}
+h2.head{margin:0;font-size:clamp(24px,3.4vw,40px);text-wrap:balance}
+.goal{font-size:clamp(18px,2.4vw,26px);line-height:1.5}
+.goal b{color:var(--gold)}
+.tipbox{border:1px solid #4a3d22;background:#211c12;border-radius:16px;padding:14px 16px;line-height:1.6;font-size:16px}
+.tipbox b{color:var(--gold);display:block;font-size:13px;letter-spacing:.06em;margin-bottom:4px}
+.words{width:100%;border-collapse:collapse;font-size:clamp(15px,1.8vw,20px)}
+.words td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+.words td.t{font-weight:700}
+.words td.r{color:var(--gold)}
+.words td.m{color:var(--muted)}
+.words td.p{width:52px;text-align:right}
+.tablebox{overflow-x:auto}
+.mini{border:1px solid var(--line);background:var(--panel2);border-radius:999px;width:44px;height:44px;font-size:16px}
 .dots{display:flex;gap:6px;flex-wrap:wrap}
 .dots button{width:14px;height:14px;border-radius:50%;border:1px solid var(--line);background:var(--panel2);padding:0}
 .dots button.cur{outline:2px solid var(--gold);outline-offset:2px}
 .dots button.s1{background:#6b5a35}.dots button.s2{background:#a8853f}.dots button.s3{background:var(--gold)}
-.stage{flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px;text-align:center}
+.stage{flex:1;display:flex;flex-direction:column;justify-content:center;gap:12px;text-align:center}
 .target{font-size:clamp(34px,7vw,88px);font-weight:700;line-height:1.2;overflow-wrap:anywhere;text-wrap:balance}
 .reading{font-size:clamp(18px,3vw,34px);color:var(--gold);overflow-wrap:anywhere}
 .meaning{font-size:clamp(17px,2.4vw,28px);color:var(--muted);overflow-wrap:anywhere}
+.use{font-size:15px;color:var(--muted);border-top:1px dashed var(--line);padding-top:10px;max-width:640px;align-self:center}
 .reveal{align-self:center;border:1px dashed var(--gold);background:none;color:var(--gold);border-radius:999px;padding:10px 20px;font-size:16px}
 .actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
 .btn{border:1px solid var(--line);background:var(--panel2);border-radius:999px;padding:14px 22px;font-size:18px;min-height:52px}
 .btn.main{background:var(--gold);color:#1a1307;border-color:var(--gold);font-weight:700}
 .btn.mic{background:var(--red);border-color:var(--red);color:#fff;font-weight:700}
-.btn.mic.on{animation:pulse 1s infinite}
+.btn.on{animation:pulse 1s infinite}
 @keyframes pulse{50%{opacity:.6}}
-@media (prefers-reduced-motion:reduce){.btn.mic.on{animation:none}}
-.nav{display:flex;justify-content:space-between;gap:10px}
+@media (prefers-reduced-motion:reduce){.btn.on{animation:none}}
+.nav{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .score{min-height:54px;display:flex;flex-direction:column;align-items:center;gap:4px}
 .stars{font-size:34px;letter-spacing:6px;color:var(--gold)}
 .stars .off{color:#3d3830}
 .heard{font-size:15px;color:var(--muted)}
+.dlg{display:flex;flex-direction:column;gap:10px}
+.line{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:16px;padding:10px 12px;background:var(--panel2)}
+.line.B{margin-left:clamp(0px,6vw,80px);background:#1f2228}
+.line.now{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+.line .who{font-family:var(--display);font-size:13px;letter-spacing:.06em;color:var(--gold);min-width:70px}
+.line .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.line .txt .t{font-size:clamp(17px,2.2vw,24px);font-weight:700;overflow-wrap:anywhere}
+.line .txt .r{font-size:14px;color:var(--gold)}
+.line .txt .m{font-size:14px;color:var(--muted)}
+.line .hs{font-size:16px;color:var(--gold);min-width:44px;text-align:center}
 .side{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:20px;display:flex;flex-direction:column;gap:14px;align-self:start}
 .side h2{margin:0;font-family:var(--display);font-weight:500;font-size:18px;letter-spacing:.08em;color:var(--gold);text-transform:uppercase}
 .side ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:10px;line-height:1.55;font-size:15px}
@@ -75,16 +107,29 @@ button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(
 .choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 @media (max-width:560px){.choices{grid-template-columns:minmax(0,1fr)}}
 .choice{border:1px solid var(--line);background:var(--panel2);border-radius:16px;padding:16px;text-align:center;display:flex;flex-direction:column;gap:4px}
-.choice .t{font-size:clamp(20px,3vw,32px);font-weight:700}
+.choice .t{font-size:clamp(19px,2.8vw,30px);font-weight:700;overflow-wrap:anywhere}
 .choice .r{font-size:15px;color:var(--gold)}
 .choice.right{border-color:var(--ok);background:#1f3326}
 .choice.wrong{border-color:var(--red);background:#3a1f1c}
-.result{font-family:var(--display);font-size:clamp(40px,8vw,90px);color:var(--gold)}
+.result{font-family:var(--display);font-size:clamp(40px,8vw,90px);color:var(--gold);text-align:center}
+.check{display:flex;flex-direction:column;gap:8px}
+.check label{display:flex;gap:10px;align-items:center;font-size:17px;padding:8px 10px;border-radius:12px;background:var(--panel2)}
+.check input{width:22px;height:22px;accent-color:var(--gold)}
+.check .st{margin-left:auto;color:var(--gold);letter-spacing:2px}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
 .modal .box{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:22px;max-width:420px;width:100%;display:flex;flex-direction:column;gap:14px;align-items:center;text-align:center}
 #qr{background:#fff;padding:14px;border-radius:14px}
 .url{font-size:13px;color:var(--muted);word-break:break-all;user-select:all}
-.status{font-size:12px;color:var(--muted);text-align:center}
+.status{font-size:12px;color:var(--muted);text-align:center;min-height:16px}
+@media print{
+  body{background:#fff;color:#111;padding:0}
+  .top,.steps,.side,.nav,.actions,.mini,.status,.noprint{display:none!important}
+  .wrap{display:block;padding:0}
+  .card{border:none;background:#fff;color:#111;min-height:0;padding:0}
+  .words td{border-color:#ccc}.words td.r,.check .st{color:#8a6a1f}.words td.m{color:#555}
+  .tipbox{background:#fff;border-color:#c9a65a}
+  .check label{background:#fff;border:1px solid #ddd}
+}
 </style>
 </head>
 <body>
@@ -94,12 +139,12 @@ button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(
   <label class="field"><span id="lLearn">学ぶ言語</span><select id="learnSel"></select></label>
   <label class="field"><span id="lEx">説明の言語</span><select id="exSel"></select></label>
   <div class="tabs" role="group" aria-label="mode">
-    <button id="mClass"></button><button id="mStudy"></button><button id="mQuiz"></button>
+    <button id="mClass"></button><button id="mStudy"></button>
   </div>
   <button class="tool" id="share"></button>
   <button class="tool" id="full" aria-label="fullscreen">⛶</button>
 </header>
-
+<nav class="steps" id="steps" aria-label="lesson steps"></nav>
 <main class="wrap" id="wrap">
   <section class="card" id="card"></section>
   <aside class="side" id="side"></aside>
@@ -130,22 +175,32 @@ const LEARN = ["ja","en","ru","ka"];
 const $ = id => document.getElementById(id);
 const st = t => { $("status").textContent = t; };
 
-/* ---------- Screen words (Japanese and English written here; others translated once and cached) ---------- */
+/* ---------- Screen words (Japanese and English here; other languages are translated once and cached) ---------- */
 const UI = {
-  ja: { lesson:"レッスン", learn:"学ぶ言語", ex:"説明の言語", class:"授業", study:"自習", quiz:"クイズ", share:"生徒用リンク",
-        listen:"▶ 聞く", slow:"🐢 ゆっくり", speak:"🎤 言ってみる", stop:"■ 止める", prev:"← 前へ", next:"次へ →",
-        showMeaning:"意味を見る", heard:"聞こえた言葉", tryAgain:"もう一度", great:"合格！", good:"おしい！", toQuiz:"クイズで確認 →",
-        q:"これはどれ？", right:"正解！", wrong:"ざんねん", again:"もう一回", done:"終了！", shareTitle:"生徒はこのQRを読むと、同じレッスンを自分のスマホで練習できます", copy:"リンクをコピー", copied:"コピーしました",
-        script:"先生の台本", noMic:"このブラウザでは発音チェックが使えません（Chromeかスマホで開いてください）" },
-  en: { lesson:"Lesson", learn:"Learn", ex:"Explain in", class:"Class", study:"Self-study", quiz:"Quiz", share:"Student link",
-        listen:"▶ Listen", slow:"🐢 Slow", speak:"🎤 Try it", stop:"■ Stop", prev:"← Back", next:"Next →",
-        showMeaning:"Show meaning", heard:"We heard", tryAgain:"Try again", great:"Perfect!", good:"Almost!", toQuiz:"Quiz time →",
-        q:"Which one is it?", right:"Correct!", wrong:"Not quite", again:"Play again", done:"Finished!", shareTitle:"Students scan this to practise the same lesson on their phone", copy:"Copy link", copied:"Copied",
-        script:"Teacher script", noMic:"Pronunciation check needs Chrome or a phone browser" },
+  ja: { lesson:"レッスン", learn:"学ぶ言語", ex:"説明の言語", class:"授業", study:"自習", share:"生徒用リンク",
+        s0:"ねらい", s1:"練習", s2:"会話", s3:"聞き取り", s4:"クイズ", s5:"まとめ",
+        goal:"今日のゴール", words:"今日の言葉", tip:"ワンポイント", start:"練習をはじめる →",
+        listen:"▶ 聞く", slow:"🐢 ゆっくり", speak:"🎤 言ってみる", stop:"■ 止める", prev:"← 前へ", next:"次へ →", nextStep:"次のステップへ →",
+        showMeaning:"意味を見る", use:"使う場面", heard:"聞こえた言葉", tryAgain:"もう一度", great:"合格！", good:"おしい！",
+        playAll:"▶ 会話を全部聞く", stopAll:"■ 止める", roleA:"Aの練習", roleB:"Bの練習", roleHint:"自分の役のセリフで止まります。🎤で言うと次へ進みます",
+        lq:"聞こえた言葉はどれ？", q:"これはどれ？", right:"正解！", wrong:"ざんねん", again:"もう一回", done:"終了！",
+        canDo:"できるようになったこと", homework:"宿題", print:"🖨 印刷・PDF", nextLesson:"次のレッスンへ →",
+        shareTitle:"生徒はこのQRを読むと、同じレッスンを自分のスマホで練習できます", copy:"リンクをコピー", copied:"コピーしました",
+        script:"先生の台本", basics:"入門", daily:"日常会話", noMic:"このブラウザでは発音チェックが使えません（Chromeかスマホで開いてください）", micErr:"マイクが使えませんでした。もう一度押してください" },
+  en: { lesson:"Lesson", learn:"Learn", ex:"Explain in", class:"Class", study:"Self-study", share:"Student link",
+        s0:"Goal", s1:"Practice", s2:"Talk", s3:"Listen", s4:"Quiz", s5:"Review",
+        goal:"Today's goal", words:"Today's words", tip:"Tip", start:"Start practising →",
+        listen:"▶ Listen", slow:"🐢 Slow", speak:"🎤 Try it", stop:"■ Stop", prev:"← Back", next:"Next →", nextStep:"Next step →",
+        showMeaning:"Show meaning", use:"When to use it", heard:"We heard", tryAgain:"Try again", great:"Perfect!", good:"Almost!",
+        playAll:"▶ Play whole conversation", stopAll:"■ Stop", roleA:"Practise A", roleB:"Practise B", roleHint:"It stops at your lines. Say them with 🎤 to continue",
+        lq:"Which did you hear?", q:"Which one is it?", right:"Correct!", wrong:"Not quite", again:"Play again", done:"Finished!",
+        canDo:"I can now…", homework:"Homework", print:"🖨 Print / PDF", nextLesson:"Next lesson →",
+        shareTitle:"Students scan this to practise the same lesson on their phone", copy:"Copy link", copied:"Copied",
+        script:"Teacher script", basics:"Basics", daily:"Everyday conversation", noMic:"Pronunciation check needs Chrome or a phone browser", micErr:"The microphone didn't start. Press again" },
 };
 const cache = (() => { try { return JSON.parse(localStorage.getItem("t4c-tr") || "{}"); } catch { return {}; } })();
 async function gtr(text, from, to) {
-  if (from === to) return text;
+  if (from === to || !text) return text;
   const k = from + ">" + to + ":" + text; if (cache[k]) return cache[k];
   try {
     const j = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=${LANG[from].g}&tl=${LANG[to].g}&q=${encodeURIComponent(text)}`).then(r => r.json());
@@ -157,50 +212,45 @@ async function gtr(text, from, to) {
 let ui = UI.ja;
 async function loadUI(lang) {
   if (UI[lang]) { ui = UI[lang]; return; }
-  const out = {}; const keys = Object.keys(UI.en);
-  const vals = await Promise.all(keys.map(k => gtr(UI.en[k], "en", lang)));
-  keys.forEach((k, i) => out[k] = vals[i]); UI[lang] = out; ui = out;
+  const keys = Object.keys(UI.en), vals = await Promise.all(keys.map(k => gtr(UI.en[k], "en", lang)));
+  UI[lang] = Object.fromEntries(keys.map((k, i) => [k, vals[i]])); ui = UI[lang];
 }
+// Notes written in Japanese/English; other explanation languages get a translation of the English
+async function note(obj, lang) { if (!obj) return ""; if (obj[lang]) return obj[lang]; return gtr(obj.en, "en", lang); }
 
-/* ---------- Teacher script ---------- */
+/* ---------- Teacher script, per step ---------- */
 const SCRIPT = {
-  ja: {
-    start: (l, goal) => `<div class="say">最初にこう言います：<br><b>「今日のテーマは『${l}』です。ゴールは、${goal}ことです」</b></div>`,
-    steps: [
-      "「▶ 聞く」を押して、お手本を2回聞かせます。",
-      "みんなで声をそろえて2回まねします。むずかしい時は「🐢 ゆっくり」。",
-      "1人ずつ「🎤 言ってみる」。★★★で合格。★が少なくても、ほめてから次の人へ。",
-      "「これはどういう意味だと思う？」と聞いてから「意味を見る」を押します。",
-      "「次へ →」で次のフレーズへ。",
-    ],
-    end: `<div class="say">最後に：<br><b>「よくできました！クイズで確認しましょう」</b>と言って、「クイズで確認 →」を押します。</div>`,
-    tip: "先生役は答えを知らなくて大丈夫です。お手本の声と★の点数をアプリが出すので、進行役になるだけでOK。オンライン授業では、この画面を画面共有して、「生徒用リンク」をチャットに貼ると、生徒は自分のスマホで発音チェックができます。",
-  },
-  en: {
-    start: (l, goal) => `<div class="say">Open with:<br><b>"Today's topic is ${l}. By the end you'll be able to ${goal.toLowerCase()}."</b></div>`,
-    steps: [
-      "Press \"▶ Listen\" and play the example twice.",
-      "Everyone repeats it together, twice. Use \"🐢 Slow\" if it's hard.",
-      "One by one, press \"🎤 Try it\". Three stars is a pass. Praise every try, then move on.",
-      "Ask \"What do you think it means?\", then press \"Show meaning\".",
-      "Press \"Next →\" for the next phrase.",
-    ],
-    end: `<div class="say">To finish, say:<br><b>"Well done! Let's check with a quiz."</b> Then press "Quiz time →".</div>`,
-    tip: "You don't need to know the language to lead this class. The app gives the model voice and the star score; you just run the steps. For online classes, share this screen and paste the student link in the chat so everyone can check their pronunciation on their own phone.",
-  },
+  ja: [
+    { say: (l, g) => `「今日のテーマは『${l}』です。ゴールは、${g}ことです」`, steps: ["ゴールを読み上げます。", "「今日の言葉」を ▶ で1つずつ聞かせ、「知っている言葉ある？」と聞きます。", "ワンポイントを読み上げます。", "「練習をはじめる →」を押します。"] },
+    { steps: ["「▶ 聞く」でお手本を2回聞かせます。", "みんなで声をそろえて2回まねします。むずかしい時は「🐢 ゆっくり」。", "1人ずつ「🎤 言ってみる」。★★★で合格。★が少なくても、ほめてから次の人へ。", "「どういう意味だと思う？」と聞いてから「意味を見る」。使う場面も読み上げます。", "「次へ →」で次のフレーズ。最後まで行ったら「次のステップへ」。"] },
+    { steps: ["「▶ 会話を全部聞く」で、まず全体を聞かせます。", "2人1組にして、AとBの役を決めます。", "「Aの練習」を押すと、Bのセリフはアプリが言い、Aの番で止まります。Aの人が🎤で言います。", "終わったら役を交代して「Bの練習」。", "うまくできたペアに前でやってもらうと盛り上がります。"] },
+    { steps: ["▶ が自動で流れます。もう一度聞きたい時は ▶ を押します。", "生徒は答えを指でさすか、手を挙げて答えます。", "正解をタップすると次へ進めます。"] },
+    { steps: ["意味が出ます。正しい言葉を選んでもらいます。", "選んだら、その言葉をみんなで声に出して言います。", "最後に点数を発表します。"] },
+    { say: () => "「今日はここまで。よくできました！」", steps: ["できるようになったことに、みんなでチェックを入れます。", "宿題を読み上げます。", "「印刷・PDF」でプリントを配ることもできます。", "「生徒用リンク」を送ると、家でスマホで復習できます。"] },
+  ],
+  en: [
+    { say: (l, g) => `"Today's topic is ${l}. By the end you'll be able to: ${g.toLowerCase()}."`, steps: ["Read the goal out loud.", "Play each word in \"Today's words\" with ▶ and ask \"Do you know any of these?\"", "Read the tip.", "Press \"Start practising →\"."] },
+    { steps: ["Press \"▶ Listen\" and play the example twice.", "Everyone repeats it together, twice. Use \"🐢 Slow\" if it's hard.", "One by one, press \"🎤 Try it\". Three stars is a pass. Praise every try.", "Ask \"What do you think it means?\", then press \"Show meaning\" and read when to use it.", "Press \"Next →\". After the last phrase, go to the next step."] },
+    { steps: ["Play the whole conversation first.", "Put students in pairs and give them roles A and B.", "Press \"Practise A\": the app says B's lines and stops on A's. Student A says the line with 🎤.", "Swap roles and press \"Practise B\".", "Ask a good pair to perform it for the class."] },
+    { steps: ["The sound plays by itself. Press ▶ to hear it again.", "Students point at the answer or raise a hand.", "Tap the correct answer to move on."] },
+    { steps: ["The meaning is shown. Students choose the right words.", "Then everyone says the answer out loud.", "Announce the score at the end."] },
+    { say: () => "\"That's all for today. Well done!\"", steps: ["Tick what everyone can now do.", "Read out the homework.", "Use \"Print / PDF\" to hand out a sheet.", "Send the student link so they can review on their phones."] },
+  ],
 };
+const TEACH_TIP = { ja: "先生役は答えを知らなくて大丈夫です。お手本の声と★の点数はアプリが出すので、台本どおりに進めるだけ。オンライン授業では、この画面を画面共有して「生徒用リンク」をチャットに貼ると、生徒は自分のスマホで発音チェックができます。",
+  en: "You don't need to know the language to lead this class. The app gives the model voice and the star score; you just follow the script. Online, share this screen and paste the student link in the chat so everyone can check their pronunciation on their own phone." };
 
 /* ---------- Readings ---------- */
 const KA = {"ა":"a","ბ":"b","გ":"g","დ":"d","ე":"e","ვ":"v","ზ":"z","თ":"t","ი":"i","კ":"k'","ლ":"l","მ":"m","ნ":"n","ო":"o","პ":"p'","ჟ":"zh","რ":"r","ს":"s","ტ":"t'","უ":"u","ფ":"p","ქ":"k","ღ":"gh","ყ":"q'","შ":"sh","ჩ":"ch","ც":"ts","ძ":"dz","წ":"ts'","ჭ":"ch'","ხ":"kh","ჯ":"j","ჰ":"h"};
 const RU = {"а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"yo","ж":"zh","з":"z","и":"i","й":"y","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r","с":"s","т":"t","у":"u","ф":"f","х":"kh","ц":"ts","ч":"ch","ш":"sh","щ":"shch","ъ":"","ы":"y","ь":"'","э":"e","ю":"yu","я":"ya"};
 const translit = (t, map) => [...t].map(c => { const lo = c.toLowerCase(), r = map[lo]; if (r == null) return c; return c !== lo && r ? r[0].toUpperCase() + r.slice(1) : r; }).join("");
 function reading(p, lang) {
-  if (lang === "ja") return p.jr;
+  if (lang === "ja") return p.jr || "";
   if (lang === "ru") return translit(p.ru, RU);
   if (lang === "ka") return translit(p.ka, KA);
   return "";
 }
-async function meaningOf(p, lang) { return p[lang] ?? await gtr(p.en, "en", lang); }
+async function meaningOf(p, lang) { return p[lang] ?? gtr(p.en, "en", lang); }
 const titleOf = (l, lang) => l.title[lang] ?? l.title.en;
 
 /* ---------- Voice (same free engine as Talk4) ---------- */
@@ -213,7 +263,7 @@ const VPATH = {
   "en_US-hfc_male-medium": "en/en_US/hfc_male/medium/en_US-hfc_male-medium.onnx",
   "ru_RU-dmitri-medium": "ru/ru_RU/dmitri/medium/ru_RU-dmitri-medium.onnx",
 };
-// Male voices where a free one exists; otherwise the female voice is played lower
+// Male voices where a free one exists; otherwise the normal voice (lowering it made speech sound broken)
 const MALE = { en: "en_US-hfc_male-medium", ru: "ru_RU-dmitri-medium" };
 const isMale = v => /(?:^|[^e])male|otoya|hattori|ichiro|daniel|aaron|alex\b|fred|arthur|gordon|rishi|reed|eddy|rocko|grandpa|ralph|albert|bruce|junior|yuri|xander|li-mu|yu-shu|injoon|eric|thomas|dmitri|pavel/i.test(v.name);
 const PHON = "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize";
@@ -233,9 +283,9 @@ function voicePlan(lang, g) {
   if (g === "m") {
     const m = vs.find(isMale); if (m) return { nv: m, pitch: 1 };
     if (MALE[lang]) return { id: MALE[lang], rate: 1 };
-    if (vs.length) return { nv: vs[0], pitch: 0.65 };
-    if (LANG[lang].tts) return { id: LANG[lang].tts, rate: 0.86 };
-    return { nv: null, pitch: 0.65 };
+    if (vs.length) return { nv: vs[0], pitch: 0.85 };
+    if (LANG[lang].tts) return { id: LANG[lang].tts, rate: 1 };
+    return { nv: null, pitch: 0.85 };
   }
   const f = vs.find(v => !isMale(v)) || vs[0];
   if (f) return { nv: f, pitch: isMale(f) ? 1.4 : 1 };
@@ -301,19 +351,24 @@ function playPCM(pcm, rate, speed = 1) {
   const s = actx.createBufferSource(); s.buffer = buf; s.playbackRate.value = speed; s.connect(actx.destination); s.start(0); playing = s;
 }
 
-async function say(text, lang, slow = false) {
+function say(text, lang, slow = false) {
   text = text.replace(/＿＿|__/g, lang === "ja" ? "、" : ", ");
   speechSynthesis?.cancel?.(); try { playing?.stop(); } catch {}
   const plan = voicePlan(lang, "f");
-  if (!plan.id) {
-    const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.rate = slow ? 0.6 : 0.95;
-    speechSynthesis.speak(u); return;
-  }
-  try {
-    st("🔊 …");
-    const { pcm, rate } = await synth(text, plan.id);
-    playPCM(pcm, rate, slow ? 0.75 : 1); st("");
-  } catch (e) { st("⚠ " + (e?.message || e)); }
+  return new Promise(async done => {
+    if (!plan.id) {
+      const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.rate = slow ? 0.6 : 0.95;
+      u.onend = u.onerror = () => done(); speechSynthesis.speak(u);
+      setTimeout(done, 1500 + text.length * 250); return;
+    }
+    try {
+      st("🔊 …");
+      const { pcm, rate } = await synth(text, plan.id);
+      playPCM(pcm, rate, slow ? 0.75 : 1); st("");
+      const p = playing; p.onended = () => done();
+      setTimeout(done, (pcm.length / rate) * 1000 / (slow ? 0.75 : 1) + 600);
+    } catch (e) { st("⚠ " + (e?.message || e)); done(); }
+  });
 }
 async function warm(lang) {
   const id = voicePlan(lang, "f").id; if (!id || sessions[id]) return;
@@ -331,17 +386,36 @@ function scoreOf(target, heard, lang) {
   return /＿＿|__/.test(target) ? l / t.length : (2 * l) / (t.length + h.length);
 }
 const starsFor = s => s >= 0.8 ? 3 : s >= 0.55 ? 2 : s >= 0.3 ? 1 : 0;
-let rec = null;
+let rec = null, recDone = null;
+// Listens once. Never leaves the button stuck: a timer ends it if the phone never reports the end.
 function listenOnce(lang) {
-  return new Promise((resolve, reject) => {
-    if (!SR) return reject(new Error("nosr"));
-    const r = new SR(); rec = r; r.lang = LANG[lang].sr; r.interimResults = false; r.maxAlternatives = 3; r.continuous = false;
-    let best = [];
+  try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {}
+  if (rec) { try { rec.abort(); } catch {} recDone?.({ alts: [], err: "aborted" }); }
+  return new Promise(resolve => {
+    if (!SR) return resolve({ alts: [], err: "nosr" });
+    let finished = false, best = [], err = null, timer = null;
+    const finish = () => { if (finished) return; finished = true; clearTimeout(timer); if (rec === r) { rec = null; recDone = null; } resolve({ alts: best, err }); };
+    const r = new SR(); rec = r; recDone = v => { best = v.alts; err = v.err; finish(); };
+    r.lang = LANG[lang].sr; r.interimResults = false; r.maxAlternatives = 3; r.continuous = false;
     r.onresult = e => { best = [...e.results[0]].map(a => a.transcript); };
-    r.onerror = e => { if (e.error !== "no-speech" && e.error !== "aborted") reject(new Error(e.error)); };
-    r.onend = () => { rec = null; resolve(best); };
-    r.start();
+    r.onerror = e => { if (e.error !== "no-speech" && e.error !== "aborted") err = e.error; };
+    r.onend = finish;
+    timer = setTimeout(() => { try { r.stop(); } catch {} setTimeout(finish, 1200); }, 12000);
+    try { r.start(); } catch { err = "start"; finish(); }
   });
+}
+function stopListening() { if (rec) { const r = rec; try { r.stop(); } catch {} setTimeout(() => { if (rec === r) recDone?.({ alts: [], err: null }); }, 1500); } }
+async function tryIt(target, btn) {
+  if (rec) { stopListening(); return null; }
+  btn.classList.add("on"); btn.textContent = ui.stop;
+  const { alts, err } = await listenOnce(S.learn);
+  btn.classList.remove("on"); btn.textContent = ui.speak;
+  if (err === "nosr") { st(ui.noMic); return null; }
+  if (err && !alts.length) { st(ui.micErr + " (" + err + ")"); return null; }
+  st("");
+  let best = { s: 0, heard: alts[0] || "" };
+  for (const a of alts) { const s = scoreOf(target, a, S.learn); if (s > best.s) best = { s, heard: a }; }
+  return best;
 }
 
 /* ---------- State ---------- */
@@ -350,27 +424,33 @@ let saved = {}; try { saved = JSON.parse(localStorage.getItem("t4c") || "{}"); }
 const pickLang = c => { c = (c || "").toLowerCase(); return c.startsWith("zh") ? "zh" : LANG[c.slice(0, 2)] ? c.slice(0, 2) : null; };
 const phoneLang = (navigator.languages || [navigator.language]).map(pickLang).find(Boolean) || "en";
 let S = {
-  lesson: LESSONS.find(l => l.id === qs.get("l")) ? qs.get("l") : saved.lesson || LESSONS[0].id,
+  lesson: LESSONS.find(l => l.id === qs.get("l")) ? qs.get("l") : LESSONS.find(l => l.id === saved.lesson) ? saved.lesson : LESSONS[0].id,
   learn: LEARN.includes(qs.get("learn")) ? qs.get("learn") : saved.learn || "ja",
   ex: LANG[qs.get("ex")] ? qs.get("ex") : saved.ex || phoneLang,
-  mode: ["class", "study", "quiz"].includes(qs.get("mode")) ? qs.get("mode") : saved.mode || "class",
-  i: 0, shown: false, score: null, quiz: null,
+  mode: qs.get("mode") === "study" ? "study" : qs.get("mode") === "class" ? "class" : saved.mode || "class",
+  step: 0, i: 0, shown: false, score: null, quiz: null, lquiz: null, line: -1, dlgScores: {}, playing: false, checks: {},
 };
 let stars = {}; try { stars = JSON.parse(localStorage.getItem("t4c-stars") || "{}"); } catch {}
-const save = () => { try { localStorage.setItem("t4c", JSON.stringify({ lesson: S.lesson, learn: S.learn, ex: S.ex, mode: S.mode })); localStorage.setItem("t4c-stars", JSON.stringify(stars)); } catch {} };
+let doneSteps = {}; try { doneSteps = JSON.parse(localStorage.getItem("t4c-done") || "{}"); } catch {}
+const save = () => { try {
+  localStorage.setItem("t4c", JSON.stringify({ lesson: S.lesson, learn: S.learn, ex: S.ex, mode: S.mode }));
+  localStorage.setItem("t4c-stars", JSON.stringify(stars)); localStorage.setItem("t4c-done", JSON.stringify(doneSteps)); } catch {} };
 const lesson = () => LESSONS.find(l => l.id === S.lesson);
 const exLang = () => S.ex === S.learn ? (S.learn === "en" ? "ja" : "en") : S.ex;
 const starKey = i => `${S.learn}:${S.lesson}:${i}`;
+const doneKey = s => `${S.learn}:${S.lesson}:${s}`;
+const lineOf = (L, x) => typeof x === "number" ? L.phrases[x] : x;
+function reset() { S.i = 0; S.shown = false; S.score = null; S.quiz = null; S.lquiz = null; S.line = -1; S.dlgScores = {}; S.playing = false; S.checks = {}; }
+function goStep(n) { stopAll(); doneSteps[doneKey(S.step)] = true; save(); S.step = n; S.score = null; S.shown = false; S.line = -1; render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
 
 /* ---------- Header ---------- */
-for (const l of LESSONS) $("lessonSel").add(new Option("", l.id));
 for (const k of LEARN) $("learnSel").add(new Option(LANG[k].name, k));
 for (const k in LANG) $("exSel").add(new Option(LANG[k].name, k));
-$("lessonSel").onchange = e => { S.lesson = e.target.value; S.i = 0; S.shown = false; S.score = null; S.quiz = null; save(); render(); };
-$("learnSel").onchange = e => { S.learn = e.target.value; S.score = null; S.quiz = null; save(); render(); warm(S.learn); };
+$("lessonSel").onchange = e => { S.lesson = e.target.value; S.step = 0; reset(); save(); render(); };
+$("learnSel").onchange = e => { S.learn = e.target.value; reset(); save(); render(); warm(S.learn); };
 $("exSel").onchange = async e => { S.ex = e.target.value; save(); await loadUI(S.ex); render(); };
-for (const [id, m] of [["mClass","class"],["mStudy","study"],["mQuiz","quiz"]]) $(id).onclick = () => { unlockAudio(); S.mode = m; S.quiz = null; S.score = null; save(); render(); };
-$("full").onclick = () => { const d = document.documentElement; (document.fullscreenElement ? document.exitFullscreen() : d.requestFullscreen?.())?.catch?.(() => {}); };
+for (const [id, m] of [["mClass","class"],["mStudy","study"]]) $(id).onclick = () => { unlockAudio(); S.mode = m; save(); render(); };
+$("full").onclick = () => { const d = document.documentElement; try { (document.fullscreenElement ? document.exitFullscreen() : d.requestFullscreen?.())?.catch?.(() => {}); } catch {} };
 $("share").onclick = () => {
   const u = new URL(location.href.split("?")[0]); u.search = new URLSearchParams({ l: S.lesson, learn: S.learn, mode: "study" }).toString();
   $("shareUrl").textContent = u.href; $("qr").innerHTML = "";
@@ -381,122 +461,197 @@ $("copy").onclick = async () => { try { await navigator.clipboard.writeText($("s
 $("close").onclick = () => { $("modal").hidden = true; $("copy").textContent = ui.copy; };
 
 function paintHeader() {
-  [...$("lessonSel").options].forEach((o, i) => o.textContent = `${LESSONS[i].icon} ${titleOf(LESSONS[i], S.ex)}`);
-  $("lessonSel").value = S.lesson; $("learnSel").value = S.learn; $("exSel").value = S.ex;
+  const sel = $("lessonSel"); sel.innerHTML = "";
+  for (const [lv, label] of [["basic", ui.basics], ["daily", ui.daily]]) {
+    const g = document.createElement("optgroup"); g.label = label;
+    LESSONS.filter(l => (l.level || "basic") === lv).forEach(l => {
+      const n = LESSONS.indexOf(l) + 1, done = doneSteps[`${S.learn}:${l.id}:5`] ? " ✓" : "";
+      g.append(new Option(`${n}. ${l.icon} ${titleOf(l, S.ex)}${done}`, l.id));
+    });
+    if (g.children.length) sel.append(g);
+  }
+  sel.value = S.lesson; $("learnSel").value = S.learn; $("exSel").value = S.ex;
   $("lLesson").textContent = ui.lesson; $("lLearn").textContent = ui.learn; $("lEx").textContent = ui.ex;
-  $("mClass").textContent = ui.class; $("mStudy").textContent = ui.study; $("mQuiz").textContent = ui.quiz;
-  for (const [id, m] of [["mClass","class"],["mStudy","study"],["mQuiz","quiz"]]) $(id).setAttribute("aria-pressed", S.mode === m);
+  $("mClass").textContent = ui.class; $("mStudy").textContent = ui.study;
+  for (const [id, m] of [["mClass","class"],["mStudy","study"]]) $(id).setAttribute("aria-pressed", S.mode === m);
   $("share").textContent = "📱 " + ui.share; $("shareTitle").textContent = ui.shareTitle; $("copy").textContent = ui.copy;
   document.documentElement.lang = S.ex;
+  const bar = $("steps"); bar.innerHTML = "";
+  ["s0","s1","s2","s3","s4","s5"].forEach((k, n) => {
+    const b = h("button", { class: doneSteps[doneKey(n)] ? "done" : "", onclick: () => goStep(n) }, h("span", { class: "n" }, doneSteps[doneKey(n)] && n !== S.step ? "✓" : String(n + 1)), h("span", {}, ui[k]));
+    if (n === S.step) b.setAttribute("aria-current", "step");
+    bar.append(b);
+  });
 }
 
-/* ---------- Rendering ---------- */
-const h = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k.startsWith("on")) e[k] = v; else if (k === "html") e.innerHTML = v; else e.setAttribute(k, v); } for (const c of kids) if (c != null) e.append(c); return e; };
+/* ---------- Rendering helpers ---------- */
+const h = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k.startsWith("on")) e[k] = v; else if (k === "html") e.innerHTML = v; else e.setAttribute(k, v); } for (const c of kids) if (c != null && c !== "") e.append(c); return e; };
+const play = (t, slow) => h("button", { class: "mini", "aria-label": "play", onclick: e => { e.stopPropagation(); unlockAudio(); say(t, S.learn, slow); } }, "▶");
+const starsHtml = n => "★".repeat(n) + `<span class="off">${"★".repeat(3 - n)}</span>`;
+const nextStepBtn = () => h("button", { class: "btn main", onclick: () => goStep(S.step + 1) }, ui.nextStep);
 
+let renderNo = 0;
 async function render() {
+  const my = ++renderNo;
   paintHeader();
   const showSide = S.mode === "class";
   $("wrap").classList.toggle("solo", !showSide); $("side").hidden = !showSide;
-  if (S.mode === "quiz") return renderQuiz();
-  const L = lesson(), P = L.phrases[S.i], ex = exLang();
-  const meaning = await meaningOf(P, ex);
-  const card = $("card"); card.innerHTML = "";
+  const card = h("section", { class: "card", id: "card" });
+  const L = lesson(), ex = exLang();
+  card.append(h("div", { class: "meta" }, h("span", { class: "lesson" }, `${LESSONS.indexOf(L) + 1}. ${L.icon} ${titleOf(L, S.ex)}`), h("span", {}, `${LANG[S.learn].name}`)));
+  await [stepGoal, stepPractice, stepTalk, stepListen, stepQuiz, stepReview][S.step](card, L, ex);
+  if (my !== renderNo) return;
+  $("card").replaceWith(card);
+  if (showSide) renderScript(L);
+}
+
+/* ① Goal & words */
+async function stepGoal(card, L, ex) {
+  card.append(h("h2", { class: "head" }, `${L.icon} ${titleOf(L, S.ex)}`));
+  card.append(h("div", { class: "goal", html: `<b>${ui.goal}</b>${await note(L.goal, ex)}` }));
+  const tb = h("table", { class: "words" });
+  for (const p of L.phrases) tb.append(h("tr", {}, h("td", { class: "t", lang: S.learn }, p[S.learn]), h("td", { class: "r" }, reading(p, S.learn)), h("td", { class: "m" }, await meaningOf(p, ex)), h("td", { class: "p" }, play(p[S.learn]))));
+  card.append(h("div", { class: "goal", html: `<b>${ui.words}</b>` }), h("div", { class: "tablebox" }, tb));
+  const tip = L.tips?.[S.learn]; if (tip) card.append(h("div", { class: "tipbox", html: `<b>${ui.tip}</b>` }, await note(tip, ex)));
+  card.append(h("div", { class: "nav" }, h("span"), h("button", { class: "btn main", onclick: () => goStep(1) }, ui.start)));
+}
+
+/* ② Phrase practice */
+async function stepPractice(card, L, ex) {
+  const P = L.phrases[S.i];
   const dots = h("div", { class: "dots" });
   L.phrases.forEach((_, i) => dots.append(h("button", { class: `${i === S.i ? "cur" : ""} s${stars[starKey(i)] || 0}`, "aria-label": `${i + 1}`, onclick: () => { S.i = i; S.shown = false; S.score = null; render(); } })));
-  card.append(h("div", { class: "meta" }, h("span", { class: "lesson" }, `${L.icon} ${titleOf(L, S.ex)}`), h("span", {}, `${S.i + 1} / ${L.phrases.length}`)), dots);
-  const stage = h("div", { class: "stage" },
-    h("div", { class: "target", lang: S.learn }, P[S.learn]),
-    reading(P, S.learn) ? h("div", { class: "reading" }, reading(P, S.learn)) : null);
-  const hideMeaning = S.mode === "class" && !S.shown;
-  stage.append(hideMeaning ? h("button", { class: "reveal", onclick: () => { S.shown = true; render(); } }, ui.showMeaning) : h("div", { class: "meaning", lang: ex }, meaning));
+  card.append(h("div", { class: "meta" }, dots, h("span", {}, `${S.i + 1} / ${L.phrases.length}`)));
+  const stage = h("div", { class: "stage" }, h("div", { class: "target", lang: S.learn }, P[S.learn]), reading(P, S.learn) ? h("div", { class: "reading" }, reading(P, S.learn)) : null);
+  if (S.mode === "class" && !S.shown) stage.append(h("button", { class: "reveal", onclick: () => { S.shown = true; render(); } }, ui.showMeaning));
+  else { stage.append(h("div", { class: "meaning", lang: ex }, await meaningOf(P, ex))); if (P.use) stage.append(h("div", { class: "use" }, `💡 ${ui.use}: ${await note(P.use, ex)}`)); }
   card.append(stage);
   const score = h("div", { class: "score" });
-  if (S.score) {
-    const n = starsFor(S.score.s);
-    score.append(h("div", { class: "stars", html: "★".repeat(n) + `<span class="off">${"★".repeat(3 - n)}</span>` }),
-      h("div", { class: "heard" }, `${n === 3 ? ui.great : n ? ui.good : ui.tryAgain} · ${ui.heard}: “${S.score.heard || "…"}”`));
-  }
+  if (S.score) { const n = starsFor(S.score.s); score.append(h("div", { class: "stars", html: starsHtml(n) }), h("div", { class: "heard" }, `${n === 3 ? ui.great : n ? ui.good : ui.tryAgain} · ${ui.heard}: “${S.score.heard || "…"}”`)); }
   card.append(score);
-  const mic = h("button", { class: "btn mic", id: "micBtn" }, ui.speak);
-  mic.onclick = async () => {
-    unlockAudio();
-    if (rec) { rec.stop(); return; }
-    mic.classList.add("on"); mic.textContent = ui.stop;
-    try {
-      const alts = await listenOnce(S.learn);
-      let best = { s: 0, heard: alts[0] || "" };
-      for (const a of alts) { const s = scoreOf(P[S.learn], a, S.learn); if (s > best.s) best = { s, heard: a }; }
-      S.score = best; const n = starsFor(best.s); const k = starKey(S.i); if (n > (stars[k] || 0)) stars[k] = n; save();
-    } catch (e) { st(e.message === "nosr" ? ui.noMic : "⚠ " + e.message); }
-    render();
-  };
+  const mic = h("button", { class: "btn mic" }, ui.speak);
+  mic.onclick = async () => { unlockAudio(); const r = await tryIt(P[S.learn], mic); if (!r) return; S.score = r; const n = starsFor(r.s), k = starKey(S.i); if (n > (stars[k] || 0)) stars[k] = n; save(); render(); };
   card.append(h("div", { class: "actions" },
     h("button", { class: "btn main", onclick: () => { unlockAudio(); say(P[S.learn], S.learn); } }, ui.listen),
-    h("button", { class: "btn", onclick: () => { unlockAudio(); say(P[S.learn], S.learn, true); } }, ui.slow),
-    mic));
+    h("button", { class: "btn", onclick: () => { unlockAudio(); say(P[S.learn], S.learn, true); } }, ui.slow), mic));
   const last = S.i === L.phrases.length - 1;
   card.append(h("div", { class: "nav" },
-    h("button", { class: "btn", onclick: () => { if (S.i > 0) { S.i--; S.shown = false; S.score = null; render(); } } }, ui.prev),
-    last ? h("button", { class: "btn main", onclick: () => { S.mode = "quiz"; S.quiz = null; save(); render(); } }, ui.toQuiz)
-         : h("button", { class: "btn main", onclick: () => { S.i++; S.shown = false; S.score = null; render(); } }, ui.next)));
-  if (showSide) renderScript(L, last);
+    h("button", { class: "btn", onclick: () => { if (S.i > 0) { S.i--; S.shown = false; S.score = null; render(); } else goStep(0); } }, ui.prev),
+    last ? nextStepBtn() : h("button", { class: "btn main", onclick: () => { S.i++; S.shown = false; S.score = null; render(); } }, ui.next)));
 }
 
-async function renderScript(L, last) {
-  const sl = S.ex === "ja" ? "ja" : "en", sc = SCRIPT[sl], side = $("side"); side.innerHTML = "";
-  const goal = L.goal[sl];
-  side.append(h("h2", {}, ui.script));
-  if (S.i === 0) side.append(h("div", { html: sc.start(titleOf(L, sl), goal) }));
-  const ol = h("ol"); sc.steps.forEach(s => ol.append(h("li", {}, s))); side.append(ol);
-  if (last) side.append(h("div", { html: sc.end }));
-  side.append(h("div", { class: "tip" }, sc.tip));
-  if (!UI[S.ex] || (S.ex !== "ja" && S.ex !== "en")) {
-    // Script in the teacher's own language when it isn't Japanese or English
-    for (const li of ol.children) li.textContent = await gtr(li.textContent, "en", S.ex);
+/* ③ Role-play */
+let talkRun = 0;
+function stopAll() { talkRun++; S.playing = false; stopListening(); try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} }
+async function runTalk(role) {
+  const my = ++talkRun, L = lesson(); S.playing = role || "all"; render();
+  for (let n = 0; n < L.dialogue.length; n++) {
+    if (my !== talkRun) return;
+    const [who, x] = L.dialogue[n], ln = lineOf(L, x); S.line = n; render();
+    if (role && who === role) {
+      // Student's turn: listen, score, move on
+      await new Promise(r => setTimeout(r, 250));
+      const btn = document.querySelector(`[data-mic="${n}"]`) || h("button");
+      const res = await tryIt(ln[S.learn], btn);
+      if (my !== talkRun) return;
+      if (res) S.dlgScores[n] = starsFor(res.s);
+    } else {
+      await say(ln[S.learn], S.learn);
+      await new Promise(r => setTimeout(r, 350));
+    }
   }
+  if (my === talkRun) { S.playing = false; S.line = -1; render(); }
+}
+async function stepTalk(card, L, ex) {
+  const roleName = r => L.roles?.[r]?.[ex] || L.roles?.[r]?.en || r;
+  card.append(h("div", { class: "actions" },
+    S.playing ? h("button", { class: "btn", onclick: () => { stopAll(); S.line = -1; render(); } }, ui.stopAll)
+              : h("button", { class: "btn main", onclick: () => { unlockAudio(); runTalk(null); } }, ui.playAll),
+    S.playing ? null : h("button", { class: "btn", onclick: () => { unlockAudio(); S.dlgScores = {}; runTalk("A"); } }, `🎭 ${ui.roleA} (${roleName("A")})`),
+    S.playing ? null : h("button", { class: "btn", onclick: () => { unlockAudio(); S.dlgScores = {}; runTalk("B"); } }, `🎭 ${ui.roleB} (${roleName("B")})`)));
+  if (S.playing === "A" || S.playing === "B") card.append(h("div", { class: "heard", style: "text-align:center" }, ui.roleHint));
+  const box = h("div", { class: "dlg" });
+  for (let n = 0; n < L.dialogue.length; n++) {
+    const [who, x] = L.dialogue[n], ln = lineOf(L, x);
+    const mine = S.playing === who;
+    const right = mine && S.line === n ? h("button", { class: "btn mic on", "data-mic": String(n), style: "padding:10px 14px;font-size:15px;min-height:44px", onclick: () => stopListening() }, ui.stop)
+      : S.dlgScores[n] != null ? h("span", { class: "hs", html: starsHtml(S.dlgScores[n]) }) : play(ln[S.learn]);
+    box.append(h("div", { class: `line ${who}${S.line === n ? " now" : ""}` },
+      h("span", { class: "who" }, roleName(who)),
+      h("div", { class: "txt" }, h("span", { class: "t", lang: S.learn }, ln[S.learn]), reading(ln, S.learn) ? h("span", { class: "r" }, reading(ln, S.learn)) : null, h("span", { class: "m" }, await meaningOf(ln, ex))),
+      right));
+  }
+  card.append(box);
+  card.append(h("div", { class: "nav" }, h("button", { class: "btn", onclick: () => goStep(1) }, ui.prev), nextStepBtn()));
 }
 
-function newQuiz() {
-  const ps = lesson().phrases.map((p, i) => ({ p, i })).sort(() => Math.random() - 0.5);
-  return { order: ps, n: 0, right: 0, picked: null };
+/* ④ Listening quiz and ⑤ quiz share one engine */
+function makeQuiz() {
+  const ps = lesson().phrases;
+  return { order: ps.map((p, i) => i).sort(() => Math.random() - 0.5).map(i => ({ p: ps[i], opts: [ps[i], ...ps.filter(q => q !== ps[i]).sort(() => Math.random() - 0.5).slice(0, 3)].sort(() => Math.random() - 0.5) })), n: 0, right: 0, picked: null };
 }
-async function renderQuiz() {
-  S.quiz ??= newQuiz();
-  const Q = S.quiz, L = lesson(), ex = exLang(), card = $("card"); card.innerHTML = "";
+async function quizView(card, L, ex, key, listening) {
+  S[key] ??= makeQuiz(); const Q = S[key];
   if (Q.n >= Q.order.length) {
-    card.append(h("div", { class: "stage" },
-      h("div", { class: "result" }, `${Q.right} / ${Q.order.length}`),
-      h("div", { class: "meaning" }, ui.done)),
-      h("div", { class: "actions" }, h("button", { class: "btn main", onclick: () => { S.quiz = null; render(); } }, ui.again)));
+    card.append(h("div", { class: "stage" }, h("div", { class: "result" }, `${Q.right} / ${Q.order.length}`), h("div", { class: "meaning" }, ui.done)),
+      h("div", { class: "nav" }, h("button", { class: "btn", onclick: () => { S[key] = null; render(); } }, ui.again), nextStepBtn()));
     return;
   }
   const cur = Q.order[Q.n];
-  if (!cur.opts) {
-    const others = L.phrases.filter(p => p !== cur.p).sort(() => Math.random() - 0.5).slice(0, 3);
-    cur.opts = [cur.p, ...others].sort(() => Math.random() - 0.5);
+  card.append(h("div", { class: "meta" }, h("span", {}, listening ? ui.lq : ui.q), h("span", {}, `${Q.n + 1} / ${Q.order.length} · ✓ ${Q.right}`)));
+  if (listening) {
+    card.append(h("div", { class: "actions" }, h("button", { class: "btn main", style: "font-size:28px;padding:20px 40px", onclick: () => { unlockAudio(); say(cur.p[S.learn], S.learn); } }, "▶"), h("button", { class: "btn", onclick: () => { unlockAudio(); say(cur.p[S.learn], S.learn, true); } }, ui.slow)));
+    if (!Q.picked && !cur.played) { cur.played = true; setTimeout(() => say(cur.p[S.learn], S.learn), 300); }
+  } else {
+    card.append(h("div", { class: "stage" }, h("div", { class: "target", lang: ex, style: "font-size:clamp(28px,5vw,64px)" }, await meaningOf(cur.p, ex))));
   }
-  card.append(h("div", { class: "meta" }, h("span", { class: "lesson" }, `${L.icon} ${titleOf(L, S.ex)} · ${ui.quiz}`), h("span", {}, `${Q.n + 1} / ${Q.order.length} · ✓ ${Q.right}`)));
-  card.append(h("div", { class: "stage" }, h("div", { class: "meaning" }, ui.q), h("div", { class: "target", lang: ex, style: "font-size:clamp(28px,5vw,64px)" }, await meaningOf(cur.p, ex))));
   const grid = h("div", { class: "choices" });
   for (const o of cur.opts) {
-    let cls = "choice";
-    if (Q.picked) { if (o === cur.p) cls += " right"; else if (o === Q.picked) cls += " wrong"; }
-    const b = h("button", { class: cls, onclick: () => {
-      unlockAudio(); if (Q.picked) return; Q.picked = o; if (o === cur.p) Q.right++; say(cur.p[S.learn], S.learn); render(); } },
-      h("span", { class: "t", lang: S.learn }, o[S.learn]), reading(o, S.learn) ? h("span", { class: "r" }, reading(o, S.learn)) : null);
-    grid.append(b);
+    let cls = "choice"; if (Q.picked) { if (o === cur.p) cls += " right"; else if (o === Q.picked) cls += " wrong"; }
+    const kids = listening ? [h("span", { class: "t", lang: ex }, await meaningOf(o, ex))]
+      : [h("span", { class: "t", lang: S.learn }, o[S.learn]), reading(o, S.learn) ? h("span", { class: "r" }, reading(o, S.learn)) : null];
+    if (listening && Q.picked) kids.push(h("span", { class: "r", lang: S.learn }, o[S.learn]));
+    grid.append(h("button", { class: cls, onclick: () => { unlockAudio(); if (Q.picked) return; Q.picked = o; if (o === cur.p) Q.right++; if (!listening) say(cur.p[S.learn], S.learn); render(); } }, ...kids));
   }
   card.append(grid);
-  if (Q.picked) {
-    card.append(h("div", { class: "score" }, h("div", { class: "stars" }, Q.picked === cur.p ? ui.right : ui.wrong)));
-    card.append(h("div", { class: "nav" }, h("span"), h("button", { class: "btn main", onclick: () => { Q.n++; Q.picked = null; render(); } }, ui.next)));
+  if (Q.picked) card.append(h("div", { class: "score" }, h("div", { class: "stars" }, Q.picked === cur.p ? ui.right : ui.wrong)),
+    h("div", { class: "nav" }, h("span"), h("button", { class: "btn main", onclick: () => { Q.n++; Q.picked = null; render(); } }, ui.next)));
+}
+const stepListen = (card, L, ex) => quizView(card, L, ex, "lquiz", true);
+const stepQuiz = (card, L, ex) => quizView(card, L, ex, "quiz", false);
+
+/* ⑥ Review & handout */
+async function stepReview(card, L, ex) {
+  card.append(h("h2", { class: "head" }, `${L.icon} ${titleOf(L, S.ex)} — ${ui.s5}`));
+  card.append(h("div", { class: "goal", html: `<b>${ui.canDo}</b>` }));
+  const list = h("div", { class: "check" });
+  for (let i = 0; i < L.phrases.length; i++) {
+    const p = L.phrases[i], n = stars[starKey(i)] || 0, id = `ck${i}`;
+    const box = h("input", { type: "checkbox", id }); box.checked = !!S.checks[i] || n === 3; box.onchange = () => { S.checks[i] = box.checked; };
+    list.append(h("label", { for: id }, box, h("span", { lang: S.learn }, `${p[S.learn]}`), h("span", { class: "heard" }, await meaningOf(p, ex)), h("span", { class: "st" }, "★".repeat(n))));
   }
+  card.append(list);
+  card.append(h("div", { class: "tipbox", html: `<b>${ui.homework}</b>` }, await note(L.homework, ex)));
+  const next = LESSONS[LESSONS.indexOf(L) + 1];
+  card.append(h("div", { class: "nav noprint" },
+    h("button", { class: "btn", onclick: () => window.print() }, ui.print),
+    next ? h("button", { class: "btn main", onclick: () => { doneSteps[doneKey(5)] = true; S.lesson = next.id; S.step = 0; reset(); save(); render(); } }, `${ui.nextLesson} ${next.icon}`) : h("span")));
+}
+
+async function renderScript(L) {
+  const sl = S.ex === "ja" ? "ja" : "en", sc = SCRIPT[sl][S.step], side = $("side");
+  const out = [h("h2", {}, `${ui.script} · ${S.step + 1}`)];
+  if (sc.say) out.push(h("div", { class: "say", html: `<b>${sl === "ja" ? "こう言います" : "Say"}:</b><br>` + sc.say(titleOf(L, sl), L.goal[sl]) }));
+  const ol = h("ol"); for (const s of sc.steps) ol.append(h("li", {}, sl === S.ex ? s : await gtr(s, "en", S.ex)));
+  out.push(ol, h("div", { class: "tip" }, sl === S.ex ? TEACH_TIP[sl] : await gtr(TEACH_TIP.en, "en", S.ex)));
+  side.replaceChildren(...out);
 }
 
 document.addEventListener("pointerdown", unlockAudio, { passive: true });
 document.addEventListener("keydown", e => {
-  if (e.target.tagName === "SELECT" || S.mode === "quiz") return;
-  if (e.key === "ArrowRight" && S.i < lesson().phrases.length - 1) { S.i++; S.shown = false; S.score = null; render(); }
+  if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT" || S.step !== 1) return;
+  const n = lesson().phrases.length;
+  if (e.key === "ArrowRight" && S.i < n - 1) { S.i++; S.shown = false; S.score = null; render(); }
   if (e.key === "ArrowLeft" && S.i > 0) { S.i--; S.shown = false; S.score = null; render(); }
 });
 await loadUI(S.ex);

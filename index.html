@@ -210,7 +210,7 @@ const VPATH = {
   "en_US-hfc_male-medium": "en/en_US/hfc_male/medium/en_US-hfc_male-medium.onnx",
   "ru_RU-dmitri-medium": "ru/ru_RU/dmitri/medium/ru_RU-dmitri-medium.onnx",
 };
-// Male voices where a free one exists; otherwise the female voice is played lower
+// Male voices where a free one exists; otherwise the normal voice (lowering it made speech sound broken)
 const MALE = { en: "en_US-hfc_male-medium", ru: "ru_RU-dmitri-medium" };
 const isMale = v => /(?:^|[^e])male|otoya|hattori|ichiro|daniel|aaron|alex\b|fred|arthur|gordon|rishi|reed|eddy|rocko|grandpa|ralph|albert|bruce|junior|yuri|xander|li-mu|yu-shu|injoon|eric|thomas|dmitri|pavel/i.test(v.name);
 const PHON = "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize";
@@ -230,9 +230,9 @@ function voicePlan(lang, g) {
   if (g === "m") {
     const m = vs.find(isMale); if (m) return { nv: m, pitch: 1 };
     if (MALE[lang]) return { id: MALE[lang], rate: 1 };
-    if (vs.length) return { nv: vs[0], pitch: 0.65 };
-    if (LANG[lang].tts) return { id: LANG[lang].tts, rate: 0.86 };
-    return { nv: null, pitch: 0.65 };
+    if (vs.length) return { nv: vs[0], pitch: 0.85 };
+    if (LANG[lang].tts) return { id: LANG[lang].tts, rate: 1 };
+    return { nv: null, pitch: 0.85 };
   }
   const f = vs.find(v => !isMale(v)) || vs[0];
   if (f) return { nv: f, pitch: isMale(f) ? 1.4 : 1 };
@@ -371,23 +371,28 @@ function langChanged() { save(); last.me = last.them = null; paint(); warmVoice(
 // Long recording: keeps listening until you tap again, or after a few seconds of silence.
 // Browsers stop on their own after a short pause, so it quietly restarts and keeps the text.
 const SILENCE_MS = 5000, MAX_MS = 180000;
-let stopWanted = false, silenceTimer = null, maxTimer = null;
+let stopWanted = false, silenceTimer = null, maxTimer = null, forceFinish = null, restarts = 0;
 function startRec(side) {
   if (!SR) { showType(side); st("このブラウザは音声入力に未対応。⌨で入力してください"); return; }
-  if (active) { const was = active; stopRec(); if (was === side) return; }
+  if (active) { const was = active; stopRec(); if (was === side) return; forceFinish?.(); }
+  // The phone can't listen while it is talking: stop any read-aloud first
+  try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {}
   const lang = side === "me" ? me : them, E = sideEls(side);
-  let done = "", interim = "";
-  stopWanted = false; active = side;
+  let done = "", interim = "", finished = false;
+  stopWanted = false; active = side; restarts = 0;
   E.mic.classList.add("on"); E.mic.textContent = "■ " + LANG[lang].hold; E.big.className = "big"; E.big.textContent = "…"; E.small.textContent = ""; E.rom.textContent = "";
   const bump = () => { clearTimeout(silenceTimer); silenceTimer = setTimeout(stopRec, SILENCE_MS); };
   maxTimer = setTimeout(stopRec, MAX_MS);
   bump();
   const finish = () => {
+    if (finished) return; finished = true; forceFinish = null;
     clearTimeout(silenceTimer); clearTimeout(maxTimer);
-    E.mic.classList.remove("on"); E.mic.textContent = LANG[lang].talk; active = null; rec = null;
+    const r = rec; rec = null; try { r?.abort(); } catch {}
+    E.mic.classList.remove("on"); E.mic.textContent = LANG[lang].talk; active = null;
     const t = (done + " " + interim).trim();
     if (t) handle(t, side); else if (!last[side]) { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; }
   };
+  forceFinish = finish;
   const begin = () => {
     const r = new SR(); rec = r; r.lang = LANG[lang].sr; r.interimResults = true; r.continuous = true; r.maxAlternatives = 1;
     r.onresult = e => { let fin = "", tmp = "";
@@ -395,19 +400,26 @@ function startRec(side) {
       if (fin) done = (done + " " + fin).trim();
       interim = tmp; E.big.textContent = (done + " " + interim).trim() || "…"; bump(); };
     r.onerror = e => {
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") { st("マイクを許可してください（ブラウザの設定）"); stopWanted = true; }
-      else if (e.error === "language-not-supported") { st(`この端末は${LANG[lang].name}の音声入力に未対応。⌨で入力`); showType(side); stopWanted = true; }
+      if (e.error === "no-speech" || e.error === "aborted") return;
+      stopWanted = true;
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") st("マイクを許可してください（ブラウザの設定）");
+      else if (e.error === "language-not-supported") { st(`この端末は${LANG[lang].name}の音声入力に未対応。⌨で入力`); showType(side); }
+      else st("マイクが使えませんでした（" + e.error + "）。もう一度押してください");
     };
     r.onend = () => {
       if (rec !== r) return;
       if (interim) { done = (done + " " + interim).trim(); interim = ""; }
-      if (stopWanted) finish(); else { try { begin(); } catch { finish(); } }
+      if (stopWanted || ++restarts > 60) finish(); else { try { begin(); } catch { finish(); } }
     };
     r.start();
   };
   try { begin(); } catch { finish(); }
 }
-function stopRec() { stopWanted = true; clearTimeout(silenceTimer); try { rec?.stop(); } catch {} }
+function stopRec() {
+  stopWanted = true; clearTimeout(silenceTimer); try { rec?.stop(); } catch {}
+  // Some phones never report the end: release the button anyway
+  const f = forceFinish; setTimeout(() => { if (f && forceFinish === f) f(); }, 1500);
+}
 $("meMic").onclick = () => { unlockAudio(); startRec("me"); };
 $("themMic").onclick = () => { unlockAudio(); startRec("them"); };
 
