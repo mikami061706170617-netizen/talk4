@@ -63,6 +63,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <div id="list" style="display:flex;flex-direction:column;gap:8px"></div>
 </div>
 <script type="module">
+const Ears = await import("./ears.js?v=" + Math.floor(Date.now() / 600000));   // AI listening when the phone can't
 const LANG = {
   ja:{name:"日本語", g:"ja", sr:"ja-JP", tts:null,                    talk:"🎤 押して話す",     wait:"相手の言葉の訳がここに出ます", hold:"聞いています…"},
   en:{name:"English",g:"en", sr:"en-US", tts:"en_US-hfc_female-medium",talk:"🎤 Tap to speak",   wait:"Translation will appear here",   hold:"Listening…"},
@@ -266,12 +267,15 @@ function scoreOf(target, heard, lang) { const t = norm(target, lang), x = norm(h
 const starsFor = s => s >= 0.8 ? 3 : s >= 0.55 ? 2 : s >= 0.3 ? 1 : 0;
 let rec = null, recDone = null;
 function listenOnce(lang, long = false) {
+  if (Ears.needAI(lang)) { try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} return Ears.aiOnce(lang, long); }
   try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {}
   if (rec) { try { rec.abort(); } catch {} recDone?.({ alts: [], err: "aborted" }); }
   return new Promise(resolve => {
     if (!SR) return resolve({ alts: [], err: "nosr" });
     let finished = false, best = [], err = null, timer = null;
-    const finish = () => { if (finished) return; finished = true; clearTimeout(timer); if (rec === r) { rec = null; recDone = null; } resolve({ alts: best, err }); };
+    const finish = () => { if (finished) return; finished = true; clearTimeout(timer); if (rec === r) { rec = null; recDone = null; }
+      if (!best.length && Ears.SERIOUS.includes(err)) { Ears.markAI(lang); return resolve(Ears.aiOnce(lang, long)); }
+      resolve({ alts: best, err }); };
     const r = new SR(); rec = r; recDone = v => { best = v.alts.length ? v.alts : best; err = v.err; finish(); };
     r.lang = LANG[lang].sr; r.interimResults = false; r.maxAlternatives = 3; r.continuous = false;
     r.onresult = e => { best = [...e.results[0]].map(x => x.transcript); };
@@ -281,7 +285,7 @@ function listenOnce(lang, long = false) {
     try { r.start(); } catch { err = "start"; finish(); }
   });
 }
-function stopListening() { if (rec) { const r = rec; try { r.stop(); } catch {} setTimeout(() => { if (rec === r) recDone?.({ alts: [], err: null }); }, 1500); } }
+function stopListening() { Ears.stopAI(); if (rec) { const r = rec; try { r.stop(); } catch {} setTimeout(() => { if (rec === r) recDone?.({ alts: [], err: null }); }, 1500); } }
 const h = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k.startsWith("on")) e[k] = v; else if (k === "html") e.innerHTML = v; else e.setAttribute(k, v); } for (const c of kids) if (c != null && c !== "") e.append(c); return e; };
 
 /* ---------- Words: anything you want to learn, instantly in every language ---------- */
@@ -376,7 +380,7 @@ function fill(c, text, to, r) {
   const star = h("button", { class: "btn" + (saved() ? " on" : "") }, saved() ? "⭐ 保存済み" : "⭐ 保存");
   star.onclick = () => { if (saved()) return; if (!paid() && words.length >= FREE_WORDS) { $("out").prepend(paywallCard(true)); return; } words.unshift({ a: text, mine, lang: to, t: r.text, rom: r.rom || "", n: 0, at: Date.now() }); keep("t4w-words", words); star.className = "btn on"; star.textContent = "⭐ 保存済み"; list(); };
   const check = h("button", { class: "btn" }, "🎤 言ってみる");
-  check.onclick = async () => { unlockAudio(); check.textContent = "👂 …"; const res = await listenOnce(to); check.textContent = "🎤 言ってみる";
+  check.onclick = async () => { if (Ears.busy()) { Ears.stopAI(); return; } unlockAudio(); check.textContent = "👂 …"; const res = await listenOnce(to); check.textContent = "🎤 言ってみる";
     const s = Math.max(0, ...res.alts.map(x => scoreOf(r.text, x, to))), n = starsFor(s);
     stars.textContent = res.alts.length ? "★".repeat(n) + "☆".repeat(3 - n) + "  " + res.alts[0] : (res.err === "nosr" ? "この端末は音声入力に未対応" : "聞こえませんでした"); };
   const play = h("button", { class: "btn" }, "🔊"); play.onclick = () => { unlockAudio(); say(r.text, to); };
@@ -384,6 +388,7 @@ function fill(c, text, to, r) {
   acts.append(play, slow, check, star, stars);
 }
 $("mic").onclick = async () => {
+  if (Ears.busy()) { Ears.stopAI(); return; }
   unlockAudio(); $("mic").classList.add("on"); $("mic").textContent = "👂";
   const res = await listenOnce(mine); $("mic").classList.remove("on"); $("mic").textContent = "🎤";
   if (res.alts[0]) { $("q").value = res.alts[0]; run(true); } else st(res.err === "nosr" ? "この端末は音声入力に未対応です。文字で入れてください" : "聞こえませんでした。もう一度どうぞ");

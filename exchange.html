@@ -110,6 +110,7 @@ h1 em{font-style:normal;color:var(--gold)}
 <div class="switch" id="switch" hidden><div class="big" id="swBig"></div><div class="lead" id="swSub"></div><button class="btn main" id="swGo"></button></div>
 
 <script type="module">
+const Ears = await import("./ears.js?v=" + Math.floor(Date.now() / 600000));   // AI listening when the phone can't
 const VER = new URLSearchParams(location.search).get("v") || String(Math.floor(Date.now() / 600000));  // fresh files after an update
 const { LESSONS } = await import("./lessons.js?v=" + VER);
 const { QUESTIONS } = await import("./questions.js?v=" + VER);
@@ -536,7 +537,7 @@ async function sessionView() {
   } else if (S.judge === "wait") card.append(h("div", { class: "judge" }, h("div", { class: "heard" }, ui.judging)));
   const mic = h("button", { class: "btn mic", id: "mic" }, ui.speak);
   mic.onclick = async () => {
-    unlockAudio(); if (rec) { stopListening(); return; }
+    unlockAudio(); if (rec || Ears.busy()) { stopListening(); return; }
     mic.classList.add("on"); mic.textContent = ui.stop;
     const { alts, err } = await listenOnce(lang);
     mic.classList.remove("on"); mic.textContent = ui.speak;
@@ -546,7 +547,7 @@ async function sessionView() {
   };
   const hear = h("button", { class: "btn main" }, ui.hear2);
   hear.onclick = async () => {
-    unlockAudio(); if (rec) { stopListening(); return; }
+    unlockAudio(); if (rec || Ears.busy()) { stopListening(); return; }
     hear.classList.add("on"); hear.textContent = fmt(ui.helpOn, { lang: LANG[lang].name });
     const { alts, err } = await listenOnce(lang, true);
     hear.classList.remove("on"); hear.textContent = ui.hear2;
@@ -557,7 +558,7 @@ async function sessionView() {
     if (J.score != null && J.score >= 50) S.got[a.i]++; S.judge = J; sessionView(); };
   const guessBtn = h("button", { class: "btn main" }, fmt(ui.guess, { lang: LANG[a.native].name }));
   guessBtn.onclick = async () => {
-    unlockAudio(); if (rec) { stopListening(); return; }
+    unlockAudio(); if (rec || Ears.busy()) { stopListening(); return; }
     guessBtn.classList.add("on"); guessBtn.textContent = fmt(ui.helpOn, { lang: LANG[a.native].name });
     const { alts } = await listenOnce(a.native, true);
     guessBtn.classList.remove("on"); guessBtn.textContent = fmt(ui.guess, { lang: LANG[a.native].name });
@@ -568,7 +569,7 @@ async function sessionView() {
   const giveUp = h("button", { class: "btn" }, ui.giveUp); giveUp.onclick = () => runJudge("");
   const help = h("button", { class: "btn" }, ui.help);
   help.onclick = async () => {
-    unlockAudio(); if (rec) { stopListening(); return; }
+    unlockAudio(); if (rec || Ears.busy()) { stopListening(); return; }
     help.classList.add("on"); help.textContent = fmt(ui.helpOn, { lang: LANG[a.native].name });
     const { alts } = await listenOnce(a.native, true);
     help.classList.remove("on"); help.textContent = ui.help;
@@ -626,12 +627,15 @@ function scoreOf(target, heard, lang) { const t = norm(target, lang), x = norm(h
 const starsFor = s => s >= 0.8 ? 3 : s >= 0.55 ? 2 : s >= 0.3 ? 1 : 0;
 let rec = null, recDone = null;
 function listenOnce(lang, long = false) {
+  if (Ears.needAI(lang)) { try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} return Ears.aiOnce(lang, long); }
   try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {}
   if (rec) { try { rec.abort(); } catch {} recDone?.({ alts: [], err: "aborted" }); }
   return new Promise(resolve => {
     if (!SR) return resolve({ alts: [], err: "nosr" });
     let finished = false, best = [], err = null, timer = null;
-    const finish = () => { if (finished) return; finished = true; clearTimeout(timer); if (rec === r) { rec = null; recDone = null; } resolve({ alts: best, err }); };
+    const finish = () => { if (finished) return; finished = true; clearTimeout(timer); if (rec === r) { rec = null; recDone = null; }
+      if (!best.length && Ears.SERIOUS.includes(err)) { Ears.markAI(lang); return resolve(Ears.aiOnce(lang, long)); }
+      resolve({ alts: best, err }); };
     const r = new SR(); rec = r; recDone = v => { best = v.alts.length ? v.alts : best; err = v.err; finish(); };
     r.lang = LANG[lang].sr; r.interimResults = false; r.maxAlternatives = 3; r.continuous = false;
     r.onresult = e => { best = [...e.results[0]].map(x => x.transcript); };
@@ -641,7 +645,7 @@ function listenOnce(lang, long = false) {
     try { r.start(); } catch { err = "start"; finish(); }
   });
 }
-function stopListening() { if (rec) { const r = rec; try { r.stop(); } catch {} setTimeout(() => { if (rec === r) recDone?.({ alts: [], err: null }); }, 1500); } }
+function stopListening() { Ears.stopAI(); if (rec) { const r = rec; try { r.stop(); } catch {} setTimeout(() => { if (rec === r) recDone?.({ alts: [], err: null }); }, 1500); } }
 
 const h = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k.startsWith("on")) e[k] = v; else if (k === "html") e.innerHTML = v; else e.setAttribute(k, v); } for (const c of kids) if (c != null && c !== "") e.append(c); return e; };
 document.addEventListener("pointerdown", unlockAudio, { passive: true });

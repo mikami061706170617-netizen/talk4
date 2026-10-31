@@ -99,6 +99,7 @@ button{cursor:pointer;touch-action:manipulation}
 </div>
 
 <script type="module">
+const Ears = await import("./ears.js?v=" + Math.floor(Date.now() / 600000));   // AI listening when the phone can't
 let AI = { proxy: "" };
 try { AI = { ...AI, ...(await import("./config.js?v=" + Date.now())).AI }; } catch {}
 
@@ -431,9 +432,18 @@ let rec = null, recIdx = -1, recFinish = null;
 function listenFor(i) {
   if (rec) { const was = recIdx; stopRec(); if (was === i) return; }
   if (handsFree) { handsFree = false; stopAuto(); paintAuto(); }
-  if (!SR) { st(ui.noSr); $("typer").hidden = false; return; }
+  if (Ears.busy()) { Ears.stopAI(); return; }
   stopReading();
   const p = people[i], btn = $(`pb${i}`);
+  // The phone can't listen in this language (e.g. Georgian on iPhone): the AI listens instead
+  if (Ears.needAI(p.lang)) {
+    btn.classList.add("on"); st(`${label(p, i)}: ${ui.listening}`);
+    Ears.aiOnce(p.lang, true, s => { if (s === "wait") st(`${label(p, i)}: ⏳`); }).then(({ alts }) => {
+      btn.classList.remove("on");
+      if (alts[0]) addUtterance(alts[0], p.lang, label(p, i), COLORS[i], false); else st("");
+    });
+    return;
+  }
   let done = "", interim = "", finished = false, quiet = null, stopWanted = false, restarts = 0;
   recIdx = i; btn.classList.add("on"); st(`${label(p, i)}: ${ui.listening}`);
   const finish = () => {
@@ -449,7 +459,8 @@ function listenFor(i) {
     r.onresult = e => { let fin = "", tmp = ""; for (let k = e.resultIndex; k < e.results.length; k++) { const x = e.results[k]; if (x.isFinal) fin += x[0].transcript; else tmp += x[0].transcript; }
       if (fin || tmp.trim()) spoke = true;
       if (fin) done = (done + " " + fin).trim(); interim = tmp; st(`${label(p, i)}: ${(done + " " + interim).trim()}`); bump(); };
-    r.onerror = e => { if (e.error === "no-speech" || e.error === "aborted") return; stopWanted = true; st(ui.micErr + " (" + e.error + ")"); };
+    r.onerror = e => { if (e.error === "no-speech" || e.error === "aborted") return; stopWanted = true;
+      if (Ears.SERIOUS.includes(e.error)) { Ears.markAI(p.lang); st("🎙 AIで聞き取ります。もう一度押して話してください"); } else st(ui.micErr + " (" + e.error + ")"); };
     r.onend = () => { if (rec !== r) return; if (interim) { done = (done + " " + interim).trim(); interim = ""; } if (stopWanted || ++restarts > 40) finish(); else { try { begin(); } catch { finish(); } } };
     r.start();
   };

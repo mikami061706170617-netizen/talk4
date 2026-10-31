@@ -196,6 +196,7 @@ h2.head{margin:0;font-size:clamp(24px,3.4vw,40px);text-wrap:balance}
 </div>
 
 <script type="module">
+const Ears = await import("./ears.js?v=" + Math.floor(Date.now() / 600000));   // AI listening when the phone can't
 const VER = new URLSearchParams(location.search).get("v") || String(Math.floor(Date.now() / 600000));  // fresh files after an update
 const { LESSONS, MISSIONS, MISSION_REWARD } = await import("./lessons.js?v=" + VER);
 let AI = { proxy: "", freeTurns: 5 };
@@ -469,12 +470,15 @@ const starsFor = s => s >= 0.8 ? 3 : s >= 0.55 ? 2 : s >= 0.3 ? 1 : 0;
 let rec = null, recDone = null;
 // Listens once. Never leaves the button stuck: a timer ends it if the phone never reports the end.
 function listenOnce(lang) {
+  if (Ears.needAI(lang)) { try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} return Ears.aiOnce(lang, false); }
   try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {}
   if (rec) { try { rec.abort(); } catch {} recDone?.({ alts: [], err: "aborted" }); }
   return new Promise(resolve => {
     if (!SR) return resolve({ alts: [], err: "nosr" });
     let finished = false, best = [], err = null, timer = null;
-    const finish = () => { if (finished) return; finished = true; clearTimeout(timer); if (rec === r) { rec = null; recDone = null; } resolve({ alts: best, err }); };
+    const finish = () => { if (finished) return; finished = true; clearTimeout(timer); if (rec === r) { rec = null; recDone = null; }
+      if (!best.length && Ears.SERIOUS.includes(err)) { Ears.markAI(lang); return resolve(Ears.aiOnce(lang, false)); }
+      resolve({ alts: best, err }); };
     const r = new SR(); rec = r; recDone = v => { best = v.alts; err = v.err; finish(); };
     r.lang = LANG[lang].sr; r.interimResults = false; r.maxAlternatives = 3; r.continuous = false;
     r.onresult = e => { best = [...e.results[0]].map(a => a.transcript); };
@@ -484,7 +488,7 @@ function listenOnce(lang) {
     try { r.start(); } catch { err = "start"; finish(); }
   });
 }
-function stopListening() { if (rec) { const r = rec; try { r.stop(); } catch {} setTimeout(() => { if (rec === r) recDone?.({ alts: [], err: null }); }, 1500); } }
+function stopListening() { Ears.stopAI(); if (rec) { const r = rec; try { r.stop(); } catch {} setTimeout(() => { if (rec === r) recDone?.({ alts: [], err: null }); }, 1500); } }
 async function tryIt(target, btn) {
   if (rec) { stopListening(); return null; }
   btn.classList.add("on"); btn.textContent = ui.stop;
@@ -789,7 +793,7 @@ async function aiPanel(L, ex) {
   const mic = h("button", { class: "btn mic" }, ui.speak);
   mic.onclick = async () => {
     unlockAudio(); if (A.busy) return;
-    if (rec) { stopListening(); return; }
+    if (rec || Ears.busy()) { stopListening(); return; }
     mic.classList.add("on"); mic.textContent = ui.stop;
     const { alts, err } = await listenOnce(S.learn);
     mic.classList.remove("on"); mic.textContent = ui.speak;
