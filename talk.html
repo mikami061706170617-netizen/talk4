@@ -474,7 +474,7 @@ async function linkJoin(room, keyStr) {
   const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt", { clientId: "t4_" + Math.random().toString(36).slice(2, 10), clean: true, reconnectPeriod: 2000 });
   const topic = "talk4/v1/" + room, self = Math.random().toString(36).slice(2);
   link = { room, keyStr, key, client, topic, self };
-  client.on("connect", () => { client.subscribe(topic); st("🔗 2台でつながっています", true); document.body.classList.add("linked"); });
+  client.on("connect", () => { client.subscribe(topic); st("🔗 2台でつながっています", true); document.body.classList.add("linked"); $("linkBtn").textContent = "🔗 つながり中"; });
   client.on("offline", () => st("🔗 つなぎ直しています…"));
   client.on("message", async (t, payload) => {
     try {
@@ -501,7 +501,7 @@ $("linkBtn").onclick = async () => {
   try { const QR = (await import("https://cdn.jsdelivr.net/npm/qrcode@1.5.4/+esm")).default; $("linkQr").src = await QR.toDataURL(url, { margin: 1, width: 480 }); } catch { $("linkText").textContent = "QRが作れませんでした。リンクをコピーして送ってください。"; }
 };
 $("linkCopy").onclick = async () => { if (!link) return; try { await navigator.clipboard.writeText(linkUrl()); st("リンクをコピーしました", true); } catch {} };
-$("linkOff").onclick = () => { try { link?.client.end(true); } catch {} link = null; document.body.classList.remove("linked"); $("link").hidden = true; st("つなぐのをやめました"); history.replaceState(null, "", location.pathname); };
+$("linkOff").onclick = () => { try { link?.client.end(true); } catch {} link = null; document.body.classList.remove("linked"); $("linkBtn").textContent = "📱 2台でつなぐ"; $("link").hidden = true; st("つなぐのをやめました"); history.replaceState(null, "", location.pathname); };
 $("linkClose").onclick = () => { $("link").hidden = true; };
 // Opened from a partner's QR: take the languages from the link and join
 setTimeout(() => {
