@@ -45,6 +45,7 @@ h2{font-size:15px;margin:10px 0 0;display:flex;justify-content:space-between;ali
 .quiz .q{font-size:26px;font-weight:700}
 .quiz .ans{font-size:28px;font-weight:700;color:var(--fg)}
 .st{font-size:12px;color:var(--muted);min-height:1em;margin:0}
+.chip.cur{background:var(--gold);color:#1a1307;border-color:var(--gold)}
 [hidden]{display:none!important}
 button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 </style>
@@ -58,6 +59,10 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <div class="ask"><input id="q" placeholder="例：お会計お願いします" enterkeyhint="go" autocomplete="off"><button class="btn main" id="mic">🎤</button></div>
   <p class="st" id="status"></p>
   <div id="out" style="display:flex;flex-direction:column;gap:10px"></div>
+  <h2><span>📚 単語パック</span></h2>
+  <p class="lead">場面ごとの基本の単語です。タップで発音、⭐でまとめて単語帳に入ります（🔒は有料プラン）。</p>
+  <div class="row" id="packs"></div>
+  <div id="pack" style="display:flex;flex-direction:column;gap:8px"></div>
   <h2><span>⭐ 単語帳 <span id="count" class="lead"></span></span><button class="btn" id="quizBtn">🃏 テスト</button></h2>
   <div class="quiz" id="quiz" hidden></div>
   <div id="list" style="display:flex;flex-direction:column;gap:8px"></div>
@@ -296,12 +301,12 @@ let mine = load("t4w-mine", (navigator.language || "ja").slice(0, 2)); if (!LANG
 let targets = load("t4w-targets", ["en", "ka", "ru", "ja"].filter(l => l !== mine).slice(0, 3));
 let words = load("t4w-words", []);
 for (const k of ALL) $("mine").add(new Option(LANG[k].name, k)); $("mine").value = mine;
-$("mine").onchange = () => { mine = $("mine").value; targets = targets.filter(t => t !== mine); keep("t4w-mine", mine); keep("t4w-targets", targets); chips(); run(true); };
+$("mine").onchange = () => { mine = $("mine").value; targets = targets.filter(t => t !== mine); keep("t4w-mine", mine); keep("t4w-targets", targets); chips(); run(true); packs(); };
 function chips() {
   const box = $("targets"); box.innerHTML = '<span class="lead">覚えたい言葉</span>';
   for (const k of ALL) { if (k === mine) continue;
     const b = h("button", { class: "chip", "aria-pressed": String(targets.includes(k)) }, LANG[k].name);
-    b.onclick = () => { targets = targets.includes(k) ? targets.filter(x => x !== k) : [...targets, k]; keep("t4w-targets", targets); chips(); run(true); warmFor(targets); };
+    b.onclick = () => { targets = targets.includes(k) ? targets.filter(x => x !== k) : [...targets, k]; keep("t4w-targets", targets); chips(); run(true); warmFor(targets); packs(); };
     box.append(b); }
 }
 
@@ -416,7 +421,43 @@ function card() {
   bad.onclick = () => { w.n = Math.max(0, w.n - 1); keep("t4w-words", words); words.splice(qi % words.length, 1); words.splice(Math.min(words.length, (qi % (words.length + 1)) + 2), 0, w); qi++; card(); };
   Q.append(h("div", { class: "lead" }, `${(qi % words.length) + 1} / ${words.length} · ${LANG[w.lang].name}で言うと？`), h("div", { class: "q" }, w.a), ans, h("div", { class: "row", style: "justify-content:center" }, show, good, bad));
 }
-chips(); list(); warmFor(targets);
+
+/* ---------- Word packs ---------- */
+const { PACKS } = await import("./packs.js?v=" + Math.floor(Date.now() / 600000));
+const FREE_PACKS = ["food", "numbers"];
+let openPack = null;
+const readOf = (wd, lang) => lang === "ja" ? wd.jr : lang === "ko" ? wd.kr : lang === "zh" ? wd.zr : lang === "ru" ? translit(wd.ru, RU) : lang === "ka" ? kaRoman(wd.ka) : "";
+function packs() {
+  const box = $("packs"); box.innerHTML = "";
+  for (const P of PACKS) {
+    const locked = !paid() && !FREE_PACKS.includes(P.id);
+    const b = h("button", { class: "chip" + (openPack === P.id ? " cur" : "") }, `${P.icon} ${P.name[mine] || P.name.en}${locked ? " 🔒" : ""}`);
+    b.onclick = () => { openPack = openPack === P.id ? null : P.id; packs(); };
+    box.append(b);
+  }
+  const out = $("pack"); out.innerHTML = ""; if (!openPack) return;
+  const P = PACKS.find(x => x.id === openPack);
+  if (!paid() && !FREE_PACKS.includes(P.id)) { out.append(paywallCard()); return; }
+  const langs = targets.length ? targets : ["en"];
+  const all = h("button", { class: "btn main" }, `⭐ ${P.words.length}語を単語帳に入れる`);
+  all.onclick = () => {
+    let n = 0;
+    for (const wd of P.words) for (const L of langs) if (!words.some(x => x.t === wd[L] && x.lang === L)) { words.unshift({ a: wd[mine] || wd.en, mine, lang: L, t: wd[L], rom: readOf(wd, L) || "", n: 0, at: Date.now() }); n++; }
+    keep("t4w-words", words); list(); all.textContent = `⭐ ${n}語を入れました`;
+  };
+  out.append(h("div", { class: "row" }, all));
+  for (const wd of P.words) {
+    const row = h("div", { class: "word" }, h("div", { class: "m" }, h("div", { class: "a" }, wd[mine] || wd.en)));
+    for (const L of langs) {
+      const btn = h("button", { title: LANG[L].name, style: "font-size:15px;text-align:left" }, wd[L]);
+      const r = readOf(wd, L); if (r && r !== wd[L]) btn.append(h("div", { style: "font-size:12px;color:var(--gold)" }, r));
+      btn.onclick = () => { unlockAudio(); say(wd[L].split(" / ")[0], L); };
+      row.append(btn);
+    }
+    out.append(row);
+  }
+}
+chips(); list(); packs(); warmFor(targets);
 </script>
 <script src="nav.js"></script>
 </body>
