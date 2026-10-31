@@ -92,6 +92,16 @@ button,select{font:inherit;color:inherit}
     <p class="note" id="feeNote">The more people join the same time slot, the lower the price for everyone. The app for your level is included. Russian has a teacher once a week; on the other days you practise with the app.</p>
   </section>
 
+  <section class="table">
+    <h2 id="exH">Also at the restaurant</h2>
+    <div class="rows">
+      <div class="row"><span id="x1a">Language exchange night</span><b>₾20</b><span class="note" id="x1b">60 minutes, one drink included. Half the time in each language, with a partner who speaks the language you're learning.</span></div>
+      <div class="row"><span id="x2a">Class + lunch</span><b>−10%</b><span class="note" id="x2b">10% off lunch at the restaurant on your class day.</span></div>
+      <div class="row"><span id="x3a">AI conversation practice</span><b>✓</b><span class="note" id="x3b">Included in every plan. Talk with an AI partner in each lesson's scene; it corrects your mistakes. 5 free replies in the trial.</span></div>
+    </div>
+    <p class="note" id="exNote">Every lesson ends with a real-world mission at the restaurant — order a drink, ask a price, tell the staff about your weekend. Complete it and the drink is on us.</p>
+  </section>
+
   <section class="how">
     <h2 id="howH">How it works</h2>
     <div class="steps">
@@ -150,6 +160,9 @@ const T = {
     feeH: "授業料", f1a: "1人", f1b: "60分の授業1回", f2a: "2人", f2b: "1人あたり・60分1回", f3a: "3人以上", f3b: "1人あたり・月4回",
     feeNote: "同じ時間に人が増えるほど、全員の料金が下がります。レベルに合ったアプリは授業料に含まれます。ロシア語は先生の授業が週1回、ほかの日はアプリで練習します。",
     howH: "はじめ方", st1: "アプリを30分無料でためす。または店の30分無料体験レッスンを予約する。", st2: "レベルを選んでWhatsAppで連絡する。", st3: "店か振込で支払うと、解除コードが届く。", st4: "対面かオンラインで授業に出て、毎日アプリで練習する。",
+    exH: "店でできること", x1a: "言語交換会", x1b: "60分・ドリンク1杯付き。学びたい言葉を話す人とペアになり、半分ずつお互いの言葉で話します。",
+    x2a: "授業＋ランチ", x2b: "授業の日は店のランチが10%引き。", x3a: "AI会話の練習", x3b: "全プランに含まれます。レッスンの場面でAIと自由に会話でき、間違いも直してくれます。無料体験では5回まで。",
+    exNote: "どのレッスンも最後は店での「実践ミッション」。ドリンクを注文する、値段を聞く、週末の話をする。達成したらドリンク1杯サービスです。",
     conH: "お問い合わせ", addr: "Japan Food Hub・1 Davit Gamrekeli St, トビリシ", lLang: "言語",
   },
 };
@@ -166,7 +179,7 @@ async function tr(text, to) {
     return out;
   } catch { return text; }
 }
-const STATIC = ["h1","lead","feeH","f1a","f1b","f2a","f2b","f3a","f3b","feeNote","howH","st1","st2","st3","st4","conH","addr","lLang"];
+const STATIC = ["exH","x1a","x1b","x2a","x2b","x3a","x3b","exNote","h1","lead","feeH","f1a","f1b","f2a","f2b","f3a","f3b","feeNote","howH","st1","st2","st3","st4","conH","addr","lLang"];
 const EN_STATIC = Object.fromEntries(STATIC.map(id => [id, document.getElementById(id).innerHTML]));
 async function textsFor(lang) {
   if (T[lang] && lang !== "en" && T[lang].h1) return T[lang];

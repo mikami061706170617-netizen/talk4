@@ -716,3 +716,30 @@ export const LESSONS = [
     homework: { ja: "家族か友だちとオンラインで5分、学んだ言葉で会議の練習をする", en: "Hold a 5-minute practice call with a friend using today's phrases" },
   },
 ];
+
+// Real-world missions: done at Japan Food Hub after class (online students do it with the teacher on camera).
+export const MISSIONS = {
+  greet:      { ja: "店に入ってくるお客さんかスタッフに、学んだ言葉で「こんにちは」と言う。返事をもらえたら達成", en: "Greet a guest or staff member in the new language and get a reply" },
+  intro:      { ja: "スタッフに自己紹介（名前・国・仕事）を3文で言う", en: "Introduce yourself to a staff member in three sentences" },
+  money:      { ja: "メニューを1つ指さして「これはいくらですか？」と聞き、答えの値段を聞き取る", en: "Point at a menu item, ask the price and understand the answer" },
+  restaurant: { ja: "カウンターで、学んだ言葉だけで飲み物を1つ注文する", en: "Order one drink at the counter using only the new language" },
+  cooking:    { ja: "料理教室か厨房の前で、材料を3つその言葉で言う", en: "Name three ingredients in the new language at the kitchen or cooking class" },
+  tour:       { ja: "スタッフに、店の近くのおすすめの場所を1つ紹介する（または聞く）", en: "Recommend (or ask about) one place near the restaurant" },
+  time:       { ja: "スタッフに「何時に開きますか？」「何時に閉まりますか？」を聞いて答えを聞き取る", en: "Ask the staff when the restaurant opens and closes" },
+  shopping:   { ja: "店のメニューから「これをください」で1品注文する", en: "Order one item from the menu with \"I'll take this\"" },
+  taxi:       { ja: "スタッフに、ホテルか駅までの行き方を聞く（または教える）", en: "Ask (or explain) the way to a hotel or station" },
+  likes:      { ja: "隣の人かスタッフに「何が好きですか？」と聞いて、自分の好きなことも1つ言う", en: "Ask someone what they like and tell them one thing you like" },
+  weather:    { ja: "スタッフに今日の天気と自分の体調をひとことで話す", en: "Tell a staff member about today's weather and how you feel" },
+  help:       { ja: "スタッフにわざと早口で話してもらい、「ゆっくり話してください」「もう一度お願いします」で聞き返す", en: "Ask a staff member to speak fast, then use \"slowly, please\" and \"once more, please\"" },
+  reserve:    { ja: "WhatsAppで、次回の授業かランチの予約をその言葉で送る", en: "Send a WhatsApp message in the new language to book your next class or lunch" },
+  health:     { ja: "先生を薬剤師役にして、症状を伝えて薬の飲み方を聞く", en: "With the teacher as pharmacist, describe a symptom and ask how to take the medicine" },
+  rent:       { ja: "先生を大家さん役にして、家賃・光熱費・敷金を全部聞き出す", en: "With the teacher as landlord, find out rent, utilities and deposit" },
+  work:       { ja: "スタッフに「手伝ってもらえますか？」と頼んで、テーブルを1つ一緒に片付ける", en: "Ask a staff member \"Could you help me?\" and clear one table together" },
+  message:    { ja: "クラスの誰かと、その言葉だけでWhatsAppで待ち合わせを決める", en: "Arrange a meet-up with a classmate on WhatsApp using only the new language" },
+  past:       { ja: "スタッフに週末にしたことを3文で話す", en: "Tell a staff member about your weekend in three sentences" },
+  meeting:    { ja: "スタッフかクラスの人に、自分の仕事を30秒で売り込む", en: "Give a 30-second pitch of your work to a staff member or classmate" },
+  negotiate:  { ja: "先生を売り手にして、値段を1割下げてもらう交渉をする", en: "Negotiate 10% off with the teacher playing the seller" },
+  opinion:    { ja: "「店に新メニューを足すなら何？」に、意見と理由を言う", en: "Answer \"What new dish should the restaurant add?\" with an opinion and a reason" },
+  online:     { ja: "先生とオンラインで5分の会議をして、司会をする", en: "Host a 5-minute online meeting with the teacher" },
+};
+export const MISSION_REWARD = { ja: "達成したらスタッフに画面を見せてください。ドリンク1杯サービス（店で受講の方）", en: "Show this screen to the staff when you've done it — one free drink (in-restaurant students)" };

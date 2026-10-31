@@ -134,6 +134,25 @@ h2.head{margin:0;font-size:clamp(24px,3.4vw,40px);text-wrap:balance}
 .codebox{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 .codebox input{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;color:var(--fg);font:inherit;font-size:16px;letter-spacing:.08em;text-transform:uppercase;min-width:0;width:220px}
 .lockline{text-align:center;color:var(--gold);font-size:15px}
+.mission{border:2px dashed var(--red);background:#2a1715;border-radius:18px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.mission b{color:#ff8a7e;font-family:var(--display);letter-spacing:.08em;font-size:15px}
+.mission .mt{font-size:clamp(17px,2.2vw,22px);line-height:1.5}
+.mission.done{border-style:solid;border-color:var(--ok);background:#18241b}
+.mission.done b{color:var(--ok)}
+.score2{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+.score2 div{background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:12px 20px;text-align:center}
+.score2 div b{display:block;font-family:var(--display);font-size:30px;color:var(--gold)}
+.ai{border:1px solid #2f4a63;background:#141c24;border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.ai h3{margin:0;font-family:var(--display);letter-spacing:.06em;color:#8cc4f2;font-size:18px}
+.ai .msgs{display:flex;flex-direction:column;gap:10px;max-height:52vh;overflow-y:auto}
+.ai .m{border-radius:14px;padding:10px 12px;max-width:88%;display:flex;flex-direction:column;gap:3px}
+.ai .m.bot{background:#1d2a36;align-self:flex-start}
+.ai .m.me{background:#2b2416;align-self:flex-end;text-align:right}
+.ai .m .t{font-size:clamp(17px,2.2vw,22px);font-weight:700;overflow-wrap:anywhere}
+.ai .m .r{font-size:14px;color:var(--gold)}
+.ai .m .x{font-size:14px;color:var(--muted)}
+.ai .fix{font-size:14px;color:#ffcf8a;border-top:1px dashed #4a3d22;padding-top:6px}
+.ai input{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;color:var(--fg);font:inherit;font-size:16px}
 .status{font-size:12px;color:var(--muted);text-align:center;min-height:16px}
 @media print{
   body{background:#fff;color:#111;padding:0}
@@ -176,7 +195,9 @@ h2.head{margin:0;font-size:clamp(24px,3.4vw,40px);text-wrap:balance}
 </div>
 
 <script type="module">
-import { LESSONS } from "./lessons.js";
+import { LESSONS, MISSIONS, MISSION_REWARD } from "./lessons.js";
+let AI = { key: "", model: "", freeTurns: 5 };
+try { AI = { ...AI, ...(await import("./config.js?v=" + Date.now())).AI }; } catch {}
 
 const LANG = {
   ja:{name:"日本語", g:"ja", sr:"ja-JP", tts:null},
@@ -211,7 +232,12 @@ const UI = {
         price60:"授業60分", p1:"1人 ₾75", p2:"2人なら 1人₾45", p3:"3人以上 月4回 ₾120", appIncl:"アプリは授業料に含まれます",
         ruNote:"ロシア語は先生の授業が週1回。ほかの日はアプリで練習します。", apply:"WhatsAppで申し込む",
         haveCode:"解除コードをお持ちの方", unlock:"解除する", badCode:"コードが違います。もう一度確かめてください", unlocked:"解除しました",
-        seePlans:"プランを詳しく見る", current:"{lv}プラン ✓", applyMsg:"Talk4 Class の「{lv}」プランに申し込みたいです。", noMic:"このブラウザでは発音チェックが使えません（Chromeかスマホで開いてください）", micErr:"マイクが使えませんでした。もう一度押してください" },
+        seePlans:"プランを詳しく見る",
+        mission:"実践ミッション", missionDone:"ミッション達成！", missionDid:"達成しました ✓",
+        pair:"ペア練習", pairHint:"2人で交互にセリフを言います。自分の番になったら🎤が赤くなります", pairResult:"結果", playerA:"Aの人", playerB:"Bの人",
+        aiTitle:"AIと会話", aiStart:"🤖 AIと会話をはじめる", aiHint:"この場面の相手役をAIがやります。自由に話しかけてください。間違いはAIが直してくれます",
+        aiType:"文字で入力もできます", aiSend:"送る", aiFix:"こう言うともっと自然", aiOff:"AI会話は準備中です（先生がAIの設定をするまでお待ちください）",
+        aiFreeLeft:"無料体験：AIとあと{n}回話せます", aiLocked:"AI会話の続きは有料プランで使えます", aiErr:"AIが返事できませんでした。もう一度話しかけてください", aiEnd:"終わる", current:"{lv}プラン ✓", applyMsg:"Talk4 Class の「{lv}」プランに申し込みたいです。", noMic:"このブラウザでは発音チェックが使えません（Chromeかスマホで開いてください）", micErr:"マイクが使えませんでした。もう一度押してください" },
   en: { lesson:"Lesson", learn:"Learn", ex:"Explain in", class:"Class", study:"Self-study", share:"Student link",
         s0:"Goal", s1:"Practice", s2:"Talk", s3:"Listen", s4:"Quiz", s5:"Review",
         goal:"Today's goal", words:"Today's words", tip:"Tip", start:"Start practising →",
@@ -231,7 +257,12 @@ const UI = {
         price60:"60-minute class", p1:"1 person ₾75", p2:"2 people ₾45 each", p3:"3 or more: 4 classes a month ₾120", appIncl:"The app is included in the class fee",
         ruNote:"Russian has a teacher once a week; on the other days you practise with the app.", apply:"Apply on WhatsApp",
         haveCode:"Have an unlock code?", unlock:"Unlock", badCode:"That code didn't work. Please check it and try again", unlocked:"Unlocked",
-        seePlans:"See plans in detail", current:"{lv} plan ✓", applyMsg:"I'd like to join the Talk4 Class {lv} plan.", noMic:"Pronunciation check needs Chrome or a phone browser", micErr:"The microphone didn't start. Press again" },
+        seePlans:"See plans in detail",
+        mission:"Real-world mission", missionDone:"Mission complete!", missionDid:"Completed ✓",
+        pair:"Pair practice", pairHint:"Two people take turns saying the lines. The 🎤 turns red when it's your turn", pairResult:"Result", playerA:"Player A", playerB:"Player B",
+        aiTitle:"Talk with AI", aiStart:"🤖 Start talking with AI", aiHint:"The AI plays the other person in this scene. Say anything — it will correct your mistakes",
+        aiType:"You can also type", aiSend:"Send", aiFix:"More natural", aiOff:"AI conversation is being set up. Please check back soon",
+        aiFreeLeft:"Free trial: {n} AI replies left", aiLocked:"Keep talking with AI on a paid plan", aiErr:"The AI couldn't reply. Please try again", aiEnd:"End", current:"{lv} plan ✓", applyMsg:"I'd like to join the Talk4 Class {lv} plan.", noMic:"Pronunciation check needs Chrome or a phone browser", micErr:"The microphone didn't start. Press again" },
 };
 const cache = (() => { try { return JSON.parse(localStorage.getItem("t4c-tr") || "{}"); } catch { return {}; } })();
 async function gtr(text, from, to) {
@@ -646,13 +677,13 @@ async function runTalk(role) {
   for (let n = 0; n < L.dialogue.length; n++) {
     if (my !== talkRun) return;
     const [who, x] = L.dialogue[n], ln = lineOf(L, x); S.line = n; render();
-    if (role && who === role) {
+    if (role === "both" || (role && who === role)) {
       // Student's turn: listen, score, move on
       await new Promise(r => setTimeout(r, 250));
       const btn = document.querySelector(`[data-mic="${n}"]`) || h("button");
       const res = await tryIt(ln[S.learn], btn);
       if (my !== talkRun) return;
-      if (res) S.dlgScores[n] = starsFor(res.s);
+      if (res) S.dlgScores[n] = starsFor(res.s); else S.dlgScores[n] ??= 0;
     } else {
       await say(ln[S.learn], S.learn);
       await new Promise(r => setTimeout(r, 350));
@@ -660,13 +691,117 @@ async function runTalk(role) {
   }
   if (my === talkRun) { S.playing = false; S.line = -1; render(); }
 }
+/* ---------- AI conversation partner (Gemini) ---------- */
+let aiModel = AI.model || null;
+async function pickModel() {
+  if (aiModel) return aiModel;
+  const j = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${encodeURIComponent(AI.key)}`).then(r => r.json());
+  const ok = (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
+    .map(m => m.name.replace("models/", "")).filter(n => /flash/.test(n) && !/(lite|image|tts|audio|live|thinking|exp|8b|embedding)/.test(n));
+  const ver = n => parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/) || [0, 0])[1]);
+  ok.sort((a, b) => (/preview/.test(a) - /preview/.test(b)) || ver(b) - ver(a) || a.length - b.length);
+  aiModel = ok[0] || "gemini-2.5-flash";
+  return aiModel;
+}
+let aiUsed = 0; try { aiUsed = +localStorage.getItem("t4c-ai") || 0; } catch {}
+const aiAllowed = () => tier !== "none" || aiUsed < AI.freeTurns;
+async function askAI(L, ex, history) {
+  const model = await pickModel();
+  const roles = L.roles || {};
+  const sys = `You are a friendly conversation partner in a language class.
+The student is learning ${LANG[S.learn].name} (${S.learn}). Their own language is ${LANG[ex].name} (${ex}).
+Scene: "${L.title.en}". You play "${roles.B?.en || "the other person"}"; the student plays "${roles.A?.en || "the student"}".
+Useful phrases for this scene: ${L.phrases.map(p => p[S.learn]).join(" / ")}.
+Rules: reply ONLY in ${LANG[S.learn].name}, 1–2 short sentences, at the student's level (${({ basic: "beginner", daily: "beginner", mid: "intermediate", adv: "advanced" })[L.level || "basic"]}). Keep the scene going with a question.
+If the student's last message had a mistake or sounded unnatural, give a corrected version.
+Answer as JSON: {"reply": "...", "meaning": "the reply translated into ${LANG[ex].name}", "fix": "corrected version of the student's sentence in ${LANG[S.learn].name}, or empty", "why": "one short reason in ${LANG[ex].name}, or empty"}`;
+  const body = {
+    systemInstruction: { parts: [{ text: sys }] },
+    contents: history.length ? history.map(m => ({ role: m.who === "me" ? "user" : "model", parts: [{ text: m.who === "me" ? m.text : JSON.stringify({ reply: m.text }) }] }))
+                             : [{ role: "user", parts: [{ text: "(Start the scene with your first line.)" }] }],
+    generationConfig: { responseMimeType: "application/json", temperature: 0.7, maxOutputTokens: 400 },
+  };
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(AI.key)}`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error?.message || r.status);
+  const txt = j.candidates?.[0]?.content?.parts?.map(p => p.text).join("") || "{}";
+  return JSON.parse(txt.replace(/^```json|```$/g, ""));
+}
+async function aiTurn(L, ex, userText) {
+  const A = S.ai;
+  if (userText) A.msgs.push({ who: "me", text: userText });
+  if (!aiAllowed()) { A.locked = true; render(); return; }
+  A.busy = true; render();
+  try {
+    const out = await askAI(L, ex, A.msgs);
+    if (userText && out.fix && norm(out.fix, S.learn) !== norm(userText, S.learn)) A.msgs[A.msgs.length - 1].fix = { text: out.fix, why: out.why || "" };
+    A.msgs.push({ who: "bot", text: out.reply || "…", meaning: out.meaning || "" });
+    aiUsed++; try { localStorage.setItem("t4c-ai", String(aiUsed)); } catch {}
+    say(out.reply || "", S.learn);
+  } catch (e) { st(ui.aiErr + " (" + (e.message || e) + ")"); }
+  A.busy = false; render();
+  setTimeout(() => { const m = document.querySelector(".ai .msgs"); if (m) m.scrollTop = m.scrollHeight; }, 50);
+}
+async function aiPanel(L, ex) {
+  const box = h("div", { class: "ai" }, h("h3", {}, "🤖 " + ui.aiTitle));
+  if (!AI.key) { box.append(h("div", { class: "heard" }, ui.aiOff)); return box; }
+  if (!S.ai || S.ai.lesson !== L.id + S.learn) {
+    box.append(h("div", { class: "heard" }, ui.aiHint));
+    if (tier === "none") box.append(h("div", { class: "lockline" }, ui.aiFreeLeft.replace("{n}", Math.max(0, AI.freeTurns - aiUsed))));
+    box.append(h("button", { class: "btn main", style: "align-self:flex-start", onclick: () => { unlockAudio(); S.ai = { lesson: L.id + S.learn, msgs: [], busy: false }; aiTurn(L, ex, ""); } }, ui.aiStart));
+    return box;
+  }
+  const A = S.ai, msgs = h("div", { class: "msgs" });
+  for (const m of A.msgs) {
+    const el = h("div", { class: `m ${m.who}` }, h("span", { class: "t", lang: S.learn }, m.text));
+    const rd = reading({ [S.learn]: m.text }, S.learn); if (rd && S.learn !== "ja") el.append(h("span", { class: "r" }, rd));
+    if (m.meaning) el.append(h("span", { class: "x" }, m.meaning));
+    if (m.who === "bot") el.append(h("button", { class: "mini", style: "align-self:flex-start", onclick: () => say(m.text, S.learn) }, "▶"));
+    if (m.fix) el.append(h("div", { class: "fix" }, `✏️ ${ui.aiFix}: ${m.fix.text}${m.fix.why ? " — " + m.fix.why : ""}`));
+    msgs.append(el);
+  }
+  if (A.busy) msgs.append(h("div", { class: "m bot" }, h("span", { class: "x" }, "…")));
+  box.append(msgs);
+  if (A.locked || !aiAllowed()) {
+    box.append(h("div", { class: "lockline" }, "🔒 " + ui.aiLocked), h("button", { class: "btn main", style: "align-self:center", onclick: () => { S.showPlans = true; render(); } }, ui.seePlans));
+    return box;
+  }
+  if (tier === "none") box.append(h("div", { class: "heard" }, ui.aiFreeLeft.replace("{n}", Math.max(0, AI.freeTurns - aiUsed))));
+  const mic = h("button", { class: "btn mic" }, ui.speak);
+  mic.onclick = async () => {
+    unlockAudio(); if (A.busy) return;
+    if (rec) { stopListening(); return; }
+    mic.classList.add("on"); mic.textContent = ui.stop;
+    const { alts, err } = await listenOnce(S.learn);
+    mic.classList.remove("on"); mic.textContent = ui.speak;
+    if (err === "nosr") { st(ui.noMic); return; }
+    if (alts[0]) aiTurn(L, ex, alts[0]); else if (err) st(ui.micErr);
+  };
+  const inp = h("input", { id: "aiIn", placeholder: ui.aiType, autocomplete: "off" });
+  const send = () => { const v = inp.value.trim(); if (v && !A.busy) { inp.value = ""; aiTurn(L, ex, v); } };
+  inp.addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) send(); });
+  box.append(h("div", { class: "actions" }, mic, h("button", { class: "btn", onclick: () => { S.ai = null; render(); } }, ui.aiEnd)),
+    h("div", { style: "display:flex;gap:8px" }, inp, h("button", { class: "btn", onclick: send }, ui.aiSend)));
+  return box;
+}
+
 async function stepTalk(card, L, ex) {
   const roleName = r => L.roles?.[r]?.[ex] || L.roles?.[r]?.en || r;
   card.append(h("div", { class: "actions" },
     S.playing ? h("button", { class: "btn", onclick: () => { stopAll(); S.line = -1; render(); } }, ui.stopAll)
               : h("button", { class: "btn main", onclick: () => { unlockAudio(); runTalk(null); } }, ui.playAll),
     S.playing ? null : h("button", { class: "btn", onclick: () => { unlockAudio(); S.dlgScores = {}; runTalk("A"); } }, `🎭 ${ui.roleA} (${roleName("A")})`),
-    S.playing ? null : h("button", { class: "btn", onclick: () => { unlockAudio(); S.dlgScores = {}; runTalk("B"); } }, `🎭 ${ui.roleB} (${roleName("B")})`)));
+    S.playing ? null : h("button", { class: "btn", onclick: () => { unlockAudio(); S.dlgScores = {}; runTalk("B"); } }, `🎭 ${ui.roleB} (${roleName("B")})`),
+    S.playing ? null : h("button", { class: "btn", onclick: () => { unlockAudio(); S.dlgScores = {}; S.pairDone = false; runTalk("both").then(() => { S.pairDone = true; render(); }); } }, `👥 ${ui.pair}`)));
+  if (S.playing === "both") card.append(h("div", { class: "heard", style: "text-align:center" }, ui.pairHint));
+  if (S.pairDone && !S.playing) {
+    const tot = { A: 0, B: 0 }, max = { A: 0, B: 0 };
+    L.dialogue.forEach(([w], n) => { max[w] += 3; tot[w] += S.dlgScores[n] || 0; });
+    card.append(h("div", { class: "score2" },
+      h("div", {}, `${ui.playerA} (${roleName("A")})`, h("b", {}, `★ ${tot.A} / ${max.A}`)),
+      h("div", {}, `${ui.playerB} (${roleName("B")})`, h("b", {}, `★ ${tot.B} / ${max.B}`))));
+  }
   if (S.playing === "A" || S.playing === "B") card.append(h("div", { class: "heard", style: "text-align:center" }, ui.roleHint));
   const box = h("div", { class: "dlg" });
   for (let n = 0; n < L.dialogue.length; n++) {
@@ -680,6 +815,7 @@ async function stepTalk(card, L, ex) {
       right));
   }
   card.append(box);
+  card.append(await aiPanel(L, ex));
   card.append(h("div", { class: "nav" }, h("button", { class: "btn", onclick: () => goStep(1) }, ui.prev), nextStepBtn()));
 }
 
@@ -721,6 +857,14 @@ const stepQuiz = (card, L, ex) => quizView(card, L, ex, "quiz", false);
 /* ⑥ Review & handout */
 async function stepReview(card, L, ex) {
   card.append(h("h2", { class: "head" }, `${L.icon} ${titleOf(L, S.ex)} — ${ui.s5}`));
+  const mk = `t4c-m:${S.learn}:${L.id}`; let mdone = false; try { mdone = !!localStorage.getItem(mk); } catch {}
+  const mbox = h("div", { class: `mission${mdone ? " done" : ""}` },
+    h("b", {}, `🎯 ${ui.mission}`),
+    h("div", { class: "mt" }, await note(MISSIONS[L.id], ex)),
+    h("div", { class: "heard" }, await note(MISSION_REWARD, ex)),
+    mdone ? h("div", { class: "mt" }, ui.missionDid)
+          : h("button", { class: "btn main", style: "align-self:flex-start", onclick: () => { try { localStorage.setItem(mk, new Date().toISOString()); } catch {} render(); } }, "✅ " + ui.missionDone));
+  card.append(mbox);
   card.append(h("div", { class: "goal", html: `<b>${ui.canDo}</b>` }));
   const list = h("div", { class: "check" });
   for (let i = 0; i < L.phrases.length; i++) {
