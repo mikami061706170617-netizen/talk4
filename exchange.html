@@ -433,7 +433,7 @@ function questionsFor(L, lang, lv) {
   const fromLessons = LESSONS.filter(l => LV.indexOf(l.level || "basic") <= lv).flatMap(l => l.phrases.filter(lessonQ));
   const bank = QUESTIONS.filter(q => q.lv <= lv && q[lang]);
   const seen = new Set(), out = [];
-  for (const p of [...first, ...shuffle([...bank, ...bank.filter(q => q.lv === lv), ...fromLessons])]) { if (seen.has(p.en)) continue; seen.add(p.en); out.push({ p }); }
+  for (const p of [...first, ...shuffle([...bank, ...bank.filter(q => q.lv === lv), ...fromLessons])]) { const k = (p[lang] || "").replace(/[?？!！。.\s]/g, ""); if (seen.has(p.en) || seen.has(k)) continue; seen.add(p.en); seen.add(k); out.push({ p }); }
   return out;
 }
 function startSession(pr) {
