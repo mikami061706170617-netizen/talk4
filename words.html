@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<script>if (window.top === window.self) location.replace("./#words" + location.search);</script>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Talk4 Words</title>
+<meta name="theme-color" content="#111010">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+Georgian:wght@400;700&family=Noto+Sans:wght@400;700&display=swap">
+<script type="importmap">
+{"imports":{"onnxruntime-web":"https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/esm/ort.min.js"}}
+</script>
+<style>
+:root{--bg:#111010;--panel:#1c1a18;--panel2:#24211e;--fg:#f4efe6;--muted:#9d968a;--line:#33302b;--gold:#d8ae55;--red:#d8443a;--ok:#5fb37a;
+  --font:"Noto Sans JP","Noto Sans Georgian","Noto Sans",system-ui,sans-serif;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);-webkit-tap-highlight-color:transparent}
+.wrap{max-width:720px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px}
+h1{font-size:15px;margin:0;color:var(--gold);letter-spacing:.06em}
+.lead{font-size:13px;color:var(--muted);margin:0}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+select,input{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:12px;padding:10px;font:inherit;font-size:16px}
+.ask{display:flex;gap:8px}
+.ask input{flex:1;min-width:0;font-size:18px;padding:14px}
+.btn{border:1px solid var(--line);background:var(--panel2);color:var(--fg);border-radius:12px;padding:10px 14px;font:inherit;font-size:15px;cursor:pointer}
+.btn.main{background:var(--red);border-color:var(--red);color:#fff;font-weight:700}
+.btn.on{background:var(--gold);color:#1a1307;border-color:var(--gold)}
+.chip{border:1px solid var(--line);background:var(--panel2);color:var(--muted);border-radius:999px;padding:7px 12px;font:inherit;font-size:14px;cursor:pointer}
+.chip[aria-pressed="true"]{border-color:var(--gold);color:var(--gold)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:6px}
+.card .lg{font-size:12px;color:var(--muted)}
+.card .t{font-size:clamp(22px,6vw,30px);font-weight:700;overflow-wrap:anywhere}
+.card .r{font-size:17px;color:var(--gold);overflow-wrap:anywhere}
+.card .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.card .acts .btn{padding:8px 11px;font-size:14px}
+.stars{color:var(--gold);font-size:15px}
+h2{font-size:15px;margin:10px 0 0;display:flex;justify-content:space-between;align-items:center}
+.word{display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.word .m{flex:1;min-width:0}
+.word .a{font-weight:700;overflow-wrap:anywhere}
+.word .b{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.word .b i{color:var(--gold);font-style:normal}
+.word button{background:none;border:0;color:var(--fg);font-size:18px;cursor:pointer;padding:4px}
+.quiz{background:var(--panel);border:1px solid var(--gold);border-radius:16px;padding:20px;text-align:center;display:flex;flex-direction:column;gap:12px}
+.quiz .q{font-size:26px;font-weight:700}
+.quiz .ans{font-size:28px;font-weight:700;color:var(--fg)}
+.st{font-size:12px;color:var(--muted);min-height:1em;margin:0}
+[hidden]{display:none!important}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📝 覚える / WORDS</h1>
+  <p class="lead">覚えたい言葉を入れるか話すと、すぐに各国語・読み方・発音が出ます。⭐で単語帳に入れて、あとでテストできます。</p>
+  <div class="row"><span class="lead">自分の言葉</span><select id="mine"></select></div>
+  <div class="row" id="targets"></div>
+  <div class="ask"><input id="q" placeholder="例：お会計お願いします" enterkeyhint="go" autocomplete="off"><button class="btn main" id="mic">🎤</button></div>
+  <p class="st" id="status"></p>
+  <div id="out" style="display:flex;flex-direction:column;gap:10px"></div>
+  <h2><span>⭐ 単語帳 <span id="count" class="lead"></span></span><button class="btn" id="quizBtn">🃏 テスト</button></h2>
+  <div class="quiz" id="quiz" hidden></div>
+  <div id="list" style="display:flex;flex-direction:column;gap:8px"></div>
+</div>
+<script type="module">
+const LANG = {
+  ja:{name:"日本語", g:"ja", sr:"ja-JP", tts:null,                    talk:"🎤 押して話す",     wait:"相手の言葉の訳がここに出ます", hold:"聞いています…"},
+  en:{name:"English",g:"en", sr:"en-US", tts:"en_US-hfc_female-medium",talk:"🎤 Tap to speak",   wait:"Translation will appear here",   hold:"Listening…"},
+  ka:{name:"ქართული",g:"ka", sr:"ka-GE", tts:"ka_GE-natia-medium",    talk:"🎤 დააჭირე და ილაპარაკე", wait:"თარგმანი აქ გამოჩნდება", hold:"გისმენთ…"},
+  ru:{name:"Русский",g:"ru", sr:"ru-RU", tts:"ru_RU-irina-medium",    talk:"🎤 Нажмите и говорите", wait:"Перевод появится здесь", hold:"Слушаю…"},
+  ko:{name:"한국어", g:"ko", sr:"ko-KR", tts:null,                    talk:"🎤 눌러서 말하기", wait:"번역이 여기에 나옵니다", hold:"듣고 있어요…"},
+  zh:{name:"中文",   g:"zh-CN", sr:"zh-CN", tts:"zh_CN-huayan-medium", talk:"🎤 点击说话", wait:"翻译会显示在这里", hold:"正在听…"},
+};
+const $ = id => document.getElementById(id);
+const st = t => { $("status").textContent = t; };
+
+/* ---------- Translation (free) ---------- */
+// Georgian → Latin (national romanization), used when the free service gives none
+const KA = {"ა":"a","ბ":"b","გ":"g","დ":"d","ე":"e","ვ":"v","ზ":"z","თ":"t","ი":"i","კ":"k'","ლ":"l","მ":"m","ნ":"n","ო":"o","პ":"p'","ჟ":"zh","რ":"r","ს":"s","ტ":"t'","უ":"u","ფ":"p","ქ":"k","ღ":"gh","ყ":"q'","შ":"sh","ჩ":"ch","ც":"ts","ძ":"dz","წ":"ts'","ჭ":"ch'","ხ":"kh","ჯ":"j","ჰ":"h"};
+const kaRoman = t => [...t].map(c => KA[c] ?? c).join("");
+function romFor(text, lang, given) {
+  if (lang === "en") return "";
+  if (given) return given;
+  if (lang === "ka") return kaRoman(text);
+  return "";
+}
+// Shop words: always translated the same way. Each is swapped for a code before translating
+// (the free translator leaves codes like ZQX1 alone) and swapped back afterwards.
+const GLOSS = [
+  { ja:"オムライスランド", en:"Omurice Land", ka:"ომურაისლენდ", kaStem:"ომურაისლენდ", ru:"Омурайс Лэнд", ko:"오므라이스 랜드", zh:"蛋包饭乐园",
+    rom:{ ja:"Omuraisu Rando", ka:"omuraislend", ru:"Omurays Lend", ko:"omeulaiseu laendeu", zh:"Dànbāofàn Lèyuán" },
+    alt:["omurice land","omelet land","omelette land","オムレットランド"] },
+  { ja:"オムライス", en:"Omurice", ka:"ომურაისი", kaStem:"ომურაის", ru:"омурайс", ko:"오므라이스", zh:"蛋包饭",
+    rom:{ ja:"omuraisu", ka:"omuraisi", ru:"omurays", ko:"omeulaiseu", zh:"dànbāofàn" },
+    alt:["omurice","omu rice","omelet rice","omelette rice","ომურაის","омурайс","омурис","омурайса","омурайсом"] },
+];
+const esc = x => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function protect(text) {
+  GLOSS.forEach((g, i) => {
+    const forms = [...new Set([g.ja, g.en, g.ka, g.ru, g.ko, g.zh, ...g.alt])].sort((a, b) => b.length - a.length);
+    text = text.replace(new RegExp(forms.map(esc).join("|"), "gi"), ` ZQX${i + 1} `);
+  });
+  return text.replace(/ +/g, " ").trim();
+}
+const batchim = ch => { const c = ch.charCodeAt(0) - 0xAC00; return c >= 0 && c < 11172 && c % 28 !== 0; };
+const KO_P = { "은":"는","는":"는","이":"가","가":"가","을":"를","를":"를" }, KO_P2 = { "은":"은","는":"은","이":"이","가":"이","을":"을","를":"을" };
+function restore(out, lang) {
+  if (lang === "ko") out = out.replace(/ZQX(\d)\s?(은|는|이|가|을|를)?/g, (m, d, p) => {
+    const w = GLOSS[d - 1].ko; return p ? w + (batchim(w.at(-1)) ? KO_P2[p] : KO_P[p]) : w; });
+  // Georgian puts case endings on the code ("ZQX2-ის"): join them to the word's stem
+  if (lang === "ka") out = out.replace(/ZQX(\d)-?([ა-ჰ]{1,4})?(?![ა-ჰ])/g, (m, d, suf) => suf ? GLOSS[d - 1].kaStem + suf : GLOSS[d - 1].ka);
+  out = out.replace(/ZQX(\d)/gi, (m, d) => GLOSS[d - 1][lang]).replace(/ +([。、，．！？])/g, "$1");
+  if (lang === "zh" || lang === "ja") out = out.replace(/([。、，！？\u3040-\u30ff\u4e00-\u9fff]) +/g, "$1").replace(/ +([\u3040-\u30ff\u4e00-\u9fff])/g, "$1");
+  return lang === "ru" ? out.replace(/(^|[.!?]\s+)([а-яё])/g, (m, a, c) => a + c.toUpperCase()) : out;
+}
+const restoreRom = (r, lang) => r && r.replace(/zqx\s?(\d)/gi, (m, d) => GLOSS[d - 1].rom[lang] || GLOSS[d - 1].en);
+async function translate(text, from, to) {
+  const res = await translateRaw(protect(text), from, to);
+  return { text: restore(res.text, to), rom: restoreRom(res.rom, to), srcRom: restoreRom(res.srcRom, from) };
+}
+async function translateRaw(text, from, to) {
+  const sl = LANG[from].g, tl = LANG[to].g;
+  try {
+    const u = `https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&dt=rm&sl=${sl}&tl=${tl}&q=${encodeURIComponent(text)}`;
+    const r = await fetch(u); if (!r.ok) throw 0;
+    const j = await r.json();
+    const parts = j[0].filter(x => x[0] != null);
+    const romRow = j[0].find(x => x[0] == null) || [];
+    const out = parts.map(x => x[0]).join("");
+    if (out) return { text: out, rom: romFor(out, to, romRow[2]), srcRom: romFor(text, from, romRow[3]) };
+  } catch {}
+  const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sl}|${tl}`);
+  const j = await r.json(); const out = j.responseData.translatedText;
+  return { text: out, rom: romFor(out, to), srcRom: romFor(text, from) };
+}
+
+/* ---------- Speech output (free) ---------- */
+// Offline neural voices (Piper, MIT). Stored with the Cache API (works on iPhone Safari too),
+// kept loaded in memory, and played through an AudioContext unlocked on the first tap.
+const HF = "https://huggingface.co/diffusionstudio/piper-voices/resolve/main/";
+const VPATH = {
+  "ka_GE-natia-medium": "ka/ka_GE/natia/medium/ka_GE-natia-medium.onnx",
+  "ru_RU-irina-medium": "ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx",
+  "en_US-hfc_female-medium": "en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx",
+  "zh_CN-huayan-medium": "zh/zh_CN/huayan/medium/zh_CN-huayan-medium.onnx",
+  "en_US-hfc_male-medium": "en/en_US/hfc_male/medium/en_US-hfc_male-medium.onnx",
+  "ru_RU-dmitri-medium": "ru/ru_RU/dmitri/medium/ru_RU-dmitri-medium.onnx",
+};
+// Male voices where a free one exists; otherwise the normal voice (lowering it made speech sound broken)
+const MALE = { en: "en_US-hfc_male-medium", ru: "ru_RU-dmitri-medium" };
+const isMale = v => /(?:^|[^e])male|otoya|hattori|ichiro|daniel|aaron|alex\b|fred|arthur|gordon|rishi|reed|eddy|rocko|grandpa|ralph|albert|bruce|junior|yuri|xander|li-mu|yu-shu|injoon|eric|thomas|dmitri|pavel/i.test(v.name);
+const PHON = "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize";
+let ort = null, phonMod = null, actx = null, unlocked = false, playing = null;
+const sessions = {}, configs = {};
+
+function nativeVoices(lang) {
+  const vs = speechSynthesis?.getVoices?.() || [];
+  const l = v => (v.lang || "").toLowerCase().replace("_", "-");
+  const list = vs.filter(v => l(v).startsWith(lang));
+  return lang === "zh" ? list.sort((a, b) => (l(b) === "zh-cn") - (l(a) === "zh-cn")) : list;
+}
+function nativeVoice(lang) { return nativeVoices(lang)[0]; }
+// How to say something in this language with this gender: a phone voice, or a downloaded one
+function voicePlan(lang, g) {
+  const vs = nativeVoices(lang);
+  if (g === "m") {
+    const m = vs.find(isMale); if (m) return { nv: m, pitch: 1 };
+    if (MALE[lang]) return { id: MALE[lang], rate: 1 };
+    if (vs.length) return { nv: vs[0], pitch: 0.85 };
+    if (LANG[lang].tts) return { id: LANG[lang].tts, rate: 1 };
+    return { nv: null, pitch: 0.85 };
+  }
+  const f = vs.find(v => !isMale(v)) || vs[0];
+  if (f) return { nv: f, pitch: isMale(f) ? 1.4 : 1 };
+  if (LANG[lang].tts) return { id: LANG[lang].tts, rate: 1 };
+  return { nv: null, pitch: 1 };
+}
+async function cachedFetch(url, onProgress) {
+  let cache = null;
+  try { cache = await caches.open("talk4-voices"); const hit = await cache.match(url); if (hit) return await hit.arrayBuffer(); } catch {}
+  const res = await fetch(url); if (!res.ok) throw new Error("download " + res.status);
+  const total = +(res.headers.get("Content-Length") || 0); const reader = res.body.getReader(); const parts = []; let got = 0;
+  for (;;) { const { done, value } = await reader.read(); if (done) break; parts.push(value); got += value.length; if (total && onProgress) onProgress(got / total); }
+  const blob = new Blob(parts);
+  try { if (cache) await cache.put(url, new Response(blob)); } catch {}
+  return await blob.arrayBuffer();
+}
+async function loadVoice(id, onProgress) {
+  if (sessions[id]) return sessions[id];
+  ort ??= await import("onnxruntime-web");
+  ort.env.wasm.wasmPaths = "https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.18.0/";
+  ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
+  const cfgBuf = await cachedFetch(HF + VPATH[id] + ".json");
+  configs[id] = JSON.parse(new TextDecoder().decode(cfgBuf));
+  const model = await cachedFetch(HF + VPATH[id], onProgress);
+  sessions[id] = await ort.InferenceSession.create(model);
+  return sessions[id];
+}
+async function phonemize(text, espeakVoice) {
+  phonMod ??= (await import("https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/dist/piper-DeOu3H9E.js")).createPiperPhonemize;
+  return new Promise(async (resolve, reject) => {
+    try {
+      (await phonMod({
+        print: l => resolve(JSON.parse(l).phoneme_ids),
+        printErr: () => {},
+        locateFile: f => f.endsWith(".wasm") ? PHON + ".wasm" : f.endsWith(".data") ? PHON + ".data" : f,
+      })).callMain(["-l", espeakVoice, "--input", JSON.stringify([{ text }]), "--espeak_data", "/espeak-ng-data"]);
+    } catch (e) { reject(e); }
+  });
+}
+async function synth(text, id) {
+  const sess = await loadVoice(id), cfg = configs[id];
+  const ids = await phonemize(text, cfg.espeak.voice);
+  const feeds = {
+    input: new ort.Tensor("int64", BigInt64Array.from(ids.map(BigInt)), [1, ids.length]),
+    input_lengths: new ort.Tensor("int64", BigInt64Array.from([BigInt(ids.length)])),
+    scales: new ort.Tensor("float32", Float32Array.from([cfg.inference.noise_scale, cfg.inference.length_scale, cfg.inference.noise_w])),
+  };
+  if (Object.keys(cfg.speaker_id_map || {}).length) feeds.sid = new ort.Tensor("int64", BigInt64Array.from([0n]));
+  const out = await sess.run(feeds);
+  return { pcm: out.output.data, rate: cfg.audio.sample_rate };
+}
+// Downloaded voices play through one shared <audio> element. Phones (iPhone especially) keep an
+// element working after the microphone has been used, where Web Audio often stays silent.
+const player = new Audio(); player.preload = "auto"; player.setAttribute("playsinline", "");
+player.stop = () => { try { player.pause(); player.currentTime = 0; } catch {} };
+const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+function unlockAudio() {
+  // Must run inside a tap: lets the phone play sound later, after translation finishes
+  if (!player.src || player.src === SILENT) { try { player.src = SILENT; player.play().catch(() => {}); } catch {} }
+  if (!unlocked) { unlocked = true; try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch {} }
+}
+function wavBlob(pcm, rate) {
+  const n = pcm.length, dv = new DataView(new ArrayBuffer(44 + n * 2)), w = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, "RIFF"); dv.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, rate, true); dv.setUint32(28, rate * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, "data"); dv.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, pcm[i])); dv.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true); }
+  return new Blob([dv.buffer], { type: "audio/wav" });
+}
+let lastUrl = null;
+function playPCM(pcm, rate, speed = 1) {
+  try { speechSynthesis.cancel(); } catch {}
+  player.stop(); player.onended = null;
+  if (lastUrl) URL.revokeObjectURL(lastUrl);
+  lastUrl = URL.createObjectURL(wavBlob(pcm, rate));
+  player.src = lastUrl; player.playbackRate = speed; player.preservesPitch = false;
+  player.play().catch(e => st("🔇 " + (e?.message || e)));
+  playing = player;
+}
+
+
+/* ---------- Voice helpers ---------- */
+function say(text, lang, slow = false) {
+  text = text.replace(/＿＿|__/g, lang === "ja" ? "、" : ", ");
+  speechSynthesis?.cancel?.(); try { playing?.stop(); } catch {}
+  const plan = voicePlan(lang, "f");
+  if (!plan.id) { const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.rate = slow ? 0.6 : 0.95; speechSynthesis.speak(u); return; }
+  synth(text, plan.id).then(({ pcm, rate }) => playPCM(pcm, rate, slow ? 0.75 : 1)).catch(e => st("⚠ " + (e?.message || e)));
+}
+async function warmFor(langs) {
+  for (const lang of langs) { const id = voicePlan(lang, "f").id; if (!id || sessions[id]) continue;
+    try { await loadVoice(id, p => st(`🔊 ${LANG[lang].name} ${Math.round(p * 100)}%`)); await synth("a", id); } catch { st(`⚠ ${LANG[lang].name}`); return; } }
+  st("");
+}
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const kataToHira = s => s.replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+const norm = (s, lang) => { s = s.toLowerCase().replace(/＿＿|__/g, ""); if (lang === "ja") s = kataToHira(s); return s.replace(/[\s、。，,.!?！？「」'"’\-—〜～・:;()（）]/g, ""); };
+function lcs(a, b) { const m = Array(b.length + 1).fill(0); for (const ca of a) { let prev = 0; for (let j = 1; j <= b.length; j++) { const tmp = m[j]; m[j] = ca === b[j - 1] ? prev + 1 : Math.max(m[j], m[j - 1]); prev = tmp; } } return m[b.length]; }
+function scoreOf(target, heard, lang) { const t = norm(target, lang), x = norm(heard, lang); if (!t || !x) return 0; const l = lcs(t, x); return /＿＿|__/.test(target) ? l / t.length : (2 * l) / (t.length + x.length); }
+const starsFor = s => s >= 0.8 ? 3 : s >= 0.55 ? 2 : s >= 0.3 ? 1 : 0;
+let rec = null, recDone = null;
+function listenOnce(lang, long = false) {
+  try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {}
+  if (rec) { try { rec.abort(); } catch {} recDone?.({ alts: [], err: "aborted" }); }
+  return new Promise(resolve => {
+    if (!SR) return resolve({ alts: [], err: "nosr" });
+    let finished = false, best = [], err = null, timer = null;
+    const finish = () => { if (finished) return; finished = true; clearTimeout(timer); if (rec === r) { rec = null; recDone = null; } resolve({ alts: best, err }); };
+    const r = new SR(); rec = r; recDone = v => { best = v.alts.length ? v.alts : best; err = v.err; finish(); };
+    r.lang = LANG[lang].sr; r.interimResults = false; r.maxAlternatives = 3; r.continuous = false;
+    r.onresult = e => { best = [...e.results[0]].map(x => x.transcript); };
+    r.onerror = e => { if (e.error !== "no-speech" && e.error !== "aborted") err = e.error; };
+    r.onend = finish;
+    timer = setTimeout(() => { try { r.stop(); } catch {} setTimeout(finish, 1200); }, long ? 25000 : 12000);
+    try { r.start(); } catch { err = "start"; finish(); }
+  });
+}
+function stopListening() { if (rec) { const r = rec; try { r.stop(); } catch {} setTimeout(() => { if (rec === r) recDone?.({ alts: [], err: null }); }, 1500); } }
+const h = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k.startsWith("on")) e[k] = v; else if (k === "html") e.innerHTML = v; else e.setAttribute(k, v); } for (const c of kids) if (c != null && c !== "") e.append(c); return e; };
+
+/* ---------- Words: anything you want to learn, instantly in every language ---------- */
+const ALL = ["ja", "en", "ka", "ru", "ko", "zh"];
+const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const keep = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+let mine = load("t4w-mine", (navigator.language || "ja").slice(0, 2)); if (!LANG[mine]) mine = "ja";
+let targets = load("t4w-targets", ["en", "ka", "ru", "ja"].filter(l => l !== mine).slice(0, 3));
+let words = load("t4w-words", []);
+for (const k of ALL) $("mine").add(new Option(LANG[k].name, k)); $("mine").value = mine;
+$("mine").onchange = () => { mine = $("mine").value; targets = targets.filter(t => t !== mine); keep("t4w-mine", mine); keep("t4w-targets", targets); chips(); run(true); };
+function chips() {
+  const box = $("targets"); box.innerHTML = '<span class="lead">覚えたい言葉</span>';
+  for (const k of ALL) { if (k === mine) continue;
+    const b = h("button", { class: "chip", "aria-pressed": String(targets.includes(k)) }, LANG[k].name);
+    b.onclick = () => { targets = targets.includes(k) ? targets.filter(x => x !== k) : [...targets, k]; keep("t4w-targets", targets); chips(); run(true); warmFor(targets); };
+    box.append(b); }
+}
+const memo = load("t4w-cache", {});
+async function tr(text, from, to) {
+  const key = from + ">" + to + ":" + text; if (memo[key]) return memo[key];
+  const r = await translate(text, from, to); memo[key] = { text: r.text, rom: r.rom };
+  const ks = Object.keys(memo); if (ks.length > 400) delete memo[ks[0]]; keep("t4w-cache", memo); return memo[key];
+}
+let job = 0, timer = null, lastQ = "";
+$("q").oninput = () => { clearTimeout(timer); timer = setTimeout(run, 300); };
+$("q").onkeydown = e => { if (e.key === "Enter") { clearTimeout(timer); run(true); $("q").blur(); } };
+async function run(force) {
+  const text = $("q").value.trim(); if (!text) { $("out").innerHTML = ""; lastQ = ""; return; }
+  if (text === lastQ && !force) return; lastQ = text;
+  const my = ++job; $("out").innerHTML = "";
+  const cards = targets.map(to => { const c = h("div", { class: "card" }, h("div", { class: "lg" }, LANG[to].name), h("div", { class: "t" }, "…"), h("div", { class: "r" }), h("div", { class: "acts" })); $("out").append(c); return [to, c]; });
+  await Promise.all(cards.map(async ([to, c]) => {
+    try { const r = await tr(text, mine, to); if (my !== job) return; fill(c, text, to, r); }
+    catch { if (my === job) c.children[1].textContent = "⚠ 電波を確認してください"; }
+  }));
+}
+function fill(c, text, to, r) {
+  c.children[1].textContent = r.text; c.children[2].textContent = r.rom || "";
+  const acts = c.children[3]; acts.innerHTML = "";
+  const stars = h("span", { class: "stars" });
+  const saved = () => words.some(w => w.a === text && w.lang === to);
+  const star = h("button", { class: "btn" + (saved() ? " on" : "") }, saved() ? "⭐ 保存済み" : "⭐ 保存");
+  star.onclick = () => { if (saved()) return; words.unshift({ a: text, mine, lang: to, t: r.text, rom: r.rom || "", n: 0, at: Date.now() }); keep("t4w-words", words); star.className = "btn on"; star.textContent = "⭐ 保存済み"; list(); };
+  const check = h("button", { class: "btn" }, "🎤 言ってみる");
+  check.onclick = async () => { unlockAudio(); check.textContent = "👂 …"; const res = await listenOnce(to); check.textContent = "🎤 言ってみる";
+    const s = Math.max(0, ...res.alts.map(x => scoreOf(r.text, x, to))), n = starsFor(s);
+    stars.textContent = res.alts.length ? "★".repeat(n) + "☆".repeat(3 - n) + "  " + res.alts[0] : (res.err === "nosr" ? "この端末は音声入力に未対応" : "聞こえませんでした"); };
+  const play = h("button", { class: "btn" }, "🔊"); play.onclick = () => { unlockAudio(); say(r.text, to); };
+  const slow = h("button", { class: "btn" }, "🐢"); slow.onclick = () => { unlockAudio(); say(r.text, to, true); };
+  acts.append(play, slow, check, star, stars);
+}
+$("mic").onclick = async () => {
+  unlockAudio(); $("mic").classList.add("on"); $("mic").textContent = "👂";
+  const res = await listenOnce(mine); $("mic").classList.remove("on"); $("mic").textContent = "🎤";
+  if (res.alts[0]) { $("q").value = res.alts[0]; run(true); } else st(res.err === "nosr" ? "この端末は音声入力に未対応です。文字で入れてください" : "聞こえませんでした。もう一度どうぞ");
+};
+function list() {
+  $("count").textContent = words.length ? `${words.length}` : ""; const box = $("list"); box.innerHTML = "";
+  if (!words.length) { box.append(h("p", { class: "lead" }, "まだありません。訳の下の ⭐ を押すとここに入ります。")); return; }
+  words.forEach((w, i) => {
+    const play = h("button", { "aria-label": "play" }, "🔊"); play.onclick = () => { unlockAudio(); say(w.t, w.lang); };
+    const del = h("button", { "aria-label": "delete" }, "✕"); del.onclick = () => { words.splice(i, 1); keep("t4w-words", words); list(); };
+    const b = h("div", { class: "b" }, w.a + "  ·  " + LANG[w.lang].name + "  "); if (w.rom) b.append(h("i", {}, w.rom));
+    box.append(h("div", { class: "word" }, h("div", { class: "m" }, h("div", { class: "a" }, w.t), b), play, del));
+  });
+}
+// Flashcards: your words first, the answer after a tap; ones you miss come back sooner
+let qi = 0;
+$("quizBtn").onclick = () => { if (!words.length) { st("先に ⭐ で言葉を保存してください"); return; } $("quiz").hidden = !$("quiz").hidden; if (!$("quiz").hidden) { words.sort((x, y) => x.n - y.n); qi = 0; card(); } };
+function card() {
+  const w = words[qi % words.length], Q = $("quiz"); Q.innerHTML = "";
+  const ans = h("div", { hidden: "" }, h("div", { class: "ans" }, w.t), h("div", { class: "r", style: "color:var(--gold)" }, w.rom));
+  const show = h("button", { class: "btn main" }, "👀 答えを見る");
+  const good = h("button", { class: "btn", hidden: "" }, "⭕ 言えた"), bad = h("button", { class: "btn", hidden: "" }, "❌ もう一度");
+  show.onclick = () => { unlockAudio(); ans.hidden = false; show.hidden = true; good.hidden = bad.hidden = false; say(w.t, w.lang); };
+  good.onclick = () => { w.n++; keep("t4w-words", words); qi++; card(); };
+  bad.onclick = () => { w.n = Math.max(0, w.n - 1); keep("t4w-words", words); words.splice(qi % words.length, 1); words.splice(Math.min(words.length, (qi % (words.length + 1)) + 2), 0, w); qi++; card(); };
+  Q.append(h("div", { class: "lead" }, `${(qi % words.length) + 1} / ${words.length} · ${LANG[w.lang].name}で言うと？`), h("div", { class: "q" }, w.a), ans, h("div", { class: "row", style: "justify-content:center" }, show, good, bad));
+}
+chips(); list(); warmFor(targets);
+</script>
+</body>
+</html>
