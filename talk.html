@@ -93,6 +93,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <select id="themSel" aria-label="相手の言語"></select>
   <button class="tog" id="linkBtn">📱 2台でつなぐ</button>
   <button class="tog" id="logBtn">📜 記録</button>
+  <button class="tog" id="nmBtn">📛 名前</button>
   <button class="tog" id="qpBtn">⚡ 定型文</button>
   <button class="tog" id="camBtn">📷 写して訳す</button>
   <a class="tog" href="record.html" style="text-decoration:none">🎙 録音まとめ</a>
@@ -120,6 +121,14 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <div class="camlist" id="logList"></div>
 </section>
 
+<section class="cam" id="nm" hidden>
+  <div class="camtop"><b>📛 名前の登録</b><button id="nmClose">✕</button></div>
+  <div class="camsum">人・会社・お店・地名を登録すると、どの言葉でも同じ書き方になり、意味で訳されなくなります（「三上」が「three up」にならない）。<br>
+  書き方が何通りかあるときは「/」で区切ります。英語のつづりが決まっているときは「=」の後に書きます。<br>例：<b>三上/みかみ/ミカミ = Mikami</b>　<b>ダト = Dato</b>　<b>ジャパンフードハブ = Japan Food Hub</b></div>
+  <div class="typerow"><input id="nmIn" enterkeyhint="done" placeholder="三上/みかみ = Mikami" autocomplete="off"><button id="nmAdd">登録</button></div>
+  <div class="camlist" id="nmList"></div>
+</section>
+
 <section class="cam" id="qp" hidden>
   <div class="camtop"><b>⚡ 定型文（押すだけで相手の言葉に）</b><button id="qpSide">🙋 自分が言う</button><button id="qpClose">✕</button></div>
   <div class="camsum">よく使う言葉です。タップすると、相手の言葉と読み方が出て、読み上げます。ネットが遅くてもすぐ出ます。</div>
@@ -137,6 +146,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 </section>
 
 <script type="module">
+const Names = await import("./names.js?v=" + Math.floor(Date.now() / 600000));   // registered names: never translated by meaning
 const LANG = {
   ja:{name:"日本語", g:"ja", sr:"ja-JP", tts:null,                    talk:"🎤 押して話す",     wait:"相手の言葉の訳がここに出ます", hold:"聞いています…"},
   en:{name:"English",g:"en", sr:"en-US", tts:"en_US-hfc_female-medium",talk:"🎤 Tap to speak",   wait:"Translation will appear here",   hold:"Listening…"},
@@ -241,8 +251,9 @@ function jaQuestion(t) {
 }
 async function translate(text, from, to) {
   if (from === "ja") text = jaQuestion(text);
-  const res = await translateRaw(protect(text), from, to);
-  return { text: restore(res.text, to), rom: restoreRom(res.rom, to), srcRom: restoreRom(res.srcRom, from) };
+  const res = await translateRaw(protect(Names.preNames(text, from)), from, to);
+  const out = Names.postNames(restore(res.text, to), to);
+  return { text: out, rom: out !== restore(res.text, to) ? romFor(out, to) : restoreRom(res.rom, to), srcRom: restoreRom(res.srcRom, from) };
 }
 async function translateRaw(text, from, to) {
   const sl = LANG[from].g, tl = LANG[to].g;
@@ -436,7 +447,8 @@ async function aiTranslate(text, from, to, draft) {
   const words = GLOSS.map(g => `${g[from] || g.ja} = ${g[to] || g.en}`).join("; ");
   const jaHint = from === "ja" ? `
 Japanese often leaves out who and what, and says things indirectly. Translate the MEANING, not the words: fill in the missing subject or object from the conversation, and turn set phrases into what they really mean in context (e.g. 検討します = we will think about it / probably no; 大丈夫です = no thank you, or that's fine; 結構です = no thank you, or that's fine; よろしくお願いします = thank you, I look forward to working with you; お世話になっております = hello, thank you for your help; ちょっと… = that is difficult). Short, clear sentences the listener cannot misunderstand. Japanese questions often have no question mark after voice input and may drop か: if the line asks something (question word, ending like か/の/かな/ですか/ます, or it only makes sense as a question in context), translate it as a clear question ending with "?".` : "";
-  const prompt = `You are a professional interpreter in Tbilisi (business meetings, classes, a Japanese restaurant). Translate the last line from ${AI_NAMES[from]} to ${AI_NAMES[to]} so the listener understands exactly what the speaker means, in natural, polite spoken style. Fix obvious speech-recognition mistakes using context. Keep names and numbers exactly. Never add greetings or ideas that were not said.${jaHint} Shop words (only if said): ${words}.
+  const prompt = `You are a professional interpreter in Tbilisi (business meetings, classes, a Japanese restaurant). Translate the last line from ${AI_NAMES[from]} to ${AI_NAMES[to]} so the listener understands exactly what the speaker means, in natural, polite spoken style. Fix obvious speech-recognition mistakes using context. Keep names and numbers exactly. Never add greetings or ideas that were not said.${jaHint}
+${Names.namesPrompt([from, to])} Shop words (only if said): ${words}.
 Conversation so far:\n${recent.slice(-6).join("\n") || "(none)"}
 ${draft ? "Machine draft: " + draft : ""}
 Last line: ${from === "ja" ? jaQuestion(text) : text}
@@ -447,6 +459,7 @@ Reply ONLY JSON: {"text":"translation","rom":"Latin-letter reading of the transl
       body: JSON.stringify({ request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
     const j = await r.json(), raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
     const o = JSON.parse(raw.replace(/^```json|```$/g, "").trim());
+    if (o.text) o.text = Names.postNames(o.text, to);
     return o.text ? o : null;
   } catch { return null; } finally { clearTimeout(t); }
 }
@@ -472,6 +485,35 @@ function logPaint() {
   }
 }
 $("logBtn").onclick = () => { $("log").hidden = false; logPaint(); };
+// ---------- Names: registered once, written the same way in every language ----------
+function nmPaint() {
+  const list = Names.getNames();
+  $("nmList").innerHTML = list.length ? "" : '<div class="camsum">まだ登録がありません。</div>';
+  list.forEach((n, i) => {
+    const d = document.createElement("div"); d.className = "logrow";
+    d.innerHTML = `<b></b> <button style="float:right;background:none;border:0;color:var(--muted);font-size:16px">🗑</button><div class="w"></div>`;
+    d.querySelector("b").textContent = (n.forms || []).join(" / ");
+    d.querySelector(".w").textContent = Names.LANGS.filter(l => n[l]).map(l => `${LANG[l]?.name || l}: ${n[l]}`).join("　");
+    d.querySelector("button").onclick = () => { const l = Names.getNames(); l.splice(i, 1); Names.setNames(l); nmPaint(); };
+    $("nmList").append(d);
+  });
+}
+$("nmBtn").onclick = () => { $("nm").hidden = false; nmPaint(); $("nmIn").focus(); };
+$("nmClose").onclick = () => { $("nm").hidden = true; };
+const nmAdd = async () => {
+  const v = $("nmIn").value.trim(); if (!v) return;
+  const [left, hint = ""] = v.split(/\s*[=＝]\s*/);
+  const forms = left.split(/\s*[\/／、,]\s*/).filter(Boolean); if (!forms.length) return;
+  $("nmAdd").disabled = true; $("nmAdd").textContent = "…";
+  let e = { forms };
+  try { const [r] = await Names.spellNames(AIcfg?.proxy, [forms.join(" / ") + (hint ? " = " + hint : "")]); if (r) e = { ...r, forms }; } catch {}
+  if (hint) e.en = hint;
+  if (!e.en) e.en = forms.find(f => /^[A-Za-z]/.test(f)) || forms[0];
+  if (/[\u3040-\u30ff\u4e00-\u9fff]/.test(forms[0])) e.ja = forms[0];
+  const list = Names.getNames(); list.unshift(e); Names.setNames(list);
+  $("nmIn").value = ""; $("nmAdd").disabled = false; $("nmAdd").textContent = "登録"; nmPaint();
+};
+$("nmAdd").onclick = nmAdd; $("nmIn").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) nmAdd(); });
 $("logClose").onclick = () => { $("log").hidden = true; };
 $("logCopy").onclick = async () => { try { await navigator.clipboard.writeText(logText()); st("コピーしました", true); } catch { st("コピーできませんでした"); } };
 $("logSave").onclick = () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([logText()], { type: "text/plain" })); a.download = `talk4-${new Date().toISOString().slice(0, 10)}.txt`; a.click(); };
@@ -689,13 +731,14 @@ async function aiListen(side) {
       const r = await fetch(AIcfg.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({ request: { contents: [{ parts: [{ inline_data: { mime_type: "audio/wav", data: toWav(chunks, ctx.sampleRate) } },
           { text: `Write down exactly what is said in this recording. The speaker is speaking ${AI_NAMES[lang]}. Use ${AI_NAMES[lang]} script.${lang === "ja" ? " If it is a question, end it with ？." : ""}
+${Names.namesPrompt([lang, toL])}
 Then translate it into ${AI_NAMES[toL]} so the listener understands exactly what the speaker means (natural, polite, spoken; keep names and numbers exactly; a question stays a question).${lang === "ja" ? " Japanese leaves out who and what and speaks indirectly: translate the meaning, not the words." : ""}
 Conversation so far:\n${recent.slice(-6).join("\n") || "(none)"}
 Reply ONLY JSON {"text":"","tr":""}; empty text if there is no speech.` }] }],
           generationConfig: { responseMimeType: "application/json", temperature: 0, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
       const j = await r.json(), raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
       const o = JSON.parse(raw.replace(/^```json|```$/g, "").trim()), text = (o.text || "").trim();
-      st(""); if (text) handle(text, side, o.tr ? { tr: o.tr, to: toL } : null); else { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; st("聞こえませんでした。もう一度どうぞ"); }
+      st(""); if (text) handle(text, side, o.tr ? { tr: Names.postNames(o.tr, toL), to: toL } : null); else { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; st("聞こえませんでした。もう一度どうぞ"); }
     } catch { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; st("聞き取れませんでした。電波を確認して、もう一度どうぞ"); }
   };
   aiRec = { stop };

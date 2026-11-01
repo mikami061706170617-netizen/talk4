@@ -99,6 +99,7 @@ button{cursor:pointer;touch-action:manipulation}
 </div>
 
 <script type="module">
+const Names = await import("./names.js?v=" + Math.floor(Date.now() / 600000));   // registered names: never translated by meaning
 const Ears = await import("./ears.js?v=" + Math.floor(Date.now() / 600000));   // AI listening when the phone can't
 let AI = { proxy: "" };
 try { AI = { ...AI, ...(await import("./config.js?v=" + Date.now())).AI }; } catch {}
@@ -155,8 +156,9 @@ function restore(out, lang) {
 }
 const restoreRom = (r, lang) => r && r.replace(/zqx\s?(\d)/gi, (m, d) => GLOSS[d - 1].rom[lang] || GLOSS[d - 1].en);
 async function translate(text, from, to) {
-  const res = await translateRaw(protect(text), from, to);
-  return { text: restore(res.text, to), rom: restoreRom(res.rom, to), srcRom: restoreRom(res.srcRom, from) };
+  const res = await translateRaw(protect(Names.preNames(text, from)), from, to);
+  const out = Names.postNames(restore(res.text, to), to);
+  return { text: out, rom: out !== restore(res.text, to) ? romFor(out, to) : restoreRom(res.rom, to), srcRom: restoreRom(res.srcRom, from) };
 }
 async function translateRaw(text, from, to) {
   const sl = LANG[from].g, tl = LANG[to].g;
@@ -426,7 +428,7 @@ async function addUtterance(text, lang, who, color, detected, ai) {
   text = text.trim(); if (!text) return;
   if (lang === "ja") text = jaQuestion(text);
   const targets = langsInRoom().filter(l => l !== lang);
-  const m = { text, lang, who, color, detected, ai: !!ai, out: targets.map(l => ({ lang: l, text: ai?.tr?.[l] ? restore(protect(ai.tr[l]), l) : null, rom: ai?.rom?.[l] || "" })) };
+  const m = { text, lang, who, color, detected, ai: !!ai, out: targets.map(l => ({ lang: l, text: ai?.tr?.[l] ? Names.postNames(restore(protect(ai.tr[l]), l), l) : null, rom: ai?.rom?.[l] || "" })) };
   log.push(m); if (log.length > 60) log.shift(); paintLog(); st(ui.translating);
   // Anything the AI didn't give us is filled in by the free translator
   await Promise.all(m.out.map(async t => {
@@ -441,7 +443,7 @@ async function addUtterance(text, lang, who, color, detected, ai) {
       await Promise.all(m.out.map(async t => {
         try {
           if (t.lang === "ka" && lang !== "en" && mm.en) { const r = await translate(mm.en, "en", "ka"); t.text = r.text; t.rom = r.rom; }
-          else if (mm[t.lang]) { t.text = restore(protect(mm[t.lang]), t.lang); t.rom = romFor(t.text, t.lang); }
+          else if (mm[t.lang]) { t.text = Names.postNames(restore(protect(mm[t.lang]), t.lang), t.lang); t.rom = romFor(t.text, t.lang); }
         } catch {}
       }));
       paintLog();
@@ -455,7 +457,7 @@ async function aiMeaning(text, lang, targets) {
   if (!AI?.proxy || !targets.length) return null;
   const want = [...new Set(targets.map(l => l === "ka" ? "en" : l))];
   const recent = log.slice(-5, -1).map(x => `${x.who} (${x.lang}): ${x.text}`).join("\n") || "(none yet)";
-  const prompt = `You are a professional interpreter in Tbilisi (business meetings, classes, a restaurant). Translate the last line from ${LANG[lang].name} into: ${want.map(l => `${l} (${LANG[l].name})`).join(", ")}, so each listener understands exactly what the speaker means, in natural polite spoken style. Keep names and numbers exactly. Never add ideas that were not said.${lang === "ja" ? "\n" + JA_HINT : ""}
+  const prompt = `You are a professional interpreter in Tbilisi (business meetings, classes, a restaurant). Translate the last line from ${LANG[lang].name} into: ${want.map(l => `${l} (${LANG[l].name})`).join(", ")}, so each listener understands exactly what the speaker means, in natural polite spoken style. Keep names and numbers exactly. Never add ideas that were not said.\n${Names.namesPrompt([lang, ...want])}${lang === "ja" ? "\n" + JA_HINT : ""}
 Conversation so far:\n${recent}
 Last line: ${text}
 Reply ONLY JSON {${want.map(l => `"${l}":""`).join(",")}}`;
@@ -585,6 +587,7 @@ async function aiHear(wavB64) {
 3. Translate it into every OTHER language in the room. Use the conversation so far to resolve words like "it", "that", "he". Translate the meaning so nobody can misunderstand, in natural, polite, spoken style. ${JA_HINT}
 4. Give a Latin-letter reading of each translation (romaji for Japanese, pinyin for Chinese, romanization for Georgian, Russian, Korean; empty for English).
 Write numbers, prices, times and dates exactly as heard, as digits. Never guess a word to fit a topic: if a word is unclear, write what it sounds like.
+${Names.namesPrompt(langs)}
 Only if these shop names are actually said, write them this way:
 ${shop}
 Conversation so far:
