@@ -151,12 +151,12 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 <script type="module">
 const Names = await import("./names.js?v=" + Math.floor(Date.now() / 600000));   // registered names: never translated by meaning
 const LANG = {
-  ja:{name:"日本語", g:"ja", sr:"ja-JP", tts:null,                    talk:"🎤 押して話す",     wait:"相手の言葉の訳がここに出ます", hold:"聞いています…"},
-  en:{name:"English",g:"en", sr:"en-US", tts:"en_US-hfc_female-medium",talk:"🎤 Tap to speak",   wait:"Translation will appear here",   hold:"Listening…"},
-  ka:{name:"ქართული",g:"ka", sr:"ka-GE", tts:"ka_GE-natia-medium",    talk:"🎤 დააჭირე და ილაპარაკე", wait:"თარგმანი აქ გამოჩნდება", hold:"გისმენთ…"},
-  ru:{name:"Русский",g:"ru", sr:"ru-RU", tts:"ru_RU-irina-medium",    talk:"🎤 Нажмите и говорите", wait:"Перевод появится здесь", hold:"Слушаю…"},
-  ko:{name:"한국어", g:"ko", sr:"ko-KR", tts:null,                    talk:"🎤 눌러서 말하기", wait:"번역이 여기에 나옵니다", hold:"듣고 있어요…"},
-  zh:{name:"中文",   g:"zh-CN", sr:"zh-CN", tts:"zh_CN-huayan-medium", talk:"🎤 点击说话", wait:"翻译会显示在这里", hold:"正在听…"},
+  ja:{name:"日本語", g:"ja", sr:"ja-JP", tts:null,                    talk:"🎤 押して話す",     wait:"相手の言葉の訳がここに出ます", hold:"話し終わったら押す（10秒黙ると自動で訳す）"},
+  en:{name:"English",g:"en", sr:"en-US", tts:"en_US-hfc_female-medium",talk:"🎤 Tap to speak",   wait:"Translation will appear here",   hold:"Tap when done (auto after 10 s quiet)"},
+  ka:{name:"ქართული",g:"ka", sr:"ka-GE", tts:"ka_GE-natia-medium",    talk:"🎤 დააჭირე და ილაპარაკე", wait:"თარგმანი აქ გამოჩნდება", hold:"დასრულებისას დააჭირე"},
+  ru:{name:"Русский",g:"ru", sr:"ru-RU", tts:"ru_RU-irina-medium",    talk:"🎤 Нажмите и говорите", wait:"Перевод появится здесь", hold:"Нажмите, когда закончите"},
+  ko:{name:"한국어", g:"ko", sr:"ko-KR", tts:null,                    talk:"🎤 눌러서 말하기", wait:"번역이 여기에 나옵니다", hold:"다 말하면 누르세요"},
+  zh:{name:"中文",   g:"zh-CN", sr:"zh-CN", tts:"zh_CN-huayan-medium", talk:"🎤 点击说话", wait:"翻译会显示在这里", hold:"说完请点击"},
 };
 const $ = id => document.getElementById(id);
 const st = (t, ok) => { $("status").textContent = t; $("status").classList.toggle("ok", !!ok); };
@@ -725,7 +725,7 @@ function langChanged() { save(); last.me = last.them = null; paint(); warmVoice(
 
 // Long recording: keeps listening until you tap again, or after a few seconds of silence.
 // Browsers stop on their own after a short pause, so it quietly restarts and keeps the text.
-const SILENCE_MS = 1300, MAX_MS = 180000;  // stop 1.3 s after the last word; tap again to stop sooner
+const SILENCE_MS = 10000, MAX_MS = 300000;  // keep listening until 10 s of silence (a pause to think never cuts you off); tap ■ when done
 let stopWanted = false, silenceTimer = null, maxTimer = null, forceFinish = null, restarts = 0;
 /* AI listening: records the voice and lets the AI write it down. Used when the phone's own voice input
    can't (iPhone has no Georgian, home-screen apps on iPhone often block it, some browsers have none). */
@@ -772,7 +772,7 @@ Reply ONLY JSON {"text":"","tr":"",${Names.learnAsk}}; empty text if there is no
     if (!heard) noise = noise * 0.9 + rms * 0.1;
     if (rms > Math.max(0.006, noise * 2.5)) { if (!heard) { heard = true; } lastLoud = Date.now(); E.big.textContent = "🎙 ●"; }
     const now = Date.now();
-    if ((heard && now - lastLoud > 1000) || (!heard && now - t0 > 8000) || now - t0 > 60000) stop();
+    if ((heard && now - lastLoud > 10000) || (!heard && now - t0 > 10000) || now - t0 > 180000) stop();
   };
   src.connect(proc); proc.connect(ctx.destination);
 }

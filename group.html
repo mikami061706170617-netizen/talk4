@@ -483,7 +483,7 @@ function listenFor(i) {
   // The phone can't listen in this language (e.g. Georgian on iPhone): the AI listens instead
   if (Ears.needAI(p.lang)) {
     btn.classList.add("on"); st(`${label(p, i)}: ${ui.listening}`);
-    Ears.aiOnce(p.lang, true, s => { if (s === "wait") st(`${label(p, i)}: ⏳`); }).then(({ alts }) => {
+    Ears.aiOnce(p.lang, "talk", s => { if (s === "wait") st(`${label(p, i)}: ⏳`); }).then(({ alts }) => {
       btn.classList.remove("on");
       if (alts[0]) addUtterance(alts[0], p.lang, label(p, i), COLORS[i], false); else st("");
     });
@@ -498,7 +498,7 @@ function listenFor(i) {
   };
   recFinish = () => { stopWanted = true; try { rec?.stop(); } catch {} setTimeout(finish, 1500); };
   let spoke = false;   // wait up to 8 s for the first word, then stop 2 s after the last one
-  const bump = () => { clearTimeout(quiet); quiet = setTimeout(() => recFinish?.(), spoke ? 2000 : 8000); };
+  const bump = () => { clearTimeout(quiet); quiet = setTimeout(() => recFinish?.(), spoke ? 10000 : 10000); };   // 10 s of silence; tap again when done
   const begin = () => {
     const r = new SR(); rec = r; r.lang = LANG[p.lang].sr; r.interimResults = true; r.continuous = true;
     r.onresult = e => { let fin = "", tmp = ""; for (let k = e.resultIndex; k < e.results.length; k++) { const x = e.results[k]; if (x.isFinal) fin += x[0].transcript; else tmp += x[0].transcript; }

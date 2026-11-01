@@ -28,7 +28,7 @@ export async function aiOnce(lang, long = false, onLevel) {
   const ctx = new (window.AudioContext || window.webkitAudioContext)(); try { await ctx.resume(); } catch {}
   const src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1);
   const chunks = []; let heard = false, lastLoud = 0, noise = 0.01, done = false; const t0 = Date.now();
-  const quiet = long ? 2500 : 1500;
+  const quiet = long === "talk" ? 10000 : long ? 2500 : 1500;   // conversation: 10 s of silence; answers: 2.5 s; one word: 1.5 s
   return new Promise(resolve => {
     const stop = async () => {
       if (done) return; done = true; cur = null;
@@ -53,7 +53,7 @@ export async function aiOnce(lang, long = false, onLevel) {
       if (!heard) noise = noise * 0.9 + rms * 0.1;
       if (rms > Math.max(0.006, noise * 2.5)) { heard = true; lastLoud = Date.now(); onLevel?.("on"); }
       const now = Date.now();
-      if ((heard && now - lastLoud > quiet) || (!heard && now - t0 > 8000) || now - t0 > (long ? 60000 : 20000)) stop();
+      if ((heard && now - lastLoud > quiet) || (!heard && now - t0 > 8000) || now - t0 > (long ? 180000 : 20000)) stop();
     };
     src.connect(proc); proc.connect(ctx.destination);
   });
