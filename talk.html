@@ -734,7 +734,7 @@ function langChanged() { save(); last.me = last.them = null; paint(); warmVoice(
 // Long recording: keeps listening until you tap again, or after a few seconds of silence.
 // Browsers stop on their own after a short pause, so it quietly restarts and keeps the text.
 const SILENCE_MS = 10000, MAX_MS = 300000;  // keep listening until 10 s of silence (a pause to think never cuts you off); tap ■ when done
-let stopWanted = false, silenceTimer = null, maxTimer = null, forceFinish = null, restarts = 0;
+let lastRecEnd = 0, stopWanted = false, silenceTimer = null, maxTimer = null, forceFinish = null, restarts = 0;
 /* AI listening: records the voice and lets the AI write it down. Used when the phone's own voice input
    can't (iPhone has no Georgian, home-screen apps on iPhone often block it, some browsers have none). */
 const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -816,6 +816,7 @@ function startRec(side) {
   if (needAI(lang0)) { if (active) stopRec(); aiListen(side); return; }
   if (active) { const was = active; stopRec(); if (was === side) return; forceFinish?.(); }
   // The phone can't listen while it is talking: stop any read-aloud first
+  const wasTalking = (() => { try { return speechSynthesis.speaking || (playing && !playing.paused); } catch { return false; } })();
   try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} voiceRun++;
   const lang = side === "me" ? me : them, E = sideEls(side);
   let done = "", interim = "", finished = false, alts = [], lastSeg = "";
@@ -829,13 +830,24 @@ function startRec(side) {
   const finish = () => {
     if (finished) return; finished = true; forceFinish = null;
     clearTimeout(silenceTimer); clearTimeout(maxTimer);
-    const r = rec; rec = null; try { r?.abort(); } catch {}
+    const r = rec; rec = null; try { r?.abort(); } catch {} lastRecEnd = Date.now();
     E.mic.classList.remove("on"); E.mic.textContent = LANG[lang].talk; active = null;
     const t = (done + " " + interim).trim();
     if (t) { const base = lastSeg && t.endsWith(lastSeg) ? t.slice(0, t.length - lastSeg.length) : null; handle(t, side, null, { alts: base === null ? [] : alts.slice(0, 3).map(a => (base + " " + a).trim()) }); } else if (!last[side]) { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; }
   };
   forceFinish = finish;
-  const begin = () => {
+  // The phone's voice input failed to start or broke off before hearing anything: the AI listens instead,
+  // in the same tap (no "press again"). This is what made the 2nd try fail on some phones.
+  const toAI = why => {
+    if (finished) return;
+    if ((done + interim).trim()) { stopWanted = true; finish(); return; }
+    finished = true; forceFinish = null; clearTimeout(silenceTimer); clearTimeout(maxTimer);
+    const r = rec; rec = null; try { r?.abort(); } catch {} lastRecEnd = Date.now(); active = null;
+    E.mic.classList.remove("on"); E.mic.textContent = LANG[lang].talk;
+    st("🎧 AIで聞き取ります。そのまま話してください" + (why ? `（${why}）` : ""));
+    setTimeout(() => aiListen(side), 250);
+  };
+  const begin = (tries = 0) => {
     const r = new SR(); rec = r; r.lang = LANG[lang].sr; r.interimResults = true; r.continuous = true; r.maxAlternatives = 4;
     r.onresult = e => { let fin = "", tmp = "";
       for (let i = e.resultIndex; i < e.results.length; i++) { const x = e.results[i]; if (x.isFinal) { fin += x[0].transcript; lastSeg = x[0].transcript.trim(); alts = x.length > 1 ? [...x].slice(1).map(a => a.transcript.trim()).filter(Boolean) : []; } else tmp += x[0].transcript; }
@@ -845,20 +857,25 @@ function startRec(side) {
     r.onerror = e => {
       if (e.error === "no-speech" || e.error === "aborted") return;
       stopWanted = true;
-      if (["service-not-allowed", "language-not-supported", "network", "audio-capture", "not-allowed"].includes(e.error)) {
+      if (["service-not-allowed", "language-not-supported", "not-allowed"].includes(e.error)) {   // a passing mic or network hiccup only switches this one try
         // this phone can't do it itself: from now on the AI listens for this language
         aiOnly[lang] = Date.now(); try { localStorage.setItem("t4-aiears", JSON.stringify(aiOnly)); } catch {}
-        st("🎙 AIで聞き取ります。もう一度🎤を押して話してください");
-      } else st("マイクが使えませんでした（" + e.error + "）。もう一度押してください");
+      }
+      toAI(e.error);
     };
     r.onend = () => {
       if (rec !== r) return;
       if (interim) { done = (done + " " + interim).trim(); interim = ""; }
-      if (stopWanted || ++restarts > 60) finish(); else { try { begin(); } catch { finish(); } }
+      // Phones stop listening on their own after a short pause: start again (with a short break, starting
+      // instantly is what fails on iPhone), until the person is done
+      if (stopWanted || ++restarts > 60) finish(); else setTimeout(() => { if (!finished && rec === r) begin(); }, 120);
     };
-    r.start();
+    try { r.start(); }
+    catch { rec = null; if (tries < 3) setTimeout(() => { if (!finished) begin(tries + 1); }, 300); else toAI(); }
   };
-  try { begin(); } catch { finish(); }
+  // Give the microphone a moment if it was just used or the phone was just talking
+  const wait = Math.max(0, 400 - (Date.now() - lastRecEnd)) + (wasTalking ? 250 : 0);
+  setTimeout(() => { if (!finished) begin(); }, wait);
 }
 // While someone is still talking, show a rough translation on the other side so nobody waits
 let previewTimer = null, previewText = "";
