@@ -631,7 +631,7 @@ async function camRead() {
   const to = $("camTo").value, my = Symbol(); camRead.cur = my;
   $("camList").innerHTML = ""; $("camSum").textContent = "⏳ 読み取り中…";
   if (!AIcfg?.proxy) { $("camSum").textContent = "⚠ AIにつながりません"; return; }
-  const prompt = `Read ALL text in this photo (menu, sign, label, receipt, document or handwriting), top to bottom. Translate each line into ${AI_NAMES[to]}, naturally, as a local would understand it. For dishes, briefly say what it is if the name alone is unclear. Keep prices and numbers. Shop words: ${GLOSS.map(g => `${g.en} = ${g[to] || g.en}`).join("; ")}.
+  const prompt = `Read ALL text in this photo (menu, sign, label, receipt, document or handwriting), top to bottom. Translate each line into ${AI_NAMES[to]}, naturally, as a local would understand it. For dishes, briefly say what it is if the name alone is unclear. Keep prices and numbers. ${Names.namesPrompt([to])} Shop words: ${GLOSS.map(g => `${g.en} = ${g[to] || g.en}`).join("; ")}.
 Write "summary" and every "tr" in ${AI_NAMES[to]} only. Reply ONLY JSON: {"summary":"one short sentence saying what this is","items":[{"orig":"original text","orom":"reading of the original in Latin letters (empty if already Latin)","tr":"translation"}]}`;
   try {
     const r = await fetch(AIcfg.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },

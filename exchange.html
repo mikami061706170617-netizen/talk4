@@ -110,6 +110,7 @@ h1 em{font-style:normal;color:var(--gold)}
 <div class="switch" id="switch" hidden><div class="big" id="swBig"></div><div class="lead" id="swSub"></div><button class="btn main" id="swGo"></button></div>
 
 <script type="module">
+const Names = await import("./names.js?v=" + Math.floor(Date.now() / 600000));   // registered names: never translated by meaning
 const Ears = await import("./ears.js?v=" + Math.floor(Date.now() / 600000));   // AI listening when the phone can't
 const VER = new URLSearchParams(location.search).get("v") || String(Math.floor(Date.now() / 600000));  // fresh files after an update
 const { LESSONS } = await import("./lessons.js?v=" + VER);
@@ -168,8 +169,9 @@ function restore(out, lang) {
 }
 const restoreRom = (r, lang) => r && r.replace(/zqx\s?(\d)/gi, (m, d) => GLOSS[d - 1].rom[lang] || GLOSS[d - 1].en);
 async function translate(text, from, to) {
-  const res = await translateRaw(protect(text), from, to);
-  return { text: restore(res.text, to), rom: restoreRom(res.rom, to), srcRom: restoreRom(res.srcRom, from) };
+  const res = await translateRaw(protect(Names.preNames(text, from)), from, to);
+  const out = Names.postNames(restore(res.text, to), to);
+  return { text: out, rom: out !== restore(res.text, to) ? romFor(out, to) : restoreRom(res.rom, to), srcRom: restoreRom(res.srcRom, from) };
 }
 async function translateRaw(text, from, to) {
   const sl = LANG[from].g, tl = LANG[to].g;

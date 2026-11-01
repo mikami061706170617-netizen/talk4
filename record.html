@@ -99,6 +99,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 </div>
 
 <script type="module">
+const Names = await import("./names.js?v=" + Math.floor(Date.now() / 600000));   // registered names: never translated by meaning
 let AI = null; try { AI = (await import("./config.js?v=" + Math.floor(Date.now() / 6e5))).AI; } catch {}
 const $ = id => document.getElementById(id);
 const JA = (navigator.languages || [navigator.language]).some(c => /^ja/i.test(c || ""));
@@ -213,7 +214,7 @@ function sendSeg(seg) {
     const names = [...(seg.spoken || spoken)].map(c => LANGS[c][1]).join(", ");
     const prompt = `Transcribe this part of a meeting recording accurately and completely. People may speak ${names}. ` +
       `Write every sentence in the language actually spoken, in that language's own script (Georgian in Georgian letters, Russian in Cyrillic, Japanese in kanji/kana). ` +
-      `Start a new line whenever the speaker changes. Do not translate, summarise, correct or add anything; write numbers as digits. ` +
+      `Start a new line whenever the speaker changes. Do not translate, summarise, correct or add anything; write numbers as digits. ` + Names.namesPrompt([...(seg.spoken || spoken)]) + ` ` +
       `Reply ONLY JSON {"text":""}; empty text if there is no speech.`;
     let ok = false;
     for (let a = 0; a < 3 && !ok; a++) {
@@ -301,7 +302,7 @@ async function analyse() {
   const out = $("outLang").value, name = LANGS[out][1];
   st(t("think"));
   const prompt = `Below is the transcript of a meeting or conversation (times are mm:ss; several languages may be mixed). ` +
-    `Analyse it and write everything in ${name}. Be concrete and faithful: never invent anything that is not in the transcript, and keep every number, price, date, time, quantity and name exactly. ` +
+    `Analyse it and write everything in ${name}. Be concrete and faithful: never invent anything that is not in the transcript, and keep every number, price, date, time, quantity and name exactly. ` + Names.namesPrompt([out], fullText(cur)) + ` ` +
     `Reply ONLY JSON: {"title":"short title","summary":["3-6 short sentences: what was discussed and the outcome"],"decisions":["what was agreed"],` +
     `"todos":[{"who":"","what":"","when":""}],"numbers":["each price, amount, quantity, date, time, phone, company, product or person name, with what it refers to"],` +
     `"open":["questions left unanswered, unclear points, things to confirm in writing"],"tone":"one line on how the other side seemed (interested, hesitant, ...)"}. Use [] or "" when nothing fits.\n\nTRANSCRIPT:\n` + fullText(cur);

@@ -68,6 +68,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <div id="list" style="display:flex;flex-direction:column;gap:8px"></div>
 </div>
 <script type="module">
+const Names = await import("./names.js?v=" + Math.floor(Date.now() / 600000));   // registered names: never translated by meaning
 const Ears = await import("./ears.js?v=" + Math.floor(Date.now() / 600000));   // AI listening when the phone can't
 const LANG = {
   ja:{name:"日本語", g:"ja", sr:"ja-JP", tts:null,                    talk:"🎤 押して話す",     wait:"相手の言葉の訳がここに出ます", hold:"聞いています…"},
@@ -121,8 +122,9 @@ function restore(out, lang) {
 }
 const restoreRom = (r, lang) => r && r.replace(/zqx\s?(\d)/gi, (m, d) => GLOSS[d - 1].rom[lang] || GLOSS[d - 1].en);
 async function translate(text, from, to) {
-  const res = await translateRaw(protect(text), from, to);
-  return { text: restore(res.text, to), rom: restoreRom(res.rom, to), srcRom: restoreRom(res.srcRom, from) };
+  const res = await translateRaw(protect(Names.preNames(text, from)), from, to);
+  const out = Names.postNames(restore(res.text, to), to);
+  return { text: out, rom: out !== restore(res.text, to) ? romFor(out, to) : restoreRom(res.rom, to), srcRom: restoreRom(res.srcRom, from) };
 }
 async function translateRaw(text, from, to) {
   const sl = LANG[from].g, tl = LANG[to].g;
@@ -367,7 +369,7 @@ async function aiPhrases(text, langs) {
   await aiReady; if (!AIcfg?.proxy) return null;
   const NAMES = { ja: "Japanese", en: "English", ka: "Georgian", ru: "Russian", ko: "Korean", zh: "Simplified Chinese" };
   const shape = "{" + langs.map(l => `"${l}":{"text":"","rom":""}`).join(",") + "}";
-  const prompt = `A ${NAMES[mine]} speaker living in Tbilisi wants to learn how to say this in real life (shop, restaurant, taxi, daily talk): "${text}". For each language give what a native speaker would actually say — short, natural, polite everyday phrasing with correct grammar, not a word-for-word translation. "rom" = reading in Latin letters (empty for English). Reply ONLY JSON ${shape} with keys: ${langs.map(l => l + "=" + NAMES[l]).join(", ")}.`;
+  const prompt = `A ${NAMES[mine]} speaker living in Tbilisi wants to learn how to say this in real life (shop, restaurant, taxi, daily talk): "${text}". For each language give what a native speaker would actually say — short, natural, polite everyday phrasing with correct grammar, not a word-for-word translation. ${Names.namesPrompt(langs, text)} "rom" = reading in Latin letters (empty for English). Reply ONLY JSON ${shape} with keys: ${langs.map(l => l + "=" + NAMES[l]).join(", ")}.`;
   try {
     const r = await fetch(AIcfg.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
