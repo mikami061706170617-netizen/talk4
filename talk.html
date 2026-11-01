@@ -124,7 +124,9 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 <section class="cam" id="nm" hidden>
   <div class="camtop"><b>📛 名前の登録</b><button id="nmClose">✕</button></div>
   <div class="camsum">人・会社・お店・地名を登録すると、どの言葉でも同じ書き方になり、意味で訳されなくなります（「三上」が「three up」にならない）。<br>
-  書き方が何通りかあるときは「/」で区切ります。英語のつづりが決まっているときは「=」の後に書きます。<br>例：<b>三上/みかみ/ミカミ = Mikami</b>　<b>ダト = Dato</b>　<b>ジャパンフードハブ = Japan Food Hub</b></div>
+  よくある名前（ジョージアの名前・英語の名前・日本の名字）は最初から入っています。<br>
+書き方が何通りかあるときは「/」で区切り、英語のつづりは「=」の後に書きます。例：<b>三上/みかみ = Mikami</b>　<b>ジャパンフードハブ = Japan Food Hub</b><br>
+普通の言葉と同じ名前（ノドさん＝喉）は <b>ノド/のど/喉 = Nodo</b> と登録します。カタカナで出た時は必ず名前、「のど」「喉」は後ろに「さん」「様」などが付いた時だけ名前になります（「のどが痛い」はそのまま）。</div>
   <div class="typerow"><input id="nmIn" enterkeyhint="done" placeholder="三上/みかみ = Mikami" autocomplete="off"><button id="nmAdd">登録</button></div>
   <div class="camlist" id="nmList"></div>
 </section>
@@ -448,7 +450,7 @@ async function aiTranslate(text, from, to, draft) {
   const jaHint = from === "ja" ? `
 Japanese often leaves out who and what, and says things indirectly. Translate the MEANING, not the words: fill in the missing subject or object from the conversation, and turn set phrases into what they really mean in context (e.g. 検討します = we will think about it / probably no; 大丈夫です = no thank you, or that's fine; 結構です = no thank you, or that's fine; よろしくお願いします = thank you, I look forward to working with you; お世話になっております = hello, thank you for your help; ちょっと… = that is difficult). Short, clear sentences the listener cannot misunderstand. Japanese questions often have no question mark after voice input and may drop か: if the line asks something (question word, ending like か/の/かな/ですか/ます, or it only makes sense as a question in context), translate it as a clear question ending with "?".` : "";
   const prompt = `You are a professional interpreter in Tbilisi (business meetings, classes, a Japanese restaurant). Translate the last line from ${AI_NAMES[from]} to ${AI_NAMES[to]} so the listener understands exactly what the speaker means, in natural, polite spoken style. Fix obvious speech-recognition mistakes using context. Keep names and numbers exactly. Never add greetings or ideas that were not said.${jaHint}
-${Names.namesPrompt([from, to])} Shop words (only if said): ${words}.
+${Names.namesPrompt([from, to], text)} Shop words (only if said): ${words}.
 Conversation so far:\n${recent.slice(-6).join("\n") || "(none)"}
 ${draft ? "Machine draft: " + draft : ""}
 Last line: ${from === "ja" ? jaQuestion(text) : text}
