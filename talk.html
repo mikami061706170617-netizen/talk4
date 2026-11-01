@@ -423,12 +423,14 @@ const AI_NAMES = { ja: "Japanese", en: "English", ka: "Georgian", ru: "Russian",
 async function aiTranslate(text, from, to, draft) {
   if (!AIcfg?.proxy || to === "ka") return null;   // Google is still more accurate for Georgian grammar than the free AI
   const words = GLOSS.map(g => `${g[from] || g.ja} = ${g[to] || g.en}`).join("; ");
-  const prompt = `You are a live interpreter at a Japanese restaurant (Omurice Land) in Tbilisi. Translate the last line from ${AI_NAMES[from]} to ${AI_NAMES[to]} so it sounds natural and polite, the way a native speaker would say it out loud. Fix obvious speech-recognition mistakes using context. Keep names. Never add greetings or words that were not said. Shop words: ${words}.
+  const jaHint = from === "ja" ? `
+Japanese often leaves out who and what, and says things indirectly. Translate the MEANING, not the words: fill in the missing subject or object from the conversation, and turn set phrases into what they really mean in context (e.g. 検討します = we will think about it / probably no; 大丈夫です = no thank you, or that's fine; 結構です = no thank you, or that's fine; よろしくお願いします = thank you, I look forward to working with you; お世話になっております = hello, thank you for your help; ちょっと… = that is difficult). Short, clear sentences the listener cannot misunderstand.` : "";
+  const prompt = `You are a professional interpreter in Tbilisi (business meetings, classes, a Japanese restaurant). Translate the last line from ${AI_NAMES[from]} to ${AI_NAMES[to]} so the listener understands exactly what the speaker means, in natural, polite spoken style. Fix obvious speech-recognition mistakes using context. Keep names and numbers exactly. Never add greetings or ideas that were not said.${jaHint} Shop words (only if said): ${words}.
 Conversation so far:\n${recent.slice(-6).join("\n") || "(none)"}
 Machine draft: ${draft}
 Last line: ${text}
 Reply ONLY JSON: {"text":"translation","rom":"Latin-letter reading of the translation (empty for English)"}`;
-  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 3000);
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), from === "ja" ? 5000 : 3500);
   try {
     const r = await fetch(AIcfg.proxy, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
@@ -617,7 +619,13 @@ async function show(o) {
     if (my !== job) return; // a newer sentence or language change took over
     L.big.textContent = out.text; L.rom.textContent = out.rom; last[listenerSide] = { text: out.text, lang: to, g: voice[speakerSide] };
     if (out.srcRom) { o.srcRom = out.srcRom; S.rom.textContent = out.srcRom; }
-    const better = await aiTranslate(o.text, o.lang, to, out.text);
+    // Georgian: the AI first writes the exact meaning in English, then it is put into Georgian
+    // (Google is more correct in Georgian grammar from English than from Japanese)
+    let better = null;
+    if (to === "ka" && o.lang !== "en") {
+      const en = await aiTranslate(o.text, o.lang, "en", "");
+      if (en?.text && my === job) { try { const k = await translate(en.text, "en", "ka"); better = { text: k.text, rom: k.rom }; } catch {} }
+    } else better = await aiTranslate(o.text, o.lang, to, out.text);
     if (my !== job) return;
     if (better && better.text.trim() !== out.text.trim()) {
       out.text = better.text; if (better.rom && to !== "en") out.rom = better.rom;
