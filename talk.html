@@ -732,6 +732,20 @@ let stopWanted = false, silenceTimer = null, maxTimer = null, forceFinish = null
 const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const aiOnly = (() => { try { return JSON.parse(localStorage.getItem("t4-aiears") || "{}"); } catch { return {}; } })();
 const needAI = lang => aiAll || !SR || (Date.now() - aiOnly[lang] < 6 * 3600e3) || (IOS && (lang === "ka" || navigator.standalone));
+
+/* Voice detector that copes with steady noise (kitchen fan, air-con): the background level is the quietest
+   moment of the last ~1.5 s (there are always tiny gaps between syllables), and a voice is anything clearly
+   above it. Starting low means someone who talks straight away is still heard. */
+function voiceGate() {
+  const last = [];
+  return rms => { last.push(rms); if (last.length > 18) last.shift(); const floor = Math.min(...last); return rms > Math.max(0.004, floor * 2.2); };
+}
+// Speech band only: cuts the low hum of fans and engines and high hiss before listening
+function speechBand(ctx, src) {
+  const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 120;
+  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 5000;
+  src.connect(hp); hp.connect(lp); return lp;
+}
 let aiRec = null;
 async function aiListen(side) {
   if (aiRec) { aiRec.stop(); return; }
@@ -742,13 +756,13 @@ async function aiListen(side) {
   catch { st("マイクを許可してください（ブラウザの設定）"); return; }
   const ctx = new (window.AudioContext || window.webkitAudioContext)(); try { await ctx.resume(); } catch {}
   const src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1);
-  let chunks = [], heard = false, lastLoud = 0, noise = 0.01, done = false; const t0 = Date.now();
+  let chunks = [], heard = false, lastLoud = 0, done = false; const t0 = Date.now(), isVoice = voiceGate(), band = speechBand(ctx, src);
   active = side; E.mic.classList.add("on"); E.mic.textContent = "■ " + LANG[lang].hold; E.big.className = "big"; E.big.textContent = "🎙 …"; E.small.textContent = ""; E.rom.textContent = "";
   const stop = async () => {
     if (done) return; done = true; aiRec = null;
     try { proc.disconnect(); src.disconnect(); stream.getTracks().forEach(t => t.stop()); ctx.close(); } catch {}
     E.mic.classList.remove("on"); E.mic.textContent = LANG[lang].talk; active = null;
-    if (!heard) { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; st("聞こえませんでした。もう一度どうぞ"); return; }
+    if (!heard && Date.now() - t0 < 1200) { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; st(""); return; }   // not sure? the AI decides
     E.big.textContent = "⏳ …"; st("AIが聞き取っています…");
     try {
       const r = await fetch(AIcfg.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -769,12 +783,11 @@ Reply ONLY JSON {"text":"","tr":"",${Names.learnAsk}}; empty text if there is no
     if (done) return;
     const d = e.inputBuffer.getChannelData(0); chunks.push(new Float32Array(d));
     let sum = 0; for (let k = 0; k < d.length; k += 8) sum += d[k] * d[k]; const rms = Math.sqrt(sum / (d.length / 8));
-    if (!heard) noise = noise * 0.9 + rms * 0.1;
-    if (rms > Math.max(0.006, noise * 2.5)) { if (!heard) { heard = true; } lastLoud = Date.now(); E.big.textContent = "🎙 ●"; }
+    if (isVoice(rms)) { heard = true; lastLoud = Date.now(); E.big.textContent = "🎙 ●"; }
     const now = Date.now();
     if ((heard && now - lastLoud > 10000) || (!heard && now - t0 > 10000) || now - t0 > 180000) stop();
   };
-  src.connect(proc); proc.connect(ctx.destination);
+  band.connect(proc); proc.connect(ctx.destination);
 }
 function toWav(chunks, rate) {
   const target = 16000, len = chunks.reduce((a, c) => a + c.length, 0), ratio = rate / target, n = Math.floor(len / ratio);

@@ -18,6 +18,20 @@ export function stopAI() { cur?.stop(); }
 export function busy() { return !!cur; }
 
 /** Listen once. Resolves { alts: [text], err }. Stops 1.5 s after the voice ends (long: 2.5 s), or when stopAI() is called. */
+
+/* Voice detector that copes with steady noise (kitchen fan, air-con): the background level is the quietest
+   moment of the last ~1.5 s (there are always tiny gaps between syllables), and a voice is anything clearly
+   above it. Starting low means someone who talks straight away is still heard. */
+export function voiceGate() {
+  const last = [];
+  return rms => { last.push(rms); if (last.length > 18) last.shift(); const floor = Math.min(...last); return rms > Math.max(0.004, floor * 2.2); };
+}
+// Speech band only: cuts the low hum of fans and engines and high hiss before listening
+export function speechBand(ctx, src) {
+  const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 120;
+  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 5000;
+  src.connect(hp); hp.connect(lp); return lp;
+}
 export async function aiOnce(lang, long = false, onLevel) {
   if (cur) { cur.stop(); return { alts: [], err: "aborted" }; }
   await ready;
@@ -27,13 +41,13 @@ export async function aiOnce(lang, long = false, onLevel) {
   catch { return { alts: [], err: "not-allowed" }; }
   const ctx = new (window.AudioContext || window.webkitAudioContext)(); try { await ctx.resume(); } catch {}
   const src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1);
-  const chunks = []; let heard = false, lastLoud = 0, noise = 0.01, done = false; const t0 = Date.now();
+  const chunks = []; let heard = false, lastLoud = 0, done = false; const t0 = Date.now(), isVoice = voiceGate(), band = speechBand(ctx, src);
   const quiet = long === "talk" ? 10000 : long ? 2500 : 1500;   // conversation: 10 s of silence; answers: 2.5 s; one word: 1.5 s
   return new Promise(resolve => {
     const stop = async () => {
       if (done) return; done = true; cur = null;
       try { proc.disconnect(); src.disconnect(); stream.getTracks().forEach(t => t.stop()); ctx.close(); } catch {}
-      if (!heard) return resolve({ alts: [], err: null });
+      if (!heard && Date.now() - t0 < 1200) return resolve({ alts: [], err: null });   // not sure? the AI decides whether anyone spoke
       onLevel?.("wait");
       try {
         const r = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -50,12 +64,11 @@ export async function aiOnce(lang, long = false, onLevel) {
       if (done) return;
       const d = e.inputBuffer.getChannelData(0); chunks.push(new Float32Array(d));
       let sum = 0; for (let k = 0; k < d.length; k += 8) sum += d[k] * d[k]; const rms = Math.sqrt(sum / (d.length / 8));
-      if (!heard) noise = noise * 0.9 + rms * 0.1;
-      if (rms > Math.max(0.006, noise * 2.5)) { heard = true; lastLoud = Date.now(); onLevel?.("on"); }
+      if (isVoice(rms)) { heard = true; lastLoud = Date.now(); onLevel?.("on"); }
       const now = Date.now();
       if ((heard && now - lastLoud > quiet) || (!heard && now - t0 > 8000) || now - t0 > (long ? 180000 : 20000)) stop();
     };
-    src.connect(proc); proc.connect(ctx.destination);
+    band.connect(proc); proc.connect(ctx.destination);
   });
 }
 
