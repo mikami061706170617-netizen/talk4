@@ -84,7 +84,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <div class="lang"><span id="themLabel"></span><button class="gbtn" id="themG" aria-label="voice"></button></div>
   <div class="said" id="themSaid"><div class="big wait" id="themBig"></div><div class="rom" id="themRom"></div><div class="small" id="themSmall"></div></div>
   <div class="typerow" id="themType"><input id="themInput" enterkeyhint="send"><button id="themSend">OK</button></div>
-  <div class="ctrl"><button class="mic" id="themMic"></button><button class="icon" id="themKb" aria-label="keyboard">⌨</button><button class="icon" id="themRe" aria-label="replay">🔊</button></div>
+  <div class="ctrl"><button class="mic" id="themMic"></button><button class="icon" id="themKb" aria-label="keyboard">⌨</button><button class="icon" id="themQ" aria-label="?">？</button><button class="icon" id="themRe" aria-label="replay">🔊</button></div>
 </section>
 
 <div class="bar">
@@ -101,7 +101,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 </div>
 
 <section class="half me" id="meHalf">
-  <div class="ctrl"><button class="mic" id="meMic"></button><button class="icon" id="meKb" aria-label="キーボード">⌨</button><button class="icon" id="meRe" aria-label="もう一度読む">🔊</button></div>
+  <div class="ctrl"><button class="mic" id="meMic"></button><button class="icon" id="meKb" aria-label="キーボード">⌨</button><button class="icon" id="meQ" aria-label="?">？</button><button class="icon" id="meRe" aria-label="もう一度読む">🔊</button></div>
   <div class="typerow" id="meType"><input id="meInput" enterkeyhint="send" placeholder="文字で入力"><button id="meSend">訳す</button></div>
   <div class="said" id="meSaid"><div class="big wait" id="meBig"></div><div class="rom" id="meRom"></div><div class="small" id="meSmall"></div></div>
   <div class="lang"><span id="meLabel"></span><button class="gbtn" id="meG" aria-label="声"></button></div>
@@ -788,6 +788,13 @@ $("themMic").onclick = () => { unlockAudio(); startRec("them"); };
 
 function showType(side) { const row = $(side + "Type"); row.hidden = false; $(side + "Input").focus(); }
 $("meKb").onclick = () => showType("me"); $("themKb").onclick = () => showType("them");
+// ？: the last thing said was meant as a question (voice input can't hear the rising tone) — translate it again as one
+for (const side of ["me", "them"]) $(side + "Q").onclick = () => {
+  unlockAudio(); const L = side === "me" ? me : them;
+  const src = orig && orig.lang === L ? orig.text : last[side]?.own ? last[side].text : "";
+  if (!src) { st("先に話すか打ってから ？ を押すと、疑問文として訳し直します"); return; }
+  handle(src.replace(/[。．.!！？?\s]+$/, "") + (L === "ja" || L === "zh" ? "？" : "?"), side);
+};
 for (const side of ["me", "them"]) {
   const send = () => { unlockAudio(); const v = $(side + "Input").value; $(side + "Input").value = ""; handle(v, side); };
   $(side + "Send").onclick = send;
