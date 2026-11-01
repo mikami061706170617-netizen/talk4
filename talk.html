@@ -578,13 +578,19 @@ setTimeout(() => {
 }, 0);
 
 // ---------- Quick phrases: ready-made, checked sentences in all six languages, no waiting for translation ----------
-const QP_CATS = [["greet", "👋 あいさつ"], ["restaurant", "🍽 注文"], ["cafe", "☕ カフェ"], ["money", "💰 お会計"], ["help", "🆘 困った"], ["taxi", "🚕 タクシー"], ["hotel", "🏨 ホテル"], ["health", "💊 体調"]];
+const QP_CATS = [["cookclass", "🍳 料理教室"], ["langclass", "🗣 語学教室"], ["greet", "👋 あいさつ"], ["restaurant", "🍽 注文"], ["cafe", "☕ カフェ"], ["money", "💰 お会計"], ["help", "🆘 困った"], ["taxi", "🚕 タクシー"], ["hotel", "🏨 ホテル"], ["health", "💊 体調"]];
 let qpLessons = null, qpCat = "restaurant", qpFrom = "me";
 const QP_RU = {"а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"yo","ж":"zh","з":"z","и":"i","й":"y","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r","с":"s","т":"t","у":"u","ф":"f","х":"kh","ц":"ts","ч":"ch","ш":"sh","щ":"shch","ъ":"","ы":"y","ь":"'","э":"e","ю":"yu","я":"ya"};
 const qpRead = (p, lang) => lang === "ja" ? (p.jr || "") : lang === "ko" ? (p.kr || "") : lang === "zh" ? (p.zr || "") : lang === "ka" ? romFor(p.ka, "ka") : lang === "ru" ? [...p.ru].map(c => { const lo = c.toLowerCase(), r = QP_RU[lo]; return r == null ? c : (c !== lo && r ? r[0].toUpperCase() + r.slice(1) : r); }).join("") : "";
+// travel phrases (lessons.js) + teaching phrases for the shop's cooking / language classes (teach.js)
+async function qpLoad() {
+  const v = Math.floor(Date.now() / 600000);
+  const [a, b] = await Promise.all([import("./lessons.js?v=" + v), import("./teach.js?v=" + v).catch(() => ({ TEACH: [] }))]);
+  return [...b.TEACH, ...a.LESSONS];
+}
 async function qpOpen() {
   $("qp").hidden = false;
-  if (!qpLessons) { try { qpLessons = (await import("./lessons.js?v=" + Math.floor(Date.now() / 600000))).LESSONS; } catch { $("qpList").textContent = "⚠ 読み込めませんでした"; return; } }
+  if (!qpLessons) { try { qpLessons = await qpLoad(); } catch { $("qpList").textContent = "⚠ 読み込めませんでした"; return; } }
   qpPaint();
 }
 function qpPaint() {
@@ -592,8 +598,8 @@ function qpPaint() {
   $("qpSide").textContent = qpFrom === "me" ? `🙋 ${LANG[me].name}で言う` : `🙋 ${LANG[them].name}で言う`;
   $("qpCats").innerHTML = "";
   for (const [id, name] of QP_CATS) { const b = document.createElement("button"); b.className = "tog"; b.textContent = name; if (id === qpCat) b.style.borderColor = "var(--gold)"; b.onclick = () => { qpCat = id; qpPaint(); }; $("qpCats").append(b); }
-  const L = qpLessons.find(l => l.id === qpCat); $("qpList").innerHTML = "";
-  const seen = new Set(), items = [...L.phrases, ...L.dialogue.map(([, x]) => typeof x === "number" ? null : x).filter(Boolean)];
+  const L = qpLessons.find(l => l.id === qpCat) || qpLessons[0]; $("qpList").innerHTML = "";
+  const seen = new Set(), items = [...L.phrases, ...(L.dialogue || []).map(([, x]) => typeof x === "number" ? null : x).filter(Boolean)];
   for (const p of items) {
     if (!p[from] || /＿＿|__/.test(p[from]) || seen.has(p[from])) continue; seen.add(p[from]);
     const b = document.createElement("button"); b.className = "camitem"; b.innerHTML = `<div class="t"></div><div class="o"></div>`;
@@ -616,7 +622,7 @@ function qpSay(p) {
 }
 $("qpBtn").onclick = qpOpen;
 // load the phrase list once now, so ⚡ still works later without a connection
-setTimeout(() => { import("./lessons.js?v=" + Math.floor(Date.now() / 600000)).then(m => { qpLessons = m.LESSONS; }).catch(() => {}); }, 3000);
+setTimeout(() => { qpLoad().then(x => { qpLessons = x; }).catch(() => {}); }, 3000);
 $("qpClose").onclick = () => { $("qp").hidden = true; };
 $("qpSide").onclick = () => { qpFrom = qpFrom === "me" ? "them" : "me"; qpPaint(); };
 

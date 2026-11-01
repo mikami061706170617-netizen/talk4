@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Talk4 料理教室</title>
+<meta name="theme-color" content="#111010">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+Georgian:wght@400;700&family=Noto+Sans:wght@400;700&display=swap">
+<style>
+/* Step cards for the omurice cooking class: one big step per screen, student's language big, Japanese small.
+   Hands are dirty while cooking, so the whole left/right half of the screen is a button, and voice works too. */
+:root{--bg:#111010;--panel:#1c1a18;--panel2:#24211e;--fg:#f4efe6;--muted:#9d968a;--line:#33302b;--gold:#d8ae55;--red:#d8443a;--ok:#5fb37a;
+  --font:"Noto Sans JP","Noto Sans Georgian","Noto Sans",system-ui,sans-serif;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);display:flex;flex-direction:column;overflow:hidden;
+  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px);-webkit-tap-highlight-color:transparent}
+.top{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.top b{color:var(--gold);font-size:15px}
+.top select,.top button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;font-size:14px}
+.top button.on{background:var(--gold);color:#1a1307;border-color:var(--gold)}
+.top .st{flex:1;min-width:120px;text-align:right;font-size:12px;color:var(--muted)}
+.stage{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14px 16px;position:relative}
+.pic{flex:1;min-height:0;border-radius:16px;background:var(--panel);border:1px solid var(--line);overflow:hidden;display:flex;align-items:center;justify-content:center}
+.pic img{width:100%;height:100%;object-fit:cover}
+.pic .emo{font-size:min(30vw,30vh)}
+.num{font-size:13px;color:var(--gold);letter-spacing:.08em}
+.title{font-size:clamp(26px,7vw,44px);font-weight:700;line-height:1.2;text-wrap:balance}
+.text{font-size:clamp(19px,5vw,28px);line-height:1.45}
+.ja{font-size:14px;color:var(--muted)}
+.tap{position:absolute;top:0;bottom:0;width:30%;border:none;background:transparent;cursor:pointer}
+.tap.prev{left:0}.tap.next{right:0}
+.nav{display:flex;gap:10px;padding:0 16px 14px}
+.nav button{flex:1;border:none;border-radius:999px;font:inherit;font-weight:700;font-size:20px;padding:16px;cursor:pointer;touch-action:manipulation}
+.nav .b{background:var(--panel2);color:var(--fg);border:1px solid var(--line)}
+.nav .n{background:var(--red);color:#fff}
+.dots{display:flex;gap:6px;justify-content:center;padding-bottom:8px}
+.dots i{width:8px;height:8px;border-radius:50%;background:var(--line)}
+.dots i.on{background:var(--gold)}
+button:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="top">
+  <b>🍳 Omurice class</b>
+  <select id="lang" aria-label="Language"></select>
+  <button id="voice" title="声で進める">🎙 声で進める</button>
+  <span class="st" id="st"></span>
+</div>
+<div class="stage" id="stage">
+  <div class="pic" id="pic"></div>
+  <div class="num" id="num"></div>
+  <div class="title" id="title"></div>
+  <div class="text" id="text"></div>
+  <div class="ja" id="ja"></div>
+  <button class="tap prev" id="tapPrev" aria-label="Back"></button>
+  <button class="tap next" id="tapNext" aria-label="Next"></button>
+</div>
+<div class="dots" id="dots"></div>
+<div class="nav"><button class="b" id="prev">◀</button><button class="n" id="next">▶</button></div>
+<script src="nav.js"></script>
+<script>
+// ---- languages the student can pick (Japanese stays small underneath for the teacher) ----
+const LANGS = { en: "English", ru: "Русский", ka: "ქართული", ko: "한국어", zh: "中文", ja: "日本語" };
+// ---- steps. Photos: put the shop's real photos at cook/01.jpg … cook/09.jpg (no AI images). Until then the emoji shows. ----
+const STEPS = [
+  { emo: "🧺", img: "cook/01.jpg",
+    ja: ["材料", "ごはん・鶏肉・玉ねぎ・ケチャップ・卵・バター"],
+    en: ["Ingredients", "Rice, chicken, onion, ketchup, eggs, butter"],
+    ru: ["Ингредиенты", "Рис, курица, лук, кетчуп, яйца, сливочное масло"],
+    ka: ["ინგრედიენტები", "ბრინჯი, ქათამი, ხახვი, კეტჩუპი, კვერცხი, კარაქი"],
+    ko: ["재료", "밥, 닭고기, 양파, 케첩, 달걀, 버터"],
+    zh: ["材料", "米饭、鸡肉、洋葱、番茄酱、鸡蛋、黄油"] },
+  { emo: "🔪", img: "cook/02.jpg",
+    ja: ["切る", "玉ねぎと鶏肉を細かく切ります"],
+    en: ["Chop", "Chop the onion and chicken into small pieces."],
+    ru: ["Нарезка", "Мелко нарежьте лук и курицу."],
+    ka: ["დაჭრა", "ხახვი და ქათამი წვრილად დაჭერით."],
+    ko: ["썰기", "양파와 닭고기를 잘게 썰어요."],
+    zh: ["切", "把洋葱和鸡肉切碎。"] },
+  { emo: "🍳", img: "cook/03.jpg",
+    ja: ["炒める", "バターで鶏肉と玉ねぎを炒めます"],
+    en: ["Fry", "Fry the chicken and onion in butter."],
+    ru: ["Обжарка", "Обжарьте курицу и лук на сливочном масле."],
+    ka: ["შეწვა", "ქათამი და ხახვი კარაქზე შეწვით."],
+    ko: ["볶기", "버터에 닭고기와 양파를 볶아요."],
+    zh: ["炒", "用黄油炒鸡肉和洋葱。"] },
+  { emo: "🍅", img: "cook/04.jpg",
+    ja: ["ケチャップライス", "ごはんとケチャップを入れて、よく混ぜます"],
+    en: ["Ketchup rice", "Add the rice and ketchup and mix well."],
+    ru: ["Рис с кетчупом", "Добавьте рис и кетчуп, хорошо перемешайте."],
+    ka: ["კეტჩუპიანი ბრინჯი", "დაამატეთ ბრინჯი და კეტჩუპი, კარგად აურიეთ."],
+    ko: ["케첩 라이스", "밥과 케첩을 넣고 잘 섞어요."],
+    zh: ["番茄酱炒饭", "加入米饭和番茄酱，搅拌均匀。"] },
+  { emo: "🥚", img: "cook/05.jpg",
+    ja: ["卵を溶く", "卵2〜3個に塩少々を入れて溶きます"],
+    en: ["Beat the eggs", "Beat 2–3 eggs with a pinch of salt."],
+    ru: ["Яйца", "Взбейте 2–3 яйца со щепоткой соли."],
+    ka: ["კვერცხის ათქვეფა", "2–3 კვერცხი ცოტა მარილთან ერთად ათქვიფეთ."],
+    ko: ["달걀 풀기", "달걀 2~3개에 소금을 조금 넣고 풀어요."],
+    zh: ["打蛋", "2~3个鸡蛋加一点盐打散。"] },
+  { emo: "🔥", img: "cook/06.jpg",
+    ja: ["卵を焼く", "熱いフライパンに流して、半熟まですばやく混ぜます"],
+    en: ["Cook the egg", "Pour into a hot pan and stir quickly until half set."],
+    ru: ["Омлет", "Вылейте на горячую сковороду и быстро мешайте, пока яйца не схватятся наполовину."],
+    ka: ["ომლეტი", "კვერცხი ცხელ ტაფაზე ჩაასხით და სწრაფად ურიეთ, სანამ ნახევრად შედედდება."],
+    ko: ["달걀 굽기", "뜨거운 팬에 붓고 반쯤 익을 때까지 빠르게 저어요."],
+    zh: ["煎蛋", "倒进热锅，快速搅拌到半熟。"] },
+  { emo: "🌯", img: "cook/07.jpg",
+    ja: ["包む", "ライスを卵にのせて包みます"],
+    en: ["Wrap", "Put the rice on the egg and wrap it."],
+    ru: ["Заворачиваем", "Выложите рис на омлет и заверните."],
+    ka: ["შეხვევა", "ბრინჯი ომლეტზე დადეთ და შეახვიეთ."],
+    ko: ["감싸기", "밥을 달걀 위에 올리고 감싸요."],
+    zh: ["包起来", "把饭放在蛋上，包起来。"] },
+  { emo: "✨", img: "cook/08.jpg",
+    ja: ["切って開く", "お皿にのせて、ナイフで切ると卵がふわっと開きます"],
+    en: ["Cut it open", "Put it on the plate and cut it with a knife — the egg opens up!"],
+    ru: ["Разрезаем", "Переложите на тарелку и разрежьте ножом — омлет раскроется!"],
+    ka: ["გაჭრა", "თეფშზე დადეთ და დანით გაჭერით — ომლეტი გაიხსნება!"],
+    ko: ["가르기", "접시에 담고 칼로 갈라요. 달걀이 펼쳐져요!"],
+    zh: ["切开", "装盘后用刀切开，蛋会摊开！"] },
+  { emo: "😋", img: "cook/09.jpg",
+    ja: ["できあがり！", "ケチャップかソースをかけて、召し上がれ"],
+    en: ["Ready!", "Add ketchup or sauce and enjoy your meal!"],
+    ru: ["Готово!", "Полейте кетчупом или соусом. Приятного аппетита!"],
+    ka: ["მზადაა!", "დაასხით კეტჩუპი ან სოუსი და გემრიელად მიირთვით!"],
+    ko: ["완성!", "케첩이나 소스를 뿌려서 맛있게 드세요!"],
+    zh: ["完成！", "淋上番茄酱或酱汁，请慢用！"] },
+];
+const $ = id => document.getElementById(id);
+let lang = "en", i = 0;
+try { const s = JSON.parse(localStorage.getItem("t4-cook") || "{}"); if (LANGS[s.lang]) lang = s.lang; if (s.i >= 0 && s.i < STEPS.length) i = s.i; } catch {}
+for (const [k, v] of Object.entries(LANGS)) $("lang").add(new Option(v, k));
+$("lang").value = lang;
+$("lang").onchange = () => { lang = $("lang").value; paint(); };
+STEPS.forEach(() => $("dots").append(document.createElement("i")));
+// keep every photo on the phone once loaded, so the class still works on weak wifi
+STEPS.forEach(s => { const im = new Image(); im.src = s.img; });
+
+function paint() {
+  const s = STEPS[i], t = s[lang] || s.en;
+  $("pic").innerHTML = "";
+  const im = new Image(); im.alt = t[0];
+  im.onerror = () => { $("pic").innerHTML = `<span class="emo">${s.emo}</span>`; };
+  im.src = s.img; $("pic").append(im);
+  $("num").textContent = `STEP ${i + 1} / ${STEPS.length}`;
+  $("title").textContent = t[0]; $("text").textContent = t[1];
+  $("ja").textContent = lang === "ja" ? "" : `${s.ja[0]}：${s.ja[1]}`;
+  [...$("dots").children].forEach((d, k) => d.classList.toggle("on", k === i));
+  $("prev").disabled = i === 0; $("next").textContent = i === STEPS.length - 1 ? "↺" : "▶";
+  try { localStorage.setItem("t4-cook", JSON.stringify({ lang, i })); } catch {}
+}
+const go = d => { i = d > 0 && i === STEPS.length - 1 ? 0 : Math.max(0, Math.min(STEPS.length - 1, i + d)); paint(); };
+$("next").onclick = $("tapNext").onclick = () => go(1);
+$("prev").onclick = $("tapPrev").onclick = () => go(-1);
+addEventListener("keydown", e => { if (e.key === "ArrowRight" || e.key === " ") go(1); if (e.key === "ArrowLeft") go(-1); });
+
+// ---- voice: the teacher says つぎ / もどる (Japanese recognition). Words from other languages also count. ----
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const NEXT = /(つぎ|次|ネクスト|next|далее|дальше|следующ|შემდეგ|다음|下一)/i, BACK = /(もどる|戻る|まえ|前|バック|back|назад|უკან|이전|上一)/i;
+let listening = false, rec = null, lastHit = 0;
+function startVoice() {
+  if (!SR) { $("st").textContent = "このスマホは声で進めるに対応していません（▶を押してください）"; return; }
+  rec = new SR(); rec.lang = "ja-JP"; rec.continuous = true; rec.interimResults = true;
+  rec.onresult = e => {
+    const r = e.results[e.results.length - 1], txt = r[0].transcript.trim();
+    if (Date.now() - lastHit < 1500) return;               // one word = one step, even if heard twice
+    if (NEXT.test(txt)) { lastHit = Date.now(); go(1); $("st").textContent = "「" + txt + "」→ 次へ"; }
+    else if (BACK.test(txt)) { lastHit = Date.now(); go(-1); $("st").textContent = "「" + txt + "」→ 戻る"; }
+  };
+  rec.onend = () => { if (listening) { try { rec.start(); } catch {} } };   // keep listening through kitchen noise
+  rec.onerror = e => { if (e.error === "not-allowed") { listening = false; paintVoice(); $("st").textContent = "マイクが許可されていません"; } };
+  try { rec.start(); } catch {}
+}
+function paintVoice() { $("voice").classList.toggle("on", listening); $("voice").textContent = listening ? "🎙 聞いています（つぎ／もどる）" : "🎙 声で進める"; }
+$("voice").onclick = () => { listening = !listening; paintVoice(); if (listening) { startVoice(); $("st").textContent = "「つぎ」「もどる」と言うと進みます"; } else { try { rec && rec.stop(); } catch {} $("st").textContent = ""; } };
+paint();
+</script>
+</body>
+</html>

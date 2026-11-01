@@ -3,11 +3,11 @@
 (() => {
   const TABS = [
     ["talk", "talk.html", "💬", "通訳"], ["words", "words.html", "📝", "覚える"], ["group", "group.html", "👥", "3-4人"],
-    ["exchange", "exchange.html", "🤝", "交流"], ["class", "class.html", "📘", "教室"], ["plans", "plans.html", "💳", "料金"],
+    ["exchange", "exchange.html", "🤝", "交流"], ["class", "class.html", "📘", "教室"], ["cook", "cook.html", "🍳", "料理"], ["plans", "plans.html", "💳", "料金"],
   ];
   // Tab names follow the phone: Japanese phones see Japanese, everyone else English (same rule as the pages).
   const ja = (navigator.languages || [navigator.language]).some(c => /^ja/i.test(c || ""));
-  const EN = { talk: "Interpret", words: "Learn", group: "Group", exchange: "Exchange", class: "Class", plans: "Plans" };
+  const EN = { talk: "Interpret", words: "Learn", group: "Group", exchange: "Exchange", class: "Class", cook: "Cooking", plans: "Plans" };
   // Days in a row: every day Talk4 is opened counts. Shown on the tab bar so people want to keep it going.
   let streak = 0;
   try {
