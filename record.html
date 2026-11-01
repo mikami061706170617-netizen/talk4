@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Talk4 Record</title>
+<meta name="theme-color" content="#111010">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+Georgian:wght@400;700&family=Noto+Sans:wght@400;700&display=swap">
+<style>
+:root{--bg:#111010;--panel:#1c1a18;--panel2:#24211e;--fg:#f4efe6;--muted:#9d968a;--line:#33302b;--gold:#d8ae55;--red:#d8443a;--ok:#5fb37a;
+  --font:"Noto Sans JP","Noto Sans Georgian","Noto Sans",system-ui,sans-serif;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);-webkit-tap-highlight-color:transparent}
+.wrap{max-width:720px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px}
+h1{font-size:15px;margin:0;color:var(--gold);letter-spacing:.06em;display:flex;justify-content:space-between;align-items:center}
+h1 a{font-size:13px;color:var(--muted);text-decoration:none;letter-spacing:0}
+.lead{font-size:13px;color:var(--muted);margin:0;line-height:1.5}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+select,input{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:12px;padding:10px;font:inherit;font-size:16px}
+.btn{border:1px solid var(--line);background:var(--panel2);color:var(--fg);border-radius:12px;padding:10px 14px;font:inherit;font-size:15px;cursor:pointer}
+.btn:disabled{opacity:.5}
+.chip{border:1px solid var(--line);background:var(--panel2);color:var(--muted);border-radius:999px;padding:7px 12px;font:inherit;font-size:14px;cursor:pointer}
+.chip[aria-pressed="true"]{border-color:var(--gold);color:var(--gold)}
+.big{width:100%;border:0;border-radius:18px;padding:20px;font:inherit;font-size:22px;font-weight:700;background:var(--red);color:#fff;cursor:pointer}
+.big.on{background:var(--panel2);border:2px solid var(--red);color:var(--fg)}
+.live{display:flex;align-items:center;gap:12px;font-variant-numeric:tabular-nums}
+.live .time{font-size:30px;font-weight:700}
+.meter{flex:1;height:10px;background:var(--panel2);border-radius:6px;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--ok);transition:width .1s}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--red);animation:b 1s infinite}
+@keyframes b{50%{opacity:.25}}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.tx{max-height:40vh;overflow:auto;font-size:15px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.tx .t{color:var(--gold);font-size:12px;margin-right:6px;font-variant-numeric:tabular-nums}
+.tx .pend{color:var(--muted)}
+.res h2{font-size:20px;margin:0;color:var(--fg)}
+.res h3{font-size:14px;margin:8px 0 0;color:var(--gold)}
+.res ul{margin:0;padding-left:20px;line-height:1.6;font-size:15px}
+.res p{margin:0;line-height:1.6;font-size:15px}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.acts .btn{padding:8px 11px;font-size:14px}
+.ask{display:flex;gap:8px}.ask input{flex:1;min-width:0}
+.st{font-size:13px;color:var(--muted);min-height:1em;margin:0}
+.warn{color:#f0b65a}
+.hist{display:flex;flex-direction:column;gap:6px}
+.hist button{text-align:left;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;color:var(--fg);padding:10px 12px;font:inherit;cursor:pointer}
+.hist small{color:var(--muted);display:block}
+[hidden]{display:none!important}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+@media print{.noprint{display:none!important}.tx{max-height:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span>🎙 <span data-t="title"></span></span><a href="talk.html" class="noprint" data-t="back"></a></h1>
+  <p class="lead" data-t="lead"></p>
+
+  <div class="box noprint" id="setup">
+    <div class="row"><span class="lead" data-t="spoken"></span></div>
+    <div class="row" id="spoken"></div>
+    <div class="row"><span class="lead" data-t="out"></span><select id="outLang"></select></div>
+  </div>
+
+  <button class="big noprint" id="recBtn"></button>
+  <div class="live noprint" id="live" hidden><span class="dot"></span><span class="time" id="clock">0:00</span><div class="meter"><i id="lvl"></i></div></div>
+  <p class="st" id="status"></p>
+
+  <div class="box" id="txBox" hidden>
+    <div class="row" style="justify-content:space-between"><b data-t="transcript"></b><span class="st" id="txInfo"></span></div>
+    <div class="tx" id="tx"></div>
+  </div>
+
+  <div class="box res" id="res" hidden></div>
+
+  <div class="box noprint" id="tools" hidden>
+    <div class="acts">
+      <button class="btn" id="copyBtn">📋 <span data-t="copy"></span></button>
+      <button class="btn" id="saveBtn">💾 <span data-t="save"></span></button>
+      <button class="btn" id="waBtn">💬 WhatsApp</button>
+      <button class="btn" id="trBtn">🌐 <span data-t="trAll"></span></button>
+      <button class="btn" id="redoBtn">🔄 <span data-t="redo"></span></button>
+    </div>
+    <div class="ask"><input id="qIn" enterkeyhint="send" autocomplete="off"><button class="btn" id="qBtn" data-t="askBtn"></button></div>
+    <div id="qOut" class="res"></div>
+  </div>
+
+  <div class="noprint" id="histWrap" hidden>
+    <h3 style="font-size:14px;color:var(--muted);margin:10px 0 6px" data-t="history"></h3>
+    <div class="hist" id="hist"></div>
+  </div>
+</div>
+
+<script type="module">
+let AI = null; try { AI = (await import("./config.js?v=" + Math.floor(Date.now() / 6e5))).AI; } catch {}
+const $ = id => document.getElementById(id);
+const JA = (navigator.languages || [navigator.language]).some(c => /^ja/i.test(c || ""));
+const TX = {
+  title: ["録音まとめ", "Record & summary"],
+  back: ["← 通訳へ", "← Interpreter"],
+  lead: ["会議・商談・授業を長く録音します。話している間に文字に起こし、止めるとAIが要約・決まったこと・やること・数字をまとめます。何語が混ざっても大丈夫。録音中は画面を消さないでください。",
+         "Record a meeting, deal or class. It is written down while people talk; when you stop, the AI gives a summary, decisions, to-dos and every number. Mixed languages are fine. Keep the screen on while recording."],
+  spoken: ["話される言葉（当てはまるもの全部）", "Languages spoken (pick all)"],
+  out: ["まとめの言葉", "Summary in"],
+  start: ["● 録音を始める", "● Start recording"],
+  stop: ["■ 止めてまとめる", "■ Stop and summarise"],
+  transcript: ["文字起こし", "Transcript"],
+  copy: ["コピー", "Copy"], save: ["保存", "Save"], trAll: ["全文を訳す", "Translate all"], redo: ["まとめ直す", "Summarise again"],
+  askBtn: ["質問", "Ask"], ask: ["例：値段はいくらと言っていた？", "e.g. What price did they say?"],
+  history: ["これまでの録音", "Past recordings"],
+  mic: ["マイクを許可してください（ブラウザの設定）", "Please allow the microphone"],
+  rec: ["録音中… 話した内容は1分ごとに文字になります", "Recording… text appears about every minute"],
+  wait: ["残りを文字にしています…", "Finishing the transcript…"],
+  think: ["AIがまとめています…", "The AI is summarising…"],
+  noai: ["AIにつながりません。電波を確認してください", "Can't reach the AI. Check the connection"],
+  fail: ["区間が送れませんでした（電波）。🔄で再送します", "part(s) could not be sent. 🔄 retries"],
+  empty: ["声が入っていませんでした", "No speech was recorded"],
+  hidden: ["⚠ 画面が消えている間は録音が止まっていました。画面はつけたままにしてください", "⚠ Recording paused while the screen was off. Keep it on"],
+  limit: ["無料は1回30分までです。ここまでをまとめます。続きは●でもう一度録音できます（有料プランは3時間まで）", "Free recordings stop at 30 min; this part is summarised. Tap ● to record more (plans: up to 3 h)"],
+  resume: ["前回の録音（まとめ前）が残っています。🔄「まとめ直す」でまとめます", "An unfinished recording is here. Tap 🔄 to summarise it"],
+  copied: ["コピーしました", "Copied"],
+  sum: ["要約", "Summary"], dec: ["決まったこと", "Decisions"], todo: ["やること", "To-do"], num: ["数字・日付・名前", "Numbers, dates, names"],
+  open: ["確認が必要なこと", "To confirm"], tone: ["相手の様子", "Mood"],
+};
+const t = k => (TX[k] || [k, k])[JA ? 0 : 1];
+document.querySelectorAll("[data-t]").forEach(e => e.textContent = t(e.dataset.t));
+$("qIn").placeholder = t("ask");
+
+const LANGS = { ja: ["日本語", "Japanese"], en: ["English", "English"], ka: ["ქართული", "Georgian"], ru: ["Русский", "Russian"], ko: ["한국어", "Korean"], zh: ["中文", "Simplified Chinese"] };
+const store = (k, v) => { try { if (v === undefined) return JSON.parse(localStorage.getItem(k) || "null"); localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const paid = () => { try { return (localStorage.getItem("t4c-tier") || "none") !== "none"; } catch { return false; } };
+const LIMIT_MIN = () => paid() ? 180 : 30;
+
+// Language pickers
+let spoken = new Set(store("t4r-spoken") || (JA ? ["ja", "ka", "en"] : ["en", "ka", "ru"]));
+for (const [c, n] of Object.entries(LANGS)) {
+  const b = document.createElement("button"); b.className = "chip"; b.textContent = n[0]; b.setAttribute("aria-pressed", spoken.has(c));
+  b.onclick = () => { spoken.has(c) ? spoken.delete(c) : spoken.add(c); if (!spoken.size) spoken.add(c); b.setAttribute("aria-pressed", spoken.has(c)); store("t4r-spoken", [...spoken]); };
+  $("spoken").append(b);
+  $("outLang").append(new Option(n[0], c));
+}
+$("outLang").value = store("t4r-out") || (JA ? "ja" : "en");
+$("outLang").onchange = () => store("t4r-out", $("outLang").value);
+
+const st = (m, warn) => { $("status").textContent = m || ""; $("status").className = "st" + (warn ? " warn" : ""); };
+const mmss = s => { s = Math.max(0, Math.round(s)); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = String(s % 60).padStart(2, "0"); return h ? `${h}:${String(m).padStart(2, "0")}:${x}` : `${m}:${x}`; };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+// ---- AI call through the private relay ----
+async function ask(parts, high, think) {
+  if (!AI?.proxy) throw new Error("noai");
+  const r = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ quality: high ? "high" : "", request: { contents: [{ parts }],
+      generationConfig: { responseMimeType: "application/json", temperature: 0.1, maxOutputTokens: 8192, thinkingConfig: { thinkingLevel: think || "minimal" } } } }) });
+  const j = await r.json(); if (j.error) throw new Error(j.error.message || "ai");
+  const raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+  return JSON.parse(raw.replace(/^```json|```$/g, "").trim());
+}
+
+// ---- Current session ----
+// cur = { id, start (ms), dur (s), spoken, lines: [{i, t, text}], analysis, outLang }
+let cur = null, segs = [], failed = [], queue = Promise.resolve(), pending = 0;
+const save = () => { if (cur) store("t4r-cur", cur); };
+
+function paintTx() {
+  $("txBox").hidden = !cur;
+  if (!cur) return;
+  const lines = [...cur.lines].sort((a, b) => a.i - b.i);
+  $("tx").innerHTML = lines.map(l => `<div><span class="t">${mmss(l.t)}</span>${esc(l.text)}</div>`).join("")
+    + (pending ? `<div class="pend">⏳ …</div>` : "");
+  $("txInfo").textContent = (failed.length ? `⚠ ${failed.length} ` : "") + (cur.dur ? mmss(cur.dur) : "");
+  const tx = $("tx"); if (rec) tx.scrollTop = tx.scrollHeight;
+}
+
+function toWav(chunks, rate) {
+  const target = 16000, len = chunks.reduce((a, c) => a + c.length, 0), ratio = rate / target, n = Math.floor(len / ratio);
+  const all = new Float32Array(len); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
+  let peak = 0; for (let k = 0; k < len; k += 4) peak = Math.max(peak, Math.abs(all[k]));
+  const boost = peak > 0 ? Math.min(10, 0.9 / peak) : 1;   // far voices are made as loud as close ones
+  const buf = new DataView(new ArrayBuffer(44 + n * 2)), w = (p, s) => [...s].forEach((ch, k) => buf.setUint8(p + k, ch.charCodeAt(0)));
+  w(0, "RIFF"); buf.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt "); buf.setUint32(16, 16, true); buf.setUint16(20, 1, true); buf.setUint16(22, 1, true);
+  buf.setUint32(24, target, true); buf.setUint32(28, target * 2, true); buf.setUint16(32, 2, true); buf.setUint16(34, 16, true); w(36, "data"); buf.setUint32(40, n * 2, true);
+  for (let k = 0; k < n; k++) { const v = Math.max(-1, Math.min(1, all[Math.floor(k * ratio)] * boost)); buf.setInt16(44 + k * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true); }
+  let bin = ""; const u8 = new Uint8Array(buf.buffer); for (let k = 0; k < u8.length; k += 0x8000) bin += String.fromCharCode(...u8.subarray(k, k + 0x8000));
+  return btoa(bin);
+}
+
+// Each minute of sound is written down on its own, so a long meeting never becomes one huge upload.
+function sendSeg(seg) {
+  pending++; paintTx();
+  queue = queue.then(async () => {
+    const names = [...(seg.spoken || spoken)].map(c => LANGS[c][1]).join(", ");
+    const prompt = `Transcribe this part of a meeting recording accurately and completely. People may speak ${names}. ` +
+      `Write every sentence in the language actually spoken, in that language's own script (Georgian in Georgian letters, Russian in Cyrillic, Japanese in kanji/kana). ` +
+      `Start a new line whenever the speaker changes. Do not translate, summarise, correct or add anything; write numbers as digits. ` +
+      `Reply ONLY JSON {"text":""}; empty text if there is no speech.`;
+    let ok = false;
+    for (let a = 0; a < 3 && !ok; a++) {
+      try {
+        const j = await ask([{ inline_data: { mime_type: "audio/wav", data: seg.wav } }, { text: prompt }], true);
+        const text = (j.text || "").trim();
+        if (text && cur && cur.id === seg.sid) { cur.lines = cur.lines.filter(l => l.i !== seg.i); cur.lines.push({ i: seg.i, t: seg.t, text }); save(); }
+        ok = true;
+      } catch (e) { if (String(e.message) === "noai") break; await new Promise(r => setTimeout(r, 1500 * (a + 1))); }
+    }
+    if (!ok) failed.push(seg); else failed = failed.filter(f => f !== seg);
+    pending--; paintTx();
+  });
+  return queue;
+}
+
+// ---- Recording ----
+let rec = null, wake = null, wasHidden = false;
+async function keepAwake() { try { wake = await navigator.wakeLock?.request("screen"); } catch {} }
+document.addEventListener("visibilitychange", () => {
+  if (!rec) return;
+  if (document.hidden) wasHidden = true;
+  else { keepAwake(); try { rec.ctx.resume(); } catch {} if (wasHidden) st(t("hidden"), true); }
+});
+
+async function start(fresh = true) {
+  if (!AI?.proxy) { st(t("noai"), true); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } }); }
+  catch { st(t("mic"), true); return; }
+  if (fresh || !cur) { cur = { id: Date.now(), start: Date.now(), dur: 0, spoken: [...spoken], lines: [] }; failed = []; segs = []; }
+  $("res").hidden = true; $("tools").hidden = true; $("qOut").innerHTML = "";
+  const ctx = new (window.AudioContext || window.webkitAudioContext)(); try { await ctx.resume(); } catch {}
+  const src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1);
+  const base = cur.dur || 0, t0 = performance.now();
+  let chunks = [], segT = base, segAt = t0, loud = false, noise = 0.01, quietSince = 0, idx = Math.max(0, ...cur.lines.map(l => l.i), ...segs.map(x => x.i)) + 1;
+  rec = { ctx, stream, src, proc };
+  const cut = (final) => {
+    const c = chunks; chunks = [];
+    const t = segT; segT = base + (performance.now() - t0) / 1000; segAt = performance.now();
+    const had = loud; loud = false;
+    if (!had || !c.length) return;
+    const seg = { sid: cur.id, i: idx++, t, wav: toWav(c, ctx.sampleRate), spoken: [...spoken] };
+    segs.push(seg); sendSeg(seg);
+  };
+  rec.cut = cut;
+  proc.onaudioprocess = e => {
+    if (!rec) return;
+    const d = e.inputBuffer.getChannelData(0); chunks.push(new Float32Array(d));
+    let sum = 0; for (let k = 0; k < d.length; k += 8) sum += d[k] * d[k]; const rms = Math.sqrt(sum / (d.length / 8));
+    noise = rms < noise * 3 ? noise * 0.98 + rms * 0.02 : noise;
+    const now = performance.now();
+    if (rms > Math.max(0.005, noise * 2.2)) { loud = true; quietSince = 0; } else if (!quietSince) quietSince = now;
+    $("lvl").style.width = Math.min(100, rms * 600) + "%";
+    const segLen = (now - segAt) / 1000;
+    // Cut about every minute, at a pause so no word is split in half
+    if ((segLen > 45 && quietSince && now - quietSince > 350) || segLen > 75) cut();
+    const total = base + (now - t0) / 1000; cur.dur = total;
+    if (total > LIMIT_MIN() * 60) { stop(); st(t("limit"), true); }
+  };
+  src.connect(proc); proc.connect(ctx.destination);
+  keepAwake(); wasHidden = false;
+  $("recBtn").textContent = t("stop"); $("recBtn").classList.add("on"); $("live").hidden = false; $("setup").hidden = true;
+  st(t("rec")); save(); paintTx();
+  rec.tick = setInterval(() => { $("clock").textContent = mmss(cur.dur); if (Math.floor(cur.dur) % 10 === 0) save(); }, 500);
+}
+
+async function stop() {
+  if (!rec) return;
+  const r = rec; r.cut(true); rec = null; clearInterval(r.tick);
+  try { r.proc.disconnect(); r.src.disconnect(); r.stream.getTracks().forEach(x => x.stop()); r.ctx.close(); } catch {}
+  try { wake?.release(); } catch {} wake = null;
+  $("recBtn").textContent = t("start"); $("recBtn").classList.remove("on"); $("live").hidden = true; $("setup").hidden = false;
+  save(); st(t("wait")); paintTx();
+  await queue;
+  await analyse();
+}
+
+// ---- Analysis ----
+const fullText = c => [...c.lines].sort((a, b) => a.i - b.i).map(l => `[${mmss(l.t)}] ${l.text}`).join("\n");
+
+async function analyse() {
+  if (!cur) return;
+  if (!cur.lines.length) { st(failed.length ? `⚠ ${failed.length} ${t("fail")}` : t("empty"), true); $("tools").hidden = !failed.length; return; }
+  const out = $("outLang").value, name = LANGS[out][1];
+  st(t("think"));
+  const prompt = `Below is the transcript of a meeting or conversation (times are mm:ss; several languages may be mixed). ` +
+    `Analyse it and write everything in ${name}. Be concrete and faithful: never invent anything that is not in the transcript, and keep every number, price, date, time, quantity and name exactly. ` +
+    `Reply ONLY JSON: {"title":"short title","summary":["3-6 short sentences: what was discussed and the outcome"],"decisions":["what was agreed"],` +
+    `"todos":[{"who":"","what":"","when":""}],"numbers":["each price, amount, quantity, date, time, phone, company, product or person name, with what it refers to"],` +
+    `"open":["questions left unanswered, unclear points, things to confirm in writing"],"tone":"one line on how the other side seemed (interested, hesitant, ...)"}. Use [] or "" when nothing fits.\n\nTRANSCRIPT:\n` + fullText(cur);
+  try {
+    const a = await ask([{ text: prompt }], true, "low");
+    cur.analysis = a; cur.outLang = out; save(); keep(); st(""); paintRes();
+  } catch { st(t("noai"), true); $("tools").hidden = false; }
+}
+
+function paintRes() {
+  const a = cur?.analysis; $("res").hidden = !a; $("tools").hidden = !cur;
+  if (!a) return;
+  const list = (k, arr) => arr?.length ? `<h3>${t(k)}</h3><ul>${arr.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+  const todos = (a.todos || []).filter(x => x.what).map(x => [x.who && `【${x.who}】`, x.what, x.when && `（${x.when}）`].filter(Boolean).join(" "));
+  $("res").innerHTML = `<h2>${esc(a.title || "")}</h2><p class="st">${new Date(cur.start).toLocaleString()} · ${mmss(cur.dur)}</p>` +
+    list("sum", a.summary) + list("dec", a.decisions) + list("todo", todos) + list("num", a.numbers) + list("open", a.open) +
+    (a.tone ? `<h3>${t("tone")}</h3><p>${esc(a.tone)}</p>` : "");
+}
+
+function asText(withAll = true) {
+  const a = cur?.analysis || {}; const L = (k, arr) => arr?.length ? `\n■ ${t(k)}\n` + arr.map(x => "・" + x).join("\n") + "\n" : "";
+  const todos = (a.todos || []).filter(x => x.what).map(x => [x.who && `【${x.who}】`, x.what, x.when && `（${x.when}）`].filter(Boolean).join(" "));
+  return `Talk4 — ${a.title || t("title")}\n${new Date(cur.start).toLocaleString()} · ${mmss(cur.dur)}\n` +
+    L("sum", a.summary) + L("dec", a.decisions) + L("todo", todos) + L("num", a.numbers) + L("open", a.open) +
+    (withAll ? `\n■ ${t("transcript")}\n` + fullText(cur) + (cur.translation ? `\n\n■ 🌐\n${cur.translation}` : "") : "");
+}
+
+// ---- History ----
+function keep() {
+  const h = (store("t4r-hist") || []).filter(x => x.id !== cur.id);
+  h.unshift({ ...cur }); store("t4r-hist", h.slice(0, 15)); store("t4r-cur", null); paintHist();
+}
+function paintHist() {
+  const h = store("t4r-hist") || []; $("histWrap").hidden = !h.length;
+  $("hist").innerHTML = "";
+  for (const x of h) {
+    const b = document.createElement("button");
+    b.innerHTML = `${esc(x.analysis?.title || t("title"))}<small>${new Date(x.start).toLocaleString()} · ${mmss(x.dur)}</small>`;
+    b.onclick = () => { if (rec) return; cur = x; failed = []; paintTx(); paintRes(); $("qOut").innerHTML = ""; scrollTo({ top: 0, behavior: "smooth" }); };
+    $("hist").append(b);
+  }
+}
+
+// ---- Buttons ----
+$("recBtn").textContent = t("start");
+$("recBtn").onclick = () => rec ? stop() : start(true);
+$("copyBtn").onclick = async () => { try { await navigator.clipboard.writeText(asText()); st(t("copied")); } catch { st("—"); } };
+$("saveBtn").onclick = () => {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([asText()], { type: "text/plain;charset=utf-8" }));
+  a.download = `talk4-${new Date(cur.start).toISOString().slice(0, 16).replace(/[:T]/g, "-")}.txt`; a.click();
+};
+$("waBtn").onclick = () => open("https://wa.me/?text=" + encodeURIComponent(asText(false).slice(0, 3500)), "_blank");
+$("redoBtn").onclick = async () => {
+  if (failed.length) { const f = failed; failed = []; st(t("wait")); for (const s of f) sendSeg(s); await queue; }
+  analyse();
+};
+$("trBtn").onclick = async () => {
+  if (!cur?.lines.length) return;
+  const name = LANGS[$("outLang").value][1]; st(t("think"));
+  try {
+    const j = await ask([{ text: `Translate this transcript into ${name}, line by line, keeping the [mm:ss] times. Translate faithfully, keep numbers and names. Reply ONLY JSON {"text":""}.\n\n` + fullText(cur) }], true);
+    cur.translation = j.text || ""; keep(); st("");
+    $("qOut").innerHTML = `<h3>🌐 ${esc(LANGS[$("outLang").value][0])}</h3><div class="tx" style="max-height:none">${esc(cur.translation)}</div>`;
+  } catch { st(t("noai"), true); }
+};
+const qa = async () => {
+  const q = $("qIn").value.trim(); if (!q || !cur?.lines.length) return;
+  st(t("think"));
+  try {
+    const j = await ask([{ text: `Answer the question using only this transcript. If the transcript does not say, answer that it was not mentioned. Quote the time [mm:ss] where it was said. Answer briefly in the language of the question. Reply ONLY JSON {"answer":""}.\n\nQUESTION: ${q}\n\nTRANSCRIPT:\n` + fullText(cur) }], true, "low");
+    $("qOut").insertAdjacentHTML("afterbegin", `<p><b>Q. ${esc(q)}</b><br>${esc(j.answer || "")}</p>`); $("qIn").value = ""; st("");
+  } catch { st(t("noai"), true); }
+};
+$("qBtn").onclick = qa; $("qIn").onkeydown = e => { if (e.key === "Enter") qa(); };
+
+// An unfinished recording (page closed before the summary) can still be summarised
+paintHist();
+const left = store("t4r-cur");
+if (left?.lines?.length) { cur = left; paintTx(); $("tools").hidden = false; st(t("resume")); }
+</script>
+<script src="nav.js?v=3"></script>
+</body>
+</html>

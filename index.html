@@ -13,7 +13,7 @@
 <script>
 // The one address people share. "#class?l=greet" style links open that tool directly.
 (() => {
-  const FILES = { talk: "talk.html", words: "words.html", group: "group.html", exchange: "exchange.html", class: "class.html", plans: "plans.html" };
+  const FILES = { talk: "talk.html", words: "words.html", group: "group.html", exchange: "exchange.html", class: "class.html", plans: "plans.html", rec: "record.html" };
   const h = location.hash.slice(1), i = h.indexOf("?"), id = i < 0 ? h : h.slice(0, i), q = i < 0 ? "" : h.slice(i);
   location.replace((FILES[id] || FILES.talk) + q);
 })();
