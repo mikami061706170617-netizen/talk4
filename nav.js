@@ -20,6 +20,8 @@
     if (file === here) a.setAttribute("aria-current", "page");
     nav.append(a);
   }
+  // keep a copy of every page on the phone so Talk4 still opens with a weak connection
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   const add = () => document.body.append(nav);
   document.body ? add() : document.addEventListener("DOMContentLoaded", add);
 })();
