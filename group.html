@@ -85,7 +85,7 @@ button{cursor:pointer;touch-action:manipulation}
 </header>
 <div class="st" id="status"></div>
 <main class="log" id="log"></main>
-<div class="typer" id="typer" hidden><input id="tin" enterkeyhint="send" autocomplete="off"><button id="tsend">→</button></div>
+<div class="typer" id="typer"><input id="tin" enterkeyhint="send" autocomplete="off"><button id="tsend">→</button></div>
 <button class="auto" id="autoBtn" hidden></button>
 <nav class="people" id="people"></nav>
 
@@ -311,7 +311,7 @@ function playPCM(pcm, rate, speed = 1) {
 const UI = {
   ja: { title: "参加する人", hint: "2〜4人まで。名前（なくてもOK）と、その人が話す言葉を選んでください。話すときは自分のボタンを押します。", add: "＋ 人を追加", done: "はじめる",
         name: "名前", empty: "自分のボタンを押して話すと、ほかの全員の言葉に訳されて読み上げられます。", auto: "🎙 置いておくだけ通訳（AIが言葉を聞き分ける）", autoOn: "■ ずっと聞いています（もう一度押すと止まる）",
-        speakOn: "🔊 自動 ON", speakOff: "🔊 自動 OFF", typePh: "文字で入力（言語は自動で判定）", detected: "判定", noSr: "このブラウザは音声入力に未対応です。⌨で入力してください", micErr: "マイクが使えませんでした。もう一度押してください",
+        speakOn: "🔊 自動 ON", speakOff: "🔊 自動 OFF", typePh: "聞き取れない時は文字で入力（言語は自動で判定）", detected: "判定", noSr: "このブラウザは音声入力に未対応です。⌨で入力してください", micErr: "マイクが使えませんでした。もう一度押してください",
         listening: "聞いています…", translating: "訳しています…", ready: "✓ OK", aiErr: "言葉を聞き分けられませんでした。自分のボタンで話してください" },
   en: { title: "Who's talking?", hint: "Up to 4 people. Add a name (optional) and the language each person speaks. Press your own button when you talk.", add: "+ Add person", done: "Start",
         name: "Name", empty: "Press your button and speak. Everyone else sees and hears it in their own language.", auto: "🎙 Hands-free (AI detects every language)", autoOn: "■ Listening all the time (press to stop)",
@@ -537,12 +537,13 @@ async function aiHear(wavB64) {
   const langs = langsInRoom();
   const recent = log.slice(-4).map(m => `${m.who} (${m.lang}): ${m.text}`).join("\n") || "(none yet)";
   const shop = GLOSS.map(g => `${g.en} = ${langs.map(l => `${l}: ${g[l]}`).join(", ")}`).join("\n");
-  const prompt = `You are a live interpreter at a restaurant table in Tbilisi. People in the room speak: ${langs.map(l => `${l} (${LANG[l].name})`).join(", ")}.
+  const prompt = `You are a live interpreter in Tbilisi (meetings, classes, the shop). People in the room speak: ${langs.map(l => `${l} (${LANG[l].name})`).join(", ")}.
 1. Listen carefully and decide which of those languages is being spoken from the sounds themselves (Georgian and Russian sound very different from Japanese).
 2. Transcribe the audio exactly, in that language and its own script (Georgian in Georgian letters, Russian in Cyrillic).
 3. Translate it into every OTHER language in the room. Use the conversation so far to resolve words like "it", "that", "he". Natural, polite, spoken style.
 4. Give a Latin-letter reading of each translation (romaji for Japanese, pinyin for Chinese, romanization for Georgian, Russian, Korean; empty for English).
-Always use these shop words:
+Write numbers, prices, times and dates exactly as heard, as digits. Never guess a word to fit a topic: if a word is unclear, write what it sounds like.
+Only if these shop names are actually said, write them this way:
 ${shop}
 Conversation so far:
 ${recent}

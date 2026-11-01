@@ -76,6 +76,8 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
     <div class="tx" id="tx"></div>
   </div>
 
+  <div class="ask noprint"><input id="noteIn" enterkeyhint="send" autocomplete="off"><button class="btn" id="noteBtn">✍</button></div>
+
   <div class="box res" id="res" hidden></div>
 
   <div class="box noprint" id="tools" hidden>
@@ -113,9 +115,10 @@ const TX = {
   copy: ["コピー", "Copy"], save: ["保存", "Save"], trAll: ["全文を訳す", "Translate all"], redo: ["まとめ直す", "Summarise again"],
   askBtn: ["質問", "Ask"], ask: ["例：値段はいくらと言っていた？", "e.g. What price did they say?"],
   history: ["これまでの録音", "Past recordings"],
+  note: ["✍ 文字で追加（聞き取れなかった所・金額・名前・メモ）", "✍ Type to add (missed words, prices, names, notes)"],
   howT: ["📖 使い方と、できること", "📖 How to use it"],
   how: [`<h3>できること</h3><ul><li>商談・会議・授業・面接を最後まで録音して、自動で文字にします（日本語・ジョージア語・英語・ロシア語・韓国語・中国語が混ざってもOK）</li><li>止めるとAIが<b>要約・決まったこと・やること（誰が・いつまでに）・金額や日付・確認が必要なこと・相手の様子</b>をまとめます</li><li>あとから「値段はいくら？」「納期は？」と<b>質問</b>すると、何分ごろに言っていたかまで答えます</li><li>全文を自分の言葉に<b>翻訳</b>、<b>WhatsAppで送る・コピー・保存</b>ができ、議事録や「言った・言わない」の防止に使えます</li></ul>
-<h3>使い方</h3><ol style="margin:0;padding-left:20px;line-height:1.7"><li>「話される言葉」で、その場で話される言葉を全部選びます</li><li>「まとめの言葉」で、まとめを読みたい言葉を選びます</li><li>スマホを机の真ん中に置いて「● 録音を始める」</li><li>話している間、1分ごとに文字が出てきます。<b>画面は消さず、他のアプリに切り替えない</b>でください（充電しながらがおすすめ）</li><li>終わったら「■ 止めてまとめる」。数秒〜30秒でまとめが出ます</li><li>下の質問欄に聞きたいことを入れるか、💬WhatsAppで相手に送ります</li></ol>
+<h3>使い方</h3><ol style="margin:0;padding-left:20px;line-height:1.7"><li>「話される言葉」で、その場で話される言葉を全部選びます</li><li>「まとめの言葉」で、まとめを読みたい言葉を選びます</li><li>スマホを机の真ん中に置いて「● 録音を始める」</li><li>話している間、1分ごとに文字が出てきます。<b>画面は消さず、他のアプリに切り替えない</b>でください（充電しながらがおすすめ）</li><li>終わったら「■ 止めてまとめる」。数秒〜30秒でまとめが出ます</li><li>聞き取れなかった所や金額・名前は「✍ 文字で追加」に打てば、まとめに入ります</li><li>下の質問欄に聞きたいことを入れるか、💬WhatsAppで相手に送ります</li></ol>
 <h3>コツ</h3><ul><li>録音することは相手に一言伝えてください</li><li>金額・日付は、最後に口に出して確認すると確実です</li><li>無料は1回30分まで。有料プランは3時間まで</li><li>録音は自分のスマホの中だけに残ります（「これまでの録音」に15件まで）</li></ul>`,
 `<h3>What it does</h3><ul><li>Records a whole meeting, deal or class and writes it down (Japanese, Georgian, English, Russian, Korean and Chinese can be mixed)</li><li>When you stop, the AI lists the <b>summary, decisions, to-dos (who, by when), every price and date, open points and the mood</b></li><li><b>Ask</b> later — "What price did they say?" — and get the answer with the minute it was said</li><li><b>Translate</b> everything, <b>send on WhatsApp, copy or save</b> as minutes</li></ul>
 <h3>How to use</h3><ol style="margin:0;padding-left:20px;line-height:1.7"><li>Pick every language that will be spoken</li><li>Pick the language for the summary</li><li>Put the phone in the middle of the table and tap ● Start</li><li>Text appears about every minute. <b>Keep the screen on and stay in this page</b> (charging helps)</li><li>Tap ■ Stop. The summary appears in a few seconds</li><li>Ask questions below or send it on WhatsApp</li></ol>
@@ -137,6 +140,7 @@ const TX = {
 const t = k => (TX[k] || [k, k])[JA ? 0 : 1];
 document.querySelectorAll("[data-t]").forEach(e => e.textContent = t(e.dataset.t));
 $("qIn").placeholder = t("ask");
+$("noteIn").placeholder = t("note");
 $("howBody").innerHTML = t("how");
 try { if (!localStorage.getItem("t4r-hist")) $("howto").open = true; } catch {}
 
@@ -374,6 +378,15 @@ const qa = async () => {
     $("qOut").insertAdjacentHTML("afterbegin", `<p><b>Q. ${esc(q)}</b><br>${esc(j.answer || "")}</p>`); $("qIn").value = ""; st("");
   } catch { st(t("noai"), true); }
 };
+// Typed lines go into the transcript at the current time, so the summary uses them too
+const addNote = () => {
+  const v = $("noteIn").value.trim(); if (!v) return;
+  if (!cur) { cur = { id: Date.now(), start: Date.now(), dur: 0, spoken: [...spoken], lines: [] }; failed = []; segs = []; }
+  const i = Math.max(0, ...cur.lines.map(l => l.i), ...segs.map(x => x.i)) + 1;
+  cur.lines.push({ i, t: cur.dur || 0, text: "✍ " + v }); $("noteIn").value = ""; save(); paintTx();
+  if (!rec) $("tools").hidden = false;
+};
+$("noteBtn").onclick = addNote; $("noteIn").onkeydown = e => { if (e.key === "Enter" && !e.isComposing) addNote(); };
 $("qBtn").onclick = qa; $("qIn").onkeydown = e => { if (e.key === "Enter") qa(); };
 
 // An unfinished recording (page closed before the summary) can still be summarised
