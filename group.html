@@ -422,8 +422,39 @@ async function addUtterance(text, lang, who, color, detected, ai) {
     if (t.text) { if (!t.rom) t.rom = romFor(t.text, t.lang); return; }
     try { const r = await translate(text, lang, t.lang); t.text = r.text; t.rom = r.rom; } catch { t.text = "⚠"; }
   }));
-  paintLog(); st(ui.ready);
+  paintLog();
+  // The free translator goes word by word; the AI then rewrites each line so the MEANING gets across
+  if (!ai) {
+    const mm = await aiMeaning(text, lang, targets);
+    if (mm) {
+      await Promise.all(m.out.map(async t => {
+        try {
+          if (t.lang === "ka" && lang !== "en" && mm.en) { const r = await translate(mm.en, "en", "ka"); t.text = r.text; t.rom = r.rom; }
+          else if (mm[t.lang]) { t.text = restore(protect(mm[t.lang]), t.lang); t.rom = romFor(t.text, t.lang); }
+        } catch {}
+      }));
+      paintLog();
+    }
+  }
+  st(ui.ready);
   if (autoSpeak) await readOut(m);
+}
+const JA_HINT = `Japanese often leaves out who and what, and says things indirectly. Translate the MEANING, not the words: fill in the missing subject or object from the conversation, and turn set phrases into what they really mean in context (e.g. 検討します = we will think about it / probably no; 大丈夫です or 結構です = no thank you, or that's fine; よろしくお願いします = thank you, I look forward to working with you; ちょっと… = that is difficult). Short, clear sentences the listener cannot misunderstand.`;
+async function aiMeaning(text, lang, targets) {
+  if (!AI?.proxy || !targets.length) return null;
+  const want = [...new Set(targets.map(l => l === "ka" ? "en" : l))];
+  const recent = log.slice(-5, -1).map(x => `${x.who} (${x.lang}): ${x.text}`).join("\n") || "(none yet)";
+  const prompt = `You are a professional interpreter in Tbilisi (business meetings, classes, a restaurant). Translate the last line from ${LANG[lang].name} into: ${want.map(l => `${l} (${LANG[l].name})`).join(", ")}, so each listener understands exactly what the speaker means, in natural polite spoken style. Keep names and numbers exactly. Never add ideas that were not said.${lang === "ja" ? "\n" + JA_HINT : ""}
+Conversation so far:\n${recent}
+Last line: ${text}
+Reply ONLY JSON {${want.map(l => `"${l}":""`).join(",")}}`;
+  const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 6000);
+  try {
+    const r = await fetch(AI.proxy, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
+    const j = await r.json(), raw = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("").replace(/^```json|```$/g, "").trim();
+    try { return JSON.parse(raw); } catch { return JSON.parse(raw.replace(/\\(?!["\\/bfnrtu])/g, "")); }
+  } catch { return null; } finally { clearTimeout(tm); }
 }
 
 /* ---------- Per-person microphone ---------- */
@@ -540,7 +571,7 @@ async function aiHear(wavB64) {
   const prompt = `You are a live interpreter in Tbilisi (meetings, classes, the shop). People in the room speak: ${langs.map(l => `${l} (${LANG[l].name})`).join(", ")}.
 1. Listen carefully and decide which of those languages is being spoken from the sounds themselves (Georgian and Russian sound very different from Japanese).
 2. Transcribe the audio exactly, in that language and its own script (Georgian in Georgian letters, Russian in Cyrillic).
-3. Translate it into every OTHER language in the room. Use the conversation so far to resolve words like "it", "that", "he". Natural, polite, spoken style.
+3. Translate it into every OTHER language in the room. Use the conversation so far to resolve words like "it", "that", "he". Translate the meaning so nobody can misunderstand, in natural, polite, spoken style. ${JA_HINT}
 4. Give a Latin-letter reading of each translation (romaji for Japanese, pinyin for Chinese, romanization for Georgian, Russian, Korean; empty for English).
 Write numbers, prices, times and dates exactly as heard, as digits. Never guess a word to fit a topic: if a word is unclear, write what it sounds like.
 Only if these shop names are actually said, write them this way:
