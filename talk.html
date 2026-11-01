@@ -445,7 +445,7 @@ function sideEls(side) { return side === "me"
 let AIcfg = null; import("./config.js").then(m => AIcfg = m.AI).catch(() => {});
 const recent = [];   // last few lines, so the AI understands the context
 const AI_NAMES = { ja: "Japanese", en: "English", ka: "Georgian", ru: "Russian", ko: "Korean", zh: "Simplified Chinese" };
-async function aiTranslate(text, from, to, draft) {
+async function aiTranslate(text, from, to, draft, voice) {
   if (!AIcfg?.proxy || to === "ka") return null;   // Google is still more accurate for Georgian grammar than the free AI
   const words = GLOSS.map(g => `${g[from] || g.ja} = ${g[to] || g.en}`).join("; ");
   const jaHint = from === "ja" ? `
@@ -454,8 +454,9 @@ Japanese often leaves out who and what, and says things indirectly. Translate th
 ${Names.namesPrompt([from, to], text)} Shop words (only if said): ${words}.
 Conversation so far:\n${recent.slice(-6).join("\n") || "(none)"}
 ${draft ? "Machine draft: " + draft : ""}
+${voice ? `The last line comes from the phone's voice input and may contain misheard words (a word that sounds similar but makes no sense here). Using the conversation and common sense, work out what the speaker really said, and translate THAT.${voice.alts?.length ? " The phone also heard it as: " + voice.alts.map(a => `"${a}"`).join(", ") + "." : ""}` : ""}
 Last line: ${from === "ja" ? jaQuestion(text) : text}
-Reply ONLY JSON: {"text":"translation","rom":"Latin-letter reading of the translation (empty for English)",${Names.learnAsk}}`;
+Reply ONLY JSON: {"text":"translation","rom":"Latin-letter reading of the translation (empty for English)",${voice ? `"heard":"the last line as the speaker really said it, in ${AI_NAMES[from]} (same as given if nothing was misheard)",` : ""}${Names.learnAsk}}`;
   const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), from === "ja" ? 5000 : 3500);
   try {
     const r = await fetch(AIcfg.proxy, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -687,8 +688,8 @@ async function show(o) {
     // The AI (meaning) starts at the same time as the quick word-for-word draft
     const pre = o.pre && (o.pre.to === to || (to === "ka" && o.pre.to === "en")) ? o.pre : null; o.pre = null;
     const aiP = pre ? Promise.resolve(null)
-      : to === "ka" && o.lang !== "en" ? aiTranslate(o.text, o.lang, "en", "").then(en => en?.text && my === job ? translate(en.text, "en", "ka").then(k => ({ text: k.text, rom: k.rom })) : null).catch(() => null)
-      : aiTranslate(o.text, o.lang, to, "");
+      : to === "ka" && o.lang !== "en" ? aiTranslate(o.text, o.lang, "en", "", o.voice).then(en => en?.text && my === job ? translate(en.text, "en", "ka").then(k => ({ text: k.text, rom: k.rom, heard: en.heard })) : null).catch(() => null)
+      : aiTranslate(o.text, o.lang, to, "", o.voice);
     const out = pre ? (pre.to === to ? { text: pre.tr, rom: romFor(pre.tr, to) } : await translate(pre.tr, "en", "ka")) : await translate(o.text, o.lang, to);
     if (my !== job) return; // a newer sentence or language change took over
     L.big.textContent = out.text; L.rom.textContent = out.rom; last[listenerSide] = { text: out.text, lang: to, g: voice[speakerSide] };
@@ -697,6 +698,12 @@ async function show(o) {
     // (Google is more correct in Georgian grammar from English than from Japanese)
     const better = await aiP;
     if (my !== job) return;
+    // Misheard words: show what the AI worked out was really said (tap it to correct it yourself)
+    const heard = (better?.heard || "").trim();
+    if (o.voice && heard && heard.replace(/[\s。、.,!?！？]/g, "") !== o.text.replace(/[\s。、.,!?！？]/g, "")) {
+      st(`✎ 聞き間違いを直しました（元：${o.text}）`); o.text = heard; S.big.textContent = heard; S.rom.textContent = romFor(heard, o.lang);
+      last[speakerSide] = { ...last[speakerSide], text: heard };
+    }
     if (better && better.text.trim() !== out.text.trim()) {
       out.text = better.text; if (better.rom && to !== "en") out.rom = better.rom;
       L.big.textContent = out.text; L.rom.textContent = out.rom; last[listenerSide].text = out.text;
@@ -708,9 +715,9 @@ async function show(o) {
     if (autoSpeak && !(link && speakerSide === "me")) speak(out.text, to, voice[speakerSide]);
   } catch { if (my === job) { L.big.textContent = "⚠"; st("翻訳できませんでした。電波を確認してください（⚡定型文は電波がなくても使えます）"); } }
 }
-async function handle(text, speakerSide, pre) {
+async function handle(text, speakerSide, pre, voice) {
   text = text.trim(); if (!text) return;
-  orig = { text, lang: speakerSide === "me" ? me : them, side: speakerSide, pre };
+  orig = { text, lang: speakerSide === "me" ? me : them, side: speakerSide, pre, voice };
   if (link && speakerSide === "me") linkSend(text, me);
   show(orig);
 }
@@ -790,7 +797,7 @@ function startRec(side) {
   // The phone can't listen while it is talking: stop any read-aloud first
   try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} voiceRun++;
   const lang = side === "me" ? me : them, E = sideEls(side);
-  let done = "", interim = "", finished = false;
+  let done = "", interim = "", finished = false, alts = [], lastSeg = "";
   stopWanted = false; active = side; restarts = 0;
   E.mic.classList.add("on"); E.mic.textContent = "■ " + LANG[lang].hold; E.big.className = "big"; E.big.textContent = "…"; E.small.textContent = ""; E.rom.textContent = "";
   // Before the first word: wait up to 8 s (people need a moment to start). After that: stop 1.8 s after the last word.
@@ -804,13 +811,13 @@ function startRec(side) {
     const r = rec; rec = null; try { r?.abort(); } catch {}
     E.mic.classList.remove("on"); E.mic.textContent = LANG[lang].talk; active = null;
     const t = (done + " " + interim).trim();
-    if (t) handle(t, side); else if (!last[side]) { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; }
+    if (t) { const base = lastSeg && t.endsWith(lastSeg) ? t.slice(0, t.length - lastSeg.length) : null; handle(t, side, null, { alts: base === null ? [] : alts.slice(0, 3).map(a => (base + " " + a).trim()) }); } else if (!last[side]) { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; }
   };
   forceFinish = finish;
   const begin = () => {
-    const r = new SR(); rec = r; r.lang = LANG[lang].sr; r.interimResults = true; r.continuous = true; r.maxAlternatives = 1;
+    const r = new SR(); rec = r; r.lang = LANG[lang].sr; r.interimResults = true; r.continuous = true; r.maxAlternatives = 4;
     r.onresult = e => { let fin = "", tmp = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) { const x = e.results[i]; if (x.isFinal) fin += x[0].transcript; else tmp += x[0].transcript; }
+      for (let i = e.resultIndex; i < e.results.length; i++) { const x = e.results[i]; if (x.isFinal) { fin += x[0].transcript; lastSeg = x[0].transcript.trim(); alts = x.length > 1 ? [...x].slice(1).map(a => a.transcript.trim()).filter(Boolean) : []; } else tmp += x[0].transcript; }
       if (fin) done = (done + " " + fin).trim();
       if (fin || tmp.trim()) spoke = true;
       interim = tmp; E.big.textContent = (done + " " + interim).trim() || "…"; bump(); preview(side, (done + " " + interim).trim()); };
@@ -851,6 +858,12 @@ $("meMic").onclick = () => { unlockAudio(); startRec("me"); };
 $("themMic").onclick = () => { unlockAudio(); startRec("them"); };
 
 function showType(side) { const row = $(side + "Type"); row.hidden = false; $(side + "Input").focus(); }
+// Tap what was heard to correct it: it goes into the text box, fix the word, press 訳す
+for (const side of ["me", "them"]) $(side + "Big").addEventListener("click", () => {
+  const t = $(side + "Big").textContent.trim(); if (!last[side]?.own || !t || t === "…" || /^[⏳🎙⚠]/.test(t) || $(side + "Big").classList.contains("wait")) return;
+  $(side + "Type").hidden = false; $(side + "Input").value = t; $(side + "Input").focus();
+  st("✎ 間違った所を直して「訳す」を押すと、訳し直します");
+});
 $("meKb").onclick = () => showType("me"); $("themKb").onclick = () => showType("them");
 // ？: the last thing said was meant as a question (voice input can't hear the rising tone) — translate it again as one
 for (const side of ["me", "them"]) $(side + "Q").onclick = () => {
