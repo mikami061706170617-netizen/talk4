@@ -115,10 +115,10 @@ const TX = {
   history: ["これまでの録音", "Past recordings"],
   howT: ["📖 使い方と、できること", "📖 How to use it"],
   how: [`<h3>できること</h3><ul><li>商談・会議・授業・面接を最後まで録音して、自動で文字にします（日本語・ジョージア語・英語・ロシア語・韓国語・中国語が混ざってもOK）</li><li>止めるとAIが<b>要約・決まったこと・やること（誰が・いつまでに）・金額や日付・確認が必要なこと・相手の様子</b>をまとめます</li><li>あとから「値段はいくら？」「納期は？」と<b>質問</b>すると、何分ごろに言っていたかまで答えます</li><li>全文を自分の言葉に<b>翻訳</b>、<b>WhatsAppで送る・コピー・保存</b>ができ、議事録や「言った・言わない」の防止に使えます</li></ul>
-<h3>使い方</h3><ol style="margin:0;padding-left:20px;line-height:1.7"><li>「話される言葉」で、その場で話される言葉を全部選びます</li><li>「まとめの言葉」で、まとめを読みたい言葉を選びます</li><li>スマホを机の真ん中に置いて「● 録音を始める」</li><li>話している間、1分ごとに文字が出てきます。<b>画面は消さず、他のアプリに切り替えない</b>でください（充電しながらがおすすめ）</li><li>終わったら「■ 止めてまとめる」。30〜60秒でまとめが出ます</li><li>下の質問欄に聞きたいことを入れるか、💬WhatsAppで相手に送ります</li></ol>
+<h3>使い方</h3><ol style="margin:0;padding-left:20px;line-height:1.7"><li>「話される言葉」で、その場で話される言葉を全部選びます</li><li>「まとめの言葉」で、まとめを読みたい言葉を選びます</li><li>スマホを机の真ん中に置いて「● 録音を始める」</li><li>話している間、1分ごとに文字が出てきます。<b>画面は消さず、他のアプリに切り替えない</b>でください（充電しながらがおすすめ）</li><li>終わったら「■ 止めてまとめる」。数秒〜30秒でまとめが出ます</li><li>下の質問欄に聞きたいことを入れるか、💬WhatsAppで相手に送ります</li></ol>
 <h3>コツ</h3><ul><li>録音することは相手に一言伝えてください</li><li>金額・日付は、最後に口に出して確認すると確実です</li><li>無料は1回30分まで。有料プランは3時間まで</li><li>録音は自分のスマホの中だけに残ります（「これまでの録音」に15件まで）</li></ul>`,
 `<h3>What it does</h3><ul><li>Records a whole meeting, deal or class and writes it down (Japanese, Georgian, English, Russian, Korean and Chinese can be mixed)</li><li>When you stop, the AI lists the <b>summary, decisions, to-dos (who, by when), every price and date, open points and the mood</b></li><li><b>Ask</b> later — "What price did they say?" — and get the answer with the minute it was said</li><li><b>Translate</b> everything, <b>send on WhatsApp, copy or save</b> as minutes</li></ul>
-<h3>How to use</h3><ol style="margin:0;padding-left:20px;line-height:1.7"><li>Pick every language that will be spoken</li><li>Pick the language for the summary</li><li>Put the phone in the middle of the table and tap ● Start</li><li>Text appears about every minute. <b>Keep the screen on and stay in this page</b> (charging helps)</li><li>Tap ■ Stop. The summary appears in 30–60 s</li><li>Ask questions below or send it on WhatsApp</li></ol>
+<h3>How to use</h3><ol style="margin:0;padding-left:20px;line-height:1.7"><li>Pick every language that will be spoken</li><li>Pick the language for the summary</li><li>Put the phone in the middle of the table and tap ● Start</li><li>Text appears about every minute. <b>Keep the screen on and stay in this page</b> (charging helps)</li><li>Tap ■ Stop. The summary appears in a few seconds</li><li>Ask questions below or send it on WhatsApp</li></ol>
 <h3>Tips</h3><ul><li>Tell people you are recording</li><li>Repeat prices and dates out loud at the end</li><li>Free: 30 min per recording. Plans: up to 3 h</li><li>Recordings stay only on your phone (last 15)</li></ul>`],
   mic: ["マイクを許可してください（ブラウザの設定）", "Please allow the microphone"],
   rec: ["録音中… 話した内容は1分ごとに文字になります", "Recording… text appears about every minute"],
@@ -303,8 +303,8 @@ async function analyse() {
     `"open":["questions left unanswered, unclear points, things to confirm in writing"],"tone":"one line on how the other side seemed (interested, hesitant, ...)"}. Use [] or "" when nothing fits.\n\nTRANSCRIPT:\n` + fullText(cur);
   const t1 = Date.now(), tick = setInterval(() => st(`${t("think")} ${Math.round((Date.now() - t1) / 1000)}s`), 1000);
   let a = null;
-  try { a = await ask([{ text: prompt }], true, "low", 100000); }            // careful summary (about 30–60 s)
-  catch { try { a = await ask([{ text: prompt }], false, "minimal", 60000); } catch {} }   // busy → quick summary
+  try { a = await ask([{ text: prompt }], false, "minimal", 45000); }           // fast models: a few seconds
+  catch { try { a = await ask([{ text: prompt }], true, "low", 120000); } catch {} }   // busy → the stronger models
   clearInterval(tick);
   if (a) { cur.analysis = a; cur.outLang = out; save(); keep(); st(""); paintRes(); $("res").scrollIntoView({ behavior: "smooth" }); }
   else { st(t("noai"), true); $("tools").hidden = false; }
