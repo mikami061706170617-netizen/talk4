@@ -412,8 +412,19 @@ async function readOut(m) {
 function stopReading() { readRun++; reading = false; try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} }
 
 /* ---------- One utterance → every other language in the room ---------- */
+// Spoken Japanese questions often come out of voice input without "？" (and "か" is often dropped),
+// so they get translated as statements. Mark them as questions before translating.
+function jaQuestion(t) {
+  t = t.trim(); if (!t || /[？?]$/.test(t)) return t;
+  const end = t.replace(/[。．.!！…、\s]+$/, "");
+  const last = end.split(/[。！!]/).pop();   // only the last sentence decides
+  const particle = /(か|かな|かね|の|っけ|でしょう|だろう|でしょうか)$/.test(last) && !/(です|ます)の$/.test(last);
+  const word = /(何|なに|なん|いつ|どこ|どれ|どちら|どっち|誰|だれ|いくら|いくつ|どう|どうして|なぜ|なんで|どのくらい|どれくらい)/.test(last.replace(/(何でも|何か|なんでも|なにか|どこでも|どこか|いつも|いつか|誰も|誰か|だれか|どうも|どうぞ|どうか)/g, ""));
+  return particle || word ? end + "？" : t;
+}
 async function addUtterance(text, lang, who, color, detected, ai) {
   text = text.trim(); if (!text) return;
+  if (lang === "ja") text = jaQuestion(text);
   const targets = langsInRoom().filter(l => l !== lang);
   const m = { text, lang, who, color, detected, ai: !!ai, out: targets.map(l => ({ lang: l, text: ai?.tr?.[l] ? restore(protect(ai.tr[l]), l) : null, rom: ai?.rom?.[l] || "" })) };
   log.push(m); if (log.length > 60) log.shift(); paintLog(); st(ui.translating);
@@ -439,7 +450,7 @@ async function addUtterance(text, lang, who, color, detected, ai) {
   st(ui.ready);
   if (autoSpeak) await readOut(m);
 }
-const JA_HINT = `Japanese often leaves out who and what, and says things indirectly. Translate the MEANING, not the words: fill in the missing subject or object from the conversation, and turn set phrases into what they really mean in context (e.g. 検討します = we will think about it / probably no; 大丈夫です or 結構です = no thank you, or that's fine; よろしくお願いします = thank you, I look forward to working with you; ちょっと… = that is difficult). Short, clear sentences the listener cannot misunderstand.`;
+const JA_HINT = `Japanese often leaves out who and what, and says things indirectly. Translate the MEANING, not the words: fill in the missing subject or object from the conversation, and turn set phrases into what they really mean in context (e.g. 検討します = we will think about it / probably no; 大丈夫です or 結構です = no thank you, or that's fine; よろしくお願いします = thank you, I look forward to working with you; ちょっと… = that is difficult). Short, clear sentences the listener cannot misunderstand. Japanese questions often have no question mark after voice input and may drop か: if the line asks something (question word, ending like か/の/かな/ですか/ます, or it only makes sense as a question in context), translate it as a clear question ending with "?".`;
 async function aiMeaning(text, lang, targets) {
   if (!AI?.proxy || !targets.length) return null;
   const want = [...new Set(targets.map(l => l === "ka" ? "en" : l))];

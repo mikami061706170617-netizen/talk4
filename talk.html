@@ -229,7 +229,18 @@ function restore(out, lang) {
   return lang === "ru" ? out.replace(/(^|[.!?]\s+)([а-яё])/g, (m, a, c) => a + c.toUpperCase()) : out;
 }
 const restoreRom = (r, lang) => r && r.replace(/zqx\s?(\d)/gi, (m, d) => GLOSS[d - 1].rom[lang] || GLOSS[d - 1].en);
+// Spoken Japanese questions often come out of voice input without "？" (and "か" is often dropped),
+// so they get translated as statements. Mark them as questions before translating.
+function jaQuestion(t) {
+  t = t.trim(); if (!t || /[？?]$/.test(t)) return t;
+  const end = t.replace(/[。．.!！…、\s]+$/, "");
+  const last = end.split(/[。！!]/).pop();   // only the last sentence decides
+  const particle = /(か|かな|かね|の|っけ|でしょう|だろう|でしょうか)$/.test(last) && !/(です|ます)の$/.test(last);
+  const word = /(何|なに|なん|いつ|どこ|どれ|どちら|どっち|誰|だれ|いくら|いくつ|どう|どうして|なぜ|なんで|どのくらい|どれくらい)/.test(last.replace(/(何でも|何か|なんでも|なにか|どこでも|どこか|いつも|いつか|誰も|誰か|だれか|どうも|どうぞ|どうか)/g, ""));
+  return particle || word ? end + "？" : t;
+}
 async function translate(text, from, to) {
+  if (from === "ja") text = jaQuestion(text);
   const res = await translateRaw(protect(text), from, to);
   return { text: restore(res.text, to), rom: restoreRom(res.rom, to), srcRom: restoreRom(res.srcRom, from) };
 }
@@ -424,11 +435,11 @@ async function aiTranslate(text, from, to, draft) {
   if (!AIcfg?.proxy || to === "ka") return null;   // Google is still more accurate for Georgian grammar than the free AI
   const words = GLOSS.map(g => `${g[from] || g.ja} = ${g[to] || g.en}`).join("; ");
   const jaHint = from === "ja" ? `
-Japanese often leaves out who and what, and says things indirectly. Translate the MEANING, not the words: fill in the missing subject or object from the conversation, and turn set phrases into what they really mean in context (e.g. 検討します = we will think about it / probably no; 大丈夫です = no thank you, or that's fine; 結構です = no thank you, or that's fine; よろしくお願いします = thank you, I look forward to working with you; お世話になっております = hello, thank you for your help; ちょっと… = that is difficult). Short, clear sentences the listener cannot misunderstand.` : "";
+Japanese often leaves out who and what, and says things indirectly. Translate the MEANING, not the words: fill in the missing subject or object from the conversation, and turn set phrases into what they really mean in context (e.g. 検討します = we will think about it / probably no; 大丈夫です = no thank you, or that's fine; 結構です = no thank you, or that's fine; よろしくお願いします = thank you, I look forward to working with you; お世話になっております = hello, thank you for your help; ちょっと… = that is difficult). Short, clear sentences the listener cannot misunderstand. Japanese questions often have no question mark after voice input and may drop か: if the line asks something (question word, ending like か/の/かな/ですか/ます, or it only makes sense as a question in context), translate it as a clear question ending with "?".` : "";
   const prompt = `You are a professional interpreter in Tbilisi (business meetings, classes, a Japanese restaurant). Translate the last line from ${AI_NAMES[from]} to ${AI_NAMES[to]} so the listener understands exactly what the speaker means, in natural, polite spoken style. Fix obvious speech-recognition mistakes using context. Keep names and numbers exactly. Never add greetings or ideas that were not said.${jaHint} Shop words (only if said): ${words}.
 Conversation so far:\n${recent.slice(-6).join("\n") || "(none)"}
 Machine draft: ${draft}
-Last line: ${text}
+Last line: ${from === "ja" ? jaQuestion(text) : text}
 Reply ONLY JSON: {"text":"translation","rom":"Latin-letter reading of the translation (empty for English)"}`;
   const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), from === "ja" ? 5000 : 3500);
   try {
