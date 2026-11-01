@@ -51,6 +51,23 @@ const BUILTIN = [
 export function getNames() { try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { return []; } }
 export function setNames(list) { try { localStorage.setItem(KEY, JSON.stringify(list)); } catch {} }
 const everyName = () => getNames().concat(BUILTIN);   // the user's own spellings win
+// Names heard in conversation are remembered automatically (no registering needed):
+// the AI reports names of people/companies/places it is sure about, e.g. when someone introduces themselves.
+export function learn(found) {
+  if (!Array.isArray(found) || !found.length) return;
+  const list = getNames(), all = everyName(); let changed = false;
+  for (const f of found) {
+    const en = (f.en || "").trim(), said = (f.said || "").trim(), ja = (f.ja || "").trim();
+    if (!en || !/^[A-Za-z][A-Za-z .'-]{1,40}$/.test(en)) continue;
+    const forms = [...new Set([said, ja].filter(x => x && x !== en && x.length <= 20))];
+    const known = all.find(x => (x.en || "").toLowerCase() === en.toLowerCase());
+    if (known) { if (!known.builtin) { const add = forms.filter(x => !(known.forms || []).includes(x)); if (add.length) { known.forms = [...(known.forms || []), ...add]; changed = true; } } continue; }
+    list.unshift({ forms: forms.length ? forms : [en], en, ja: ja || undefined, auto: true }); changed = true;
+  }
+  if (changed) setNames(list.slice(0, 150));
+}
+export const learnAsk = `"names": every name of a person, company or place in the line ONLY if it is clearly a name (not an ordinary word): [{"said":"as written in the line","en":"Latin spelling","ja":"Japanese (katakana, or the kanji used)"}], [] if none`;
+
 
 const esc = x => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const TITLE = "(?=\\s*(?:さん|さま|様|君|くん|ちゃん|氏|先生|社長|部長|課長|専務|会長|殿|-san|san\\b))";

@@ -439,6 +439,7 @@ async function addUtterance(text, lang, who, color, detected, ai) {
   // The free translator goes word by word; the AI then rewrites each line so the MEANING gets across
   if (!ai) {
     const mm = await aiMeaning(text, lang, targets);
+    Names.learn(mm?.names);
     if (mm) {
       await Promise.all(m.out.map(async t => {
         try {
@@ -460,7 +461,7 @@ async function aiMeaning(text, lang, targets) {
   const prompt = `You are a professional interpreter in Tbilisi (business meetings, classes, a restaurant). Translate the last line from ${LANG[lang].name} into: ${want.map(l => `${l} (${LANG[l].name})`).join(", ")}, so each listener understands exactly what the speaker means, in natural polite spoken style. Keep names and numbers exactly. Never add ideas that were not said.\n${Names.namesPrompt([lang, ...want], text)}${lang === "ja" ? "\n" + JA_HINT : ""}
 Conversation so far:\n${recent}
 Last line: ${text}
-Reply ONLY JSON {${want.map(l => `"${l}":""`).join(",")}}`;
+Reply ONLY JSON {${want.map(l => `"${l}":""`).join(",")},${Names.learnAsk}}`;
   const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 6000);
   try {
     const r = await fetch(AI.proxy, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "text/plain;charset=utf-8" },

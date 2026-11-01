@@ -94,6 +94,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <button class="tog" id="linkBtn">📱 2台でつなぐ</button>
   <button class="tog" id="logBtn">📜 記録</button>
   <button class="tog" id="nmBtn">📛 名前</button>
+  <button class="tog" id="aiAllBtn"></button>
   <button class="tog" id="qpBtn">⚡ 定型文</button>
   <button class="tog" id="camBtn">📷 写して訳す</button>
   <a class="tog" href="record.html" style="text-decoration:none">🎙 録音まとめ</a>
@@ -124,7 +125,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 <section class="cam" id="nm" hidden>
   <div class="camtop"><b>📛 名前の登録</b><button id="nmClose">✕</button></div>
   <div class="camsum">人・会社・お店・地名を登録すると、どの言葉でも同じ書き方になり、意味で訳されなくなります（「三上」が「three up」にならない）。<br>
-  よくある名前（ジョージアの名前・英語の名前・日本の名字）は最初から入っています。<br>
+  よくある名前（ジョージアの名前・英語の名前・日本の名字）は最初から入っています。会話に出てきた名前（「ジョンです」など）は<b>自動で覚えます</b>。ここは、間違えた時に直す場所です。<br>
 書き方が何通りかあるときは「/」で区切り、英語のつづりは「=」の後に書きます。例：<b>三上/みかみ = Mikami</b>　<b>ジャパンフードハブ = Japan Food Hub</b><br>
 普通の言葉と同じ名前（ノドさん＝喉）は <b>ノド/のど/喉 = Nodo</b> と登録します。カタカナで出た時は必ず名前、「のど」「喉」は後ろに「さん」「様」などが付いた時だけ名前になります（「のどが痛い」はそのまま）。</div>
   <div class="typerow"><input id="nmIn" enterkeyhint="done" placeholder="三上/みかみ = Mikami" autocomplete="off"><button id="nmAdd">登録</button></div>
@@ -454,13 +455,14 @@ ${Names.namesPrompt([from, to], text)} Shop words (only if said): ${words}.
 Conversation so far:\n${recent.slice(-6).join("\n") || "(none)"}
 ${draft ? "Machine draft: " + draft : ""}
 Last line: ${from === "ja" ? jaQuestion(text) : text}
-Reply ONLY JSON: {"text":"translation","rom":"Latin-letter reading of the translation (empty for English)"}`;
+Reply ONLY JSON: {"text":"translation","rom":"Latin-letter reading of the translation (empty for English)",${Names.learnAsk}}`;
   const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), from === "ja" ? 5000 : 3500);
   try {
     const r = await fetch(AIcfg.proxy, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
     const j = await r.json(), raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
     const o = JSON.parse(raw.replace(/^```json|```$/g, "").trim());
+    Names.learn(o.names);
     if (o.text) o.text = Names.postNames(o.text, to);
     return o.text ? o : null;
   } catch { return null; } finally { clearTimeout(t); }
@@ -500,6 +502,12 @@ function nmPaint() {
     $("nmList").append(d);
   });
 }
+// 🎧 AIで聞く: the AI listens to the sound itself (better for names and unclear words, about 1 s slower)
+let aiAll = (() => { try { return localStorage.getItem("t4-aiall") === "1"; } catch { return false; } })();
+const paintAiAll = () => { $("aiAllBtn").textContent = aiAll ? "🎧 AIで聞く ON" : "🎧 AIで聞く OFF"; $("aiAllBtn").style.borderColor = aiAll ? "var(--gold)" : ""; };
+paintAiAll();
+$("aiAllBtn").onclick = () => { aiAll = !aiAll; try { localStorage.setItem("t4-aiall", aiAll ? "1" : "0"); } catch {} paintAiAll();
+  st(aiAll ? "🎧 AIが声を直接聞きます（名前・聞き取りにくい言葉に強い。1秒ほど遅くなります）" : "📱 スマホの音声入力に戻しました（速い）"); };
 $("nmBtn").onclick = () => { $("nm").hidden = false; nmPaint(); $("nmIn").focus(); };
 $("nmClose").onclick = () => { $("nm").hidden = true; };
 const nmAdd = async () => {
@@ -710,7 +718,7 @@ let stopWanted = false, silenceTimer = null, maxTimer = null, forceFinish = null
    can't (iPhone has no Georgian, home-screen apps on iPhone often block it, some browsers have none). */
 const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const aiOnly = (() => { try { return JSON.parse(localStorage.getItem("t4-aiears") || "{}"); } catch { return {}; } })();
-const needAI = lang => !SR || (Date.now() - aiOnly[lang] < 6 * 3600e3) || (IOS && (lang === "ka" || navigator.standalone));
+const needAI = lang => aiAll || !SR || (Date.now() - aiOnly[lang] < 6 * 3600e3) || (IOS && (lang === "ka" || navigator.standalone));
 let aiRec = null;
 async function aiListen(side) {
   if (aiRec) { aiRec.stop(); return; }
@@ -736,11 +744,11 @@ async function aiListen(side) {
 ${Names.namesPrompt([lang, toL])}
 Then translate it into ${AI_NAMES[toL]} so the listener understands exactly what the speaker means (natural, polite, spoken; keep names and numbers exactly; a question stays a question).${lang === "ja" ? " Japanese leaves out who and what and speaks indirectly: translate the meaning, not the words." : ""}
 Conversation so far:\n${recent.slice(-6).join("\n") || "(none)"}
-Reply ONLY JSON {"text":"","tr":""}; empty text if there is no speech.` }] }],
+Reply ONLY JSON {"text":"","tr":"",${Names.learnAsk}}; empty text if there is no speech.` }] }],
           generationConfig: { responseMimeType: "application/json", temperature: 0, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
       const j = await r.json(), raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
       const o = JSON.parse(raw.replace(/^```json|```$/g, "").trim()), text = (o.text || "").trim();
-      st(""); if (text) handle(text, side, o.tr ? { tr: Names.postNames(o.tr, toL), to: toL } : null); else { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; st("聞こえませんでした。もう一度どうぞ"); }
+      Names.learn(o.names); st(""); if (text) handle(text, side, o.tr ? { tr: Names.postNames(o.tr, toL), to: toL } : null); else { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; st("聞こえませんでした。もう一度どうぞ"); }
     } catch { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; st("聞き取れませんでした。電波を確認して、もう一度どうぞ"); }
   };
   aiRec = { stop };
