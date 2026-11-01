@@ -549,6 +549,8 @@ function qpSay(p) {
   if (autoSpeak) speak(p[to], to, voice[speakerSide]);
 }
 $("qpBtn").onclick = qpOpen;
+// load the phrase list once now, so ⚡ still works later without a connection
+setTimeout(() => { import("./lessons.js?v=" + Math.floor(Date.now() / 600000)).then(m => { qpLessons = m.LESSONS; }).catch(() => {}); }, 3000);
 $("qpClose").onclick = () => { $("qp").hidden = true; };
 $("qpSide").onclick = () => { qpFrom = qpFrom === "me" ? "them" : "me"; qpPaint(); };
 
@@ -625,7 +627,7 @@ async function show(o) {
     translateRaw(out.text, to, o.lang).then(b => { if (my === job && b.text && b.text.trim() !== o.text.trim()) S.small.textContent = "↩ " + restore(b.text, o.lang); }).catch(() => {});
     logIt(o.lang, o.text, to, out.text);
     if (autoSpeak && !(link && speakerSide === "me")) speak(out.text, to, voice[speakerSide]);
-  } catch { if (my === job) { L.big.textContent = "⚠"; st("翻訳できませんでした。電波を確認してください"); } }
+  } catch { if (my === job) { L.big.textContent = "⚠"; st("翻訳できませんでした。電波を確認してください（⚡定型文は電波がなくても使えます）"); } }
 }
 async function handle(text, speakerSide) {
   text = text.trim(); if (!text) return;
