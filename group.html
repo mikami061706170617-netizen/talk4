@@ -198,7 +198,8 @@ const sessions = {}, configs = {};
 function nativeVoices(lang) {
   const vs = speechSynthesis?.getVoices?.() || [];
   const l = v => (v.lang || "").toLowerCase().replace("_", "-");
-  const list = vs.filter(v => l(v).startsWith(lang));
+  const q = v => /premium|enhanced|natural|neural|siri|google|online|wavenet|multilingual/i.test(v.name) ? 2 : /compact|eloquence|espeak/i.test(v.name) ? 0 : 1;
+  const list = vs.filter(v => l(v).startsWith(lang)).sort((a, b) => q(b) - q(a));
   return lang === "zh" ? list.sort((a, b) => (l(b) === "zh-cn") - (l(a) === "zh-cn")) : list;
 }
 function nativeVoice(lang) { return nativeVoices(lang)[0]; }
@@ -278,11 +279,12 @@ function wavBlob(pcm, rate) {
 
 // Long text is cut at sentence/comma breaks; the first piece plays while the next is being made
 function splitForVoice(text) {
-  const parts = text.match(/[^.!?。！？,，、;:]+[.!?。！？,，、;:]*\s*/g) || [text];
-  const out = []; let cur = "";
-  for (const p of parts) { if ((cur + p).length < 40 || !cur) cur += p; else { out.push(cur); cur = p; } }
-  if (cur.trim()) out.push(cur);
-  return out.map(x => x.trim()).filter(Boolean);
+  const parts = (text.match(/[^.!?。！？]+[.!?。！？]*\s*/g) || [text]).map(x => x.trim()).filter(Boolean);
+  if (parts.length < 2) return parts;
+  const out = [parts[0]]; let cur = "";
+  for (const p of parts.slice(1)) { if ((cur + " " + p).length > 220 && cur) { out.push(cur); cur = p; } else cur = cur ? cur + " " + p : p; }
+  if (cur) out.push(cur);
+  return out;
 }
 let voiceRun = 0;
 async function speakPiper(text, id, speed = 1) {

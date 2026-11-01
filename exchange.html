@@ -211,7 +211,8 @@ const sessions = {}, configs = {};
 function nativeVoices(lang) {
   const vs = speechSynthesis?.getVoices?.() || [];
   const l = v => (v.lang || "").toLowerCase().replace("_", "-");
-  const list = vs.filter(v => l(v).startsWith(lang));
+  const q = v => /premium|enhanced|natural|neural|siri|google|online|wavenet|multilingual/i.test(v.name) ? 2 : /compact|eloquence|espeak/i.test(v.name) ? 0 : 1;
+  const list = vs.filter(v => l(v).startsWith(lang)).sort((a, b) => q(b) - q(a));
   return lang === "zh" ? list.sort((a, b) => (l(b) === "zh-cn") - (l(a) === "zh-cn")) : list;
 }
 function nativeVoice(lang) { return nativeVoices(lang)[0]; }
