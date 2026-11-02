@@ -151,8 +151,8 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 <script type="module">
 const Names = await import("./names.js?v=" + Math.floor(Date.now() / 600000));   // registered names: never translated by meaning
 const LANG = {
-  ja:{name:"日本語", g:"ja", sr:"ja-JP", tts:null,                    talk:"🎤 押して話す",     wait:"相手の言葉の訳がここに出ます", hold:"話し終わったら押す（2秒黙ると自動で訳す）"},
-  en:{name:"English",g:"en", sr:"en-US", tts:"en_US-hfc_female-medium",talk:"🎤 Tap to speak",   wait:"Translation will appear here",   hold:"Tap when done (auto after 2 s quiet)"},
+  ja:{name:"日本語", g:"ja", sr:"ja-JP", tts:null,                    talk:"🎤 押して話す",     wait:"相手の言葉の訳がここに出ます", hold:"話し終わったら押す（8秒黙ると自動で訳す）"},
+  en:{name:"English",g:"en", sr:"en-US", tts:"en_US-hfc_female-medium",talk:"🎤 Tap to speak",   wait:"Translation will appear here",   hold:"Tap when done (auto after 8 s quiet)"},
   ka:{name:"ქართული",g:"ka", sr:"ka-GE", tts:"ka_GE-natia-medium",    talk:"🎤 დააჭირე და ილაპარაკე", wait:"თარგმანი აქ გამოჩნდება", hold:"დასრულებისას დააჭირე"},
   ru:{name:"Русский",g:"ru", sr:"ru-RU", tts:"ru_RU-irina-medium",    talk:"🎤 Нажмите и говорите", wait:"Перевод появится здесь", hold:"Нажмите, когда закончите"},
   ko:{name:"한국어", g:"ko", sr:"ko-KR", tts:null,                    talk:"🎤 눌러서 말하기", wait:"번역이 여기에 나옵니다", hold:"다 말하면 누르세요"},
@@ -453,6 +453,19 @@ function sideEls(side) { return side === "me"
 let AIcfg = null; import("./config.js").then(m => AIcfg = m.AI).catch(() => {});
 const recent = [];   // last few lines, so the AI understands the context
 const AI_NAMES = { ja: "Japanese", en: "English", ka: "Georgian", ru: "Russian", ko: "Korean", zh: "Simplified Chinese" };
+// The careful AI translation, kept by sentence: it is started while the person is still talking (at each
+// short pause), so when they finish the translation is usually already there and is read out at once.
+const aiCache = new Map();
+function aiFor(text, from, to, voice) {
+  const key = from + ">" + to + ":" + text.trim();
+  if (!aiCache.has(key)) {
+    aiCache.set(key, to === "ka" && from !== "en"
+      ? aiTranslate(text, from, "en", "", voice).then(en => en?.text ? translate(en.text, "en", "ka").then(k => ({ text: k.text, rom: k.rom, heard: en.heard })) : null).catch(() => null)
+      : aiTranslate(text, from, to, "", voice));
+    if (aiCache.size > 40) aiCache.delete(aiCache.keys().next().value);
+  }
+  return aiCache.get(key);
+}
 async function aiTranslate(text, from, to, draft, voice) {
   if (!AIcfg?.proxy || to === "ka") return null;   // Google is still more accurate for Georgian grammar than the free AI
   const words = GLOSS.map(g => `${g[from] || g.ja} = ${g[to] || g.en}`).join("; ");
@@ -696,9 +709,7 @@ async function show(o) {
   try {
     // The AI (meaning) starts at the same time as the quick word-for-word draft
     const pre = o.pre && (o.pre.to === to || (to === "ka" && o.pre.to === "en")) ? o.pre : null; o.pre = null;
-    const aiP = pre ? Promise.resolve(null)
-      : to === "ka" && o.lang !== "en" ? aiTranslate(o.text, o.lang, "en", "", o.voice).then(en => en?.text && my === job ? translate(en.text, "en", "ka").then(k => ({ text: k.text, rom: k.rom, heard: en.heard })) : null).catch(() => null)
-      : aiTranslate(o.text, o.lang, to, "", o.voice);
+    const aiP = pre ? Promise.resolve(null) : aiFor(o.text, o.lang, to, o.voice);
     const out = pre ? (pre.to === to ? { text: pre.tr, rom: romFor(pre.tr, to) } : await translate(pre.tr, "en", "ka")) : await translate(o.text, o.lang, to);
     if (my !== job) return; // a newer sentence or language change took over
     L.big.textContent = out.text; L.rom.textContent = out.rom; last[listenerSide] = { text: out.text, lang: to, g: voice[speakerSide] };
@@ -734,7 +745,7 @@ function langChanged() { save(); last.me = last.them = null; paint(); warmVoice(
 
 // Long recording: keeps listening until you tap again, or after a few seconds of silence.
 // Browsers stop on their own after a short pause, so it quietly restarts and keeps the text.
-const SILENCE_MS = 2000, MAX_MS = 300000;  // keep listening until 10 s of silence (a pause to think never cuts you off); tap ■ when done
+const SILENCE_MS = 8000, MAX_MS = 300000;  // keep listening until 10 s of silence (a pause to think never cuts you off); tap ■ when done
 let lastRecEnd = 0, stopWanted = false, silenceTimer = null, maxTimer = null, forceFinish = null, restarts = 0;
 /* AI listening: records the voice and lets the AI write it down. Used when the phone's own voice input
    can't (iPhone has no Georgian, home-screen apps on iPhone often block it, some browsers have none). */
@@ -820,7 +831,7 @@ function startRec(side) {
   const wasTalking = (() => { try { return speechSynthesis.speaking || (playing && !playing.paused); } catch { return false; } })();
   try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} voiceRun++;
   const lang = side === "me" ? me : them, E = sideEls(side);
-  let done = "", interim = "", finished = false, alts = [], lastSeg = "";
+  let done = "", interim = "", finished = false, alts = [], lastSeg = "", ahead = null;
   stopWanted = false; active = side; restarts = 0;
   E.mic.classList.add("on"); E.mic.textContent = "■ " + LANG[lang].hold; E.big.className = "big"; E.big.textContent = "…"; E.small.textContent = ""; E.rom.textContent = "";
   // Before the first word: wait up to 8 s (people need a moment to start). After that: stop 1.8 s after the last word.
@@ -854,7 +865,12 @@ function startRec(side) {
       for (let i = e.resultIndex; i < e.results.length; i++) { const x = e.results[i]; if (x.isFinal) { fin += x[0].transcript; lastSeg = x[0].transcript.trim(); alts = x.length > 1 ? [...x].slice(1).map(a => a.transcript.trim()).filter(Boolean) : []; } else tmp += x[0].transcript; }
       if (fin) done = (done + " " + fin).trim();
       if (fin || tmp.trim()) spoke = true;
-      interim = tmp; E.big.textContent = (done + " " + interim).trim() || "…"; bump(); preview(side, (done + " " + interim).trim()); };
+      interim = tmp; E.big.textContent = (done + " " + interim).trim() || "…"; bump(); preview(side, (done + " " + interim).trim());
+      clearTimeout(ahead); ahead = setTimeout(() => {
+        const t = (done + " " + interim).trim(); if (!t || active !== side || finished) return;
+        const to = side === "me" ? them : me, L = sideEls(side === "me" ? "them" : "me");
+        aiFor(t, lang, to, { alts: [] }).then(r => { if (r?.text && active === side && (done + " " + interim).trim() === t) { L.big.className = "big"; L.big.textContent = r.text; } });
+      }, 900); };
     r.onerror = e => {
       if (e.error === "no-speech" || e.error === "aborted") return;
       stopWanted = true;
