@@ -472,20 +472,15 @@ function aiFor(text, from, to, voice) {
 }
 async function aiTranslate(text, from, to, draft, voice, plain) {
   if (!AIcfg?.proxy) return null;
-  const words = GLOSS.map(g => `${g[from] || g.ja} = ${g[to] || g.en}`).join("; ");
-  const jaHint = from === "ja" ? `
-Japanese often leaves out who and what, and says things indirectly. Translate the MEANING, not the words: fill in the missing subject or object from the conversation, and turn set phrases into what they really mean in context (e.g. 検討します = we will think about it / probably no; 大丈夫です = no thank you, or that's fine; 結構です = no thank you, or that's fine; よろしくお願いします = thank you, I look forward to working with you; お世話になっております = hello, thank you for your help; ちょっと… = that is difficult). Short, clear sentences the listener cannot misunderstand. Japanese questions often have no question mark after voice input and may drop か: if the line asks something (question word, ending like か/の/かな/ですか/ます, or it only makes sense as a question in context), translate it as a clear question ending with "?".` : "";
-  const prompt = `You are a professional interpreter in Tbilisi (business meetings, classes, a Japanese restaurant). Translate the last line from ${AI_NAMES[from]} to ${AI_NAMES[to]} so the listener understands exactly what the speaker means, in natural, polite spoken style. Fix obvious speech-recognition mistakes using context. Keep names and numbers exactly. ${plain ? "Write plain, simple English with no idioms or slang (it will be machine-translated into Georgian, so every word must be literal and clear; e.g. \"How many people?\" not \"How many in your party?\"). " : ""}${to === "ka" ? "Write natural, grammatically correct Georgian as a native speaker would say it, with the polite forms used with customers (e.g. რამდენნი ბრძანდებით?). " : ""}Never add greetings or ideas that were not said. Use the conversation only to understand words like it/that/he; NEVER add any detail (a day, time, place, number, name or reason) that is not in the last line itself. Keep who is who exactly: I/we/us/our = the speaker's side, you = the listener.${jaHint}
-${Names.namesPrompt([from, to], text)} Shop words (only if said): ${words}.
-Conversation so far:\n${recent.slice(-6).join("\n") || "(none)"}
-${draft ? "Machine draft: " + draft : ""}
-${voice ? `The last line comes from the phone's voice input and may contain misheard words (a word that sounds similar but makes no sense here). Using the conversation and common sense, work out what the speaker really said, and translate THAT.${voice.alts?.length ? " The phone also heard it as: " + voice.alts.map(a => `"${a}"`).join(", ") + "." : ""}` : ""}
-Last line: ${from === "ja" ? jaQuestion(text) : text}
-Reply ONLY JSON: {"text":"translation","rom":"Latin-letter reading of the translation (empty for English)",${voice ? `"heard":"the last line as the speaker really said it, in ${AI_NAMES[from]} (same as given if nothing was misheard)",` : ""}${Names.learnAsk}}`;
+  // Only the ingredients are sent; how to translate them is decided by the AI relay (not visible in this page)
+  const job = { task: "translate", text: from === "ja" ? jaQuestion(text) : text, from, to, draft, plain: !!plain,
+    voice: voice ? { alts: voice.alts || [] } : null, recent: recent.slice(-6),
+    names: Names.namesPrompt([from, to], text),
+    shop: GLOSS.map(g => `${g[from] || g.ja} = ${g[to] || g.en}`).join("; ") };
   const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 9000);
   try {
     const r = await fetch(AIcfg.proxy, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ quality: from === "ka" || to === "ka" ? "high" : "", request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "low" } } } }) });
+      body: JSON.stringify({ quality: from === "ka" || to === "ka" ? "high" : "", ...job }) });
     const j = await r.json(), raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
     const o = JSON.parse(raw.replace(/^```json|```$/g, "").trim());
     Names.learn(o.names);
@@ -822,13 +817,8 @@ async function aiListen(side) {
     E.big.textContent = "⏳ …"; st("AIが聞き取っています…");
     try {
       const r = await fetch(AIcfg.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ quality: lang === "ka" || toL === "ka" ? "high" : "", request: { contents: [{ parts: [{ inline_data: { mime_type: "audio/wav", data: toWav(chunks, ctx.sampleRate) } },
-          { text: `Write down exactly what is said in this recording. The speaker is speaking ${AI_NAMES[lang]}. Use ${AI_NAMES[lang]} script.${lang === "ja" ? " If it is a question, end it with ？." : ""}
-${Names.namesPrompt([lang, toL])}
-Then translate it into ${AI_NAMES[toL]} so the listener understands exactly what the speaker means (natural, polite, spoken; keep names and numbers exactly; a question stays a question). Use the conversation only to understand words like it/that/he; NEVER add any detail (a day, time, place, number, name or reason) that is not in the last line itself. Keep who is who exactly: I/we/us/our = the speaker's side, you = the listener.${lang === "ja" ? " Japanese leaves out who and what and speaks indirectly: translate the meaning, not the words." : ""}
-Conversation so far:\n${recent.slice(-6).join("\n") || "(none)"}
-Reply ONLY JSON {"text":"","tr":"",${Names.learnAsk}}; empty text if there is no speech.` }] }],
-          generationConfig: { responseMimeType: "application/json", temperature: 0, thinkingConfig: { thinkingLevel: "low" } } } }) });
+        body: JSON.stringify({ quality: lang === "ka" || toL === "ka" ? "high" : "", task: "listen", audio: toWav(chunks, ctx.sampleRate),
+          from: lang, to: toL, recent: recent.slice(-6), names: Names.namesPrompt([lang, toL]) }) });
       const j = await r.json(), raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
       const o = JSON.parse(raw.replace(/^```json|```$/g, "").trim()), text = (o.text || "").trim();
       Names.learn(o.names); st(""); if (text) handle(text, side, o.tr ? { tr: Names.postNames(o.tr, toL), to: toL } : null); else { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; st("聞こえませんでした。もう一度どうぞ"); }
