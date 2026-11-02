@@ -51,7 +51,7 @@ export async function aiOnce(lang, long = false, onLevel) {
       onLevel?.("wait");
       try {
         const r = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify({ quality: "high", request: { contents: [{ parts: [{ inline_data: { mime_type: "audio/wav", data: toWav(chunks, ctx.sampleRate) } },
+          body: JSON.stringify({ quality: "", request: { contents: [{ parts: [{ inline_data: { mime_type: "audio/wav", data: toWav(chunks, ctx.sampleRate) } },
             { text: `Write down exactly what is said in this recording, word for word, even if it is said wrongly or with an accent — do not correct it. The speaker is speaking ${NAMES[lang]}; use ${NAMES[lang]} script. Reply ONLY JSON {"text":""}; empty text if there is no speech.` }] }],
             generationConfig: { responseMimeType: "application/json", temperature: 0, thinkingConfig: { thinkingLevel: "low" } } } }) });
         const j = await r.json(), raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";

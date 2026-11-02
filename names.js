@@ -113,7 +113,7 @@ export async function spellNames(proxy, words) {
 ${words.join("\n")}
 Reply ONLY JSON {"names":[{"ja":"","en":"","ka":"","ru":"","ko":"","zh":""}]} in the same order.`;
   const r = await fetch(proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ quality: "high", request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0, thinkingConfig: { thinkingLevel: "low" } } } }) });
+    body: JSON.stringify({ quality: "", request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0, thinkingConfig: { thinkingLevel: "low" } } } }) });
   const j = await r.json(), raw = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("").replace(/^```json|```$/g, "").trim();
   return JSON.parse(raw).names || [];
 }

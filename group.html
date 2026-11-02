@@ -467,7 +467,7 @@ Reply ONLY JSON {${want.map(l => `"${l}":""`).join(",")},${Names.learnAsk}}`;
   const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 9000);
   try {
     const r = await fetch(AI.proxy, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ quality: "high", request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "low" } } } }) });
+      body: JSON.stringify({ quality: "", request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "low" } } } }) });
     const j = await r.json(), raw = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("").replace(/^```json|```$/g, "").trim();
     try { return JSON.parse(raw); } catch { return JSON.parse(raw.replace(/\\(?!["\\/bfnrtu])/g, "")); }
   } catch { return null; } finally { clearTimeout(tm); }
@@ -588,7 +588,7 @@ function toWav(chunks, rate) {
   let bin = ""; const u8 = new Uint8Array(buf.buffer); for (let k = 0; k < u8.length; k += 0x8000) bin += String.fromCharCode(...u8.subarray(k, k + 0x8000));
   return btoa(bin);
 }
-async function callAI(request, quality = "high") {
+async function callAI(request, quality = "") {
   const r = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ request, quality }) });
   const j = await r.json();
   if (j.error) throw new Error(j.error.message || "AI error");
