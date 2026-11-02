@@ -402,7 +402,7 @@ $("mic").onclick = async () => {
   if (res.alts[0]) { $("q").value = res.alts[0]; run(true); } else st(res.err === "nosr" ? "この端末は音声入力に未対応です。文字で入れてください" : "聞こえませんでした。もう一度どうぞ");
 };
 function list() {
-  $("count").textContent = words.length ? `${words.length}` : ""; const box = $("list"); box.innerHTML = "";
+  $("count").textContent = (words.length ? `${words.length}  ` : "") + streakText(); const box = $("list"); box.innerHTML = "";
   if (!words.length) { box.append(h("p", { class: "lead" }, "まだありません。訳の下の ⭐ を押すとここに入ります。")); return; }
   words.forEach((w, i) => {
     const play = h("button", { "aria-label": "play" }, "🔊"); play.onclick = () => { unlockAudio(); say(w.t, w.lang); };
@@ -410,6 +410,19 @@ function list() {
     const b = h("div", { class: "b" }, w.a + "  ·  " + LANG[w.lang].name + "  "); if (w.rom) b.append(h("i", {}, w.rom));
     box.append(h("div", { class: "word" }, h("div", { class: "m" }, h("div", { class: "a" }, w.t), b), play, del));
   });
+}
+// Daily streak: practise at least once a day (test ⭕/❌) to keep the 🔥 going
+const dayStr = d => { const x = new Date(d); return x.getFullYear() + "-" + (x.getMonth() + 1) + "-" + x.getDate(); };
+function practised() {
+  const s = load("t4w-streak", { day: "", n: 0, today: 0 }), today = dayStr(Date.now()), yest = dayStr(Date.now() - 864e5);
+  if (s.day !== today) { s.n = s.day === yest ? s.n + 1 : 1; s.today = 0; s.day = today; }
+  s.today++; keep("t4w-streak", s); return s;
+}
+function streakText() {
+  const s = load("t4w-streak", { day: "", n: 0, today: 0 }), today = dayStr(Date.now()), yest = dayStr(Date.now() - 864e5);
+  if (s.day === today) return `🔥 ${s.n}日連続 · 今日${s.today}問`;
+  if (s.day === yest && s.n) return `🔥 ${s.n}日連続 — 今日も1問で続きます`;
+  return "";
 }
 // Flashcards: your words first, the answer after a tap; ones you miss come back sooner
 let qi = 0;
@@ -420,8 +433,9 @@ function card() {
   const show = h("button", { class: "btn main" }, "👀 答えを見る");
   const good = h("button", { class: "btn", hidden: "" }, "⭕ 言えた"), bad = h("button", { class: "btn", hidden: "" }, "❌ もう一度");
   show.onclick = () => { unlockAudio(); ans.hidden = false; show.hidden = true; good.hidden = bad.hidden = false; say(w.t, w.lang); };
-  good.onclick = () => { w.n++; keep("t4w-words", words); qi++; card(); };
-  bad.onclick = () => { w.n = Math.max(0, w.n - 1); keep("t4w-words", words); words.splice(qi % words.length, 1); words.splice(Math.min(words.length, (qi % (words.length + 1)) + 2), 0, w); qi++; card(); };
+  good.onclick = () => { practised(); w.n++; keep("t4w-words", words); qi++; card(); };
+  bad.onclick = () => { practised(); w.n = Math.max(0, w.n - 1); keep("t4w-words", words); words.splice(qi % words.length, 1); words.splice(Math.min(words.length, (qi % (words.length + 1)) + 2), 0, w); qi++; card(); };
+  $("count").textContent = (words.length ? words.length + "  " : "") + streakText();
   Q.append(h("div", { class: "lead" }, `${(qi % words.length) + 1} / ${words.length} · ${LANG[w.lang].name}で言うと？`), h("div", { class: "q" }, w.a), ans, h("div", { class: "row", style: "justify-content:center" }, show, good, bad));
 }
 
@@ -444,9 +458,12 @@ function packs() {
   const langs = targets.length ? targets : ["en"];
   const all = h("button", { class: "btn main" }, `⭐ ${P.words.length}語を単語帳に入れる`);
   all.onclick = () => {
-    let n = 0;
-    for (const wd of P.words) for (const L of langs) if (!words.some(x => x.t === wd[L] && x.lang === L)) { words.unshift({ a: wd[mine] || wd.en, mine, lang: L, t: wd[L], rom: readOf(wd, L) || "", n: 0, at: Date.now() }); n++; }
+    let n = 0, full = false;
+    for (const wd of P.words) for (const L of langs) if (!words.some(x => x.t === wd[L] && x.lang === L)) {
+      if (!paid() && words.length >= FREE_WORDS) { full = true; break; }   // free plan: same 30-word cap as ⭐
+      words.unshift({ a: wd[mine] || wd.en, mine, lang: L, t: wd[L], rom: readOf(wd, L) || "", n: 0, at: Date.now() }); n++; }
     keep("t4w-words", words); list(); all.textContent = `⭐ ${n}語を入れました`;
+    if (full) out.prepend(paywallCard(true));
   };
   out.append(h("div", { class: "row" }, all));
   for (const wd of P.words) {
