@@ -73,6 +73,8 @@ function doPost(e) {
     // its own raw requests never reaches the paid key without a plan code
     else if (body.trial && body.task && underLimit_("trial_", TRIAL_DAILY_LIMIT)) tier = "trial";
     const key = tier === "free" ? freeKey : paidKey;
+    // Reading aloud (used when the phone's own voice stays silent): Google's speech model returns the sound
+    if (body.task === "speak") return json_(speak_(body, key, tier));
     const request = body.task ? buildTask_(body) : (body.request || {});
     if (!request) return json_({ error: { message: "unknown task" } });
     // Free: the light models are the only ones fast enough on the free plan; they think "minimal"
@@ -95,6 +97,30 @@ function doPost(e) {
   }
 }
 
+function speak_(b, key, tier) {
+  const cache = CacheService.getScriptCache();
+  let models = JSON.parse(cache.get("ttsmodels") || "null");
+  if (!models) {
+    models = ["gemini-2.5-flash-preview-tts"];
+    try {
+      const r = UrlFetchApp.fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": key }, muteHttpExceptions: true });
+      const names = (JSON.parse(r.getContentText()).models || []).map(m => m.name.replace("models/", "")).filter(n => /flash.*tts|tts.*flash/.test(n));
+      if (names.length) models = names.sort((a, c) => c.localeCompare(a)).slice(0, 3);
+    } catch (e) {}
+    cache.put("ttsmodels", JSON.stringify(models), 21600);
+  }
+  const rq = { contents: [{ parts: [{ text: "Read this aloud clearly and naturally, in a warm, friendly voice: " + s_(b.text, 600) }] }],
+    generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: b.g === "m" ? "Charon" : "Kore" } } } } };
+  for (const model of models) {
+    const res = UrlFetchApp.fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
+      method: "post", contentType: "application/json", headers: { "x-goog-api-key": key }, payload: JSON.stringify(rq), muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) continue;
+    const part = ((((JSON.parse(res.getContentText()).candidates || [])[0] || {}).content || {}).parts || []).find(p => p.inlineData || p.inline_data);
+    if (part) { const d = part.inlineData || part.inline_data; return { audio: d.data, mime: d.mimeType || d.mime_type, t4: tier }; }
+  }
+  return { error: { message: "no voice" }, t4: tier };
+}
+
 function call_(order, request, key) {
     let res = null;
     for (const model of order) {
@@ -114,7 +140,7 @@ function call_(order, request, key) {
 
 function doGet() {
   const c = CacheService.getScriptCache();
-  return json_({ ok: true, service: "talk4-ai", v: 5, models: JSON.parse(c.get("models") || "null"), last: c.get("last") });
+  return json_({ ok: true, service: "talk4-ai", v: 6, models: JSON.parse(c.get("models") || "null"), last: c.get("last") });
 }
 
 function sha_(t) {

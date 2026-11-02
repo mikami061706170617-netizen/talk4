@@ -473,16 +473,18 @@ async function warmVoice() {
 // iPhone: after the microphone was used, sound goes to the quiet ear speaker (or nowhere). Telling the
 // phone "now we only play" sends it back to the loud speaker.
 const audioMode = m => { try { if (navigator.audioSession) navigator.audioSession.type = m; } catch {} };
-// Google's voice through the <audio> element: used when the phone's own voice stays silent
-async function speakGoogle(text, lang) {
+// The AI's voice (through the relay), played through the <audio> element: used when the phone's own voice
+// stays silent. Loud and clear, about 2 s to arrive.
+async function speakAI(text, g) {
   const my = ++voiceRun;
-  for (const part of splitForVoice(text).flatMap(p => p.length > 190 ? p.match(/.{1,190}(\s|$)|.{1,190}/g) : [p])) {
-    if (my !== voiceRun) return;
-    player.stop(); player.src = "https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=" + LANG[lang].g + "&q=" + encodeURIComponent(part);
-    player.playbackRate = 1; player.volume = 1; playing = player;
-    await player.play().catch(() => {});
-    await new Promise(r => { player.onended = r; player.onerror = r; setTimeout(r, 4000 + part.length * 180); });
-  }
+  try {
+    const r = await fetch(AIcfg.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ task: "speak", text, g }) });
+    const j = await r.json(); if (!j.audio || my !== voiceRun) return;
+    const rate = +((j.mime || "").match(/rate=(\d+)/) || [0, 24000])[1];
+    const bin = atob(j.audio), n = bin.length >> 1, pcm = new Float32Array(n);
+    for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2 * i) | (bin.charCodeAt(2 * i + 1) << 8); if (v > 32767) v -= 65536; pcm[i] = v / 32768; }
+    playPCM(pcm, rate, 1);
+  } catch {}
 }
 async function speak(text, lang, g = "f") {
   if (!text) return;
@@ -494,7 +496,13 @@ async function speak(text, lang, g = "f") {
     let started = false; u.onstart = () => { started = true; };
     speechSynthesis.speak(u);
     // the phone's voice didn't start (common right after the mic on iPhone): read it with Google's voice instead
-    setTimeout(() => { if (!started && !speechSynthesis.speaking) { speechSynthesis.cancel(); speakGoogle(text, lang); } }, 1500);
+    setTimeout(() => {
+      if (started || speechSynthesis.speaking) return;
+      // stuck (common right after the mic on iPhone): try the phone's voice once more, then the AI's voice
+      speechSynthesis.cancel(); const u2 = new SpeechSynthesisUtterance(text); u2.lang = u.lang; u2.voice = u.voice; u2.pitch = u.pitch; u2.volume = 1;
+      u2.onstart = () => { started = true; }; speechSynthesis.speak(u2);
+      setTimeout(() => { if (!started && !speechSynthesis.speaking) { speechSynthesis.cancel(); speakAI(text, g); } }, 1200);
+    }, 1300);
     return;
   }
   try { await speakPiper(text, plan.id, plan.rate); st("✓ OK", true); }
