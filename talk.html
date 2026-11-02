@@ -480,10 +480,11 @@ async function speakAI(text, g) {
   try {
     const r = await fetch(AIcfg.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ task: "speak", text, g }) });
     const j = await r.json(); if (!j.audio || my !== voiceRun) return;
-    const rate = +((j.mime || "").match(/rate=(\d+)/) || [0, 24000])[1];
-    const bin = atob(j.audio), n = bin.length >> 1, pcm = new Float32Array(n);
+    let bin = atob(j.audio), rate = +((j.mime || "").match(/rate=(\d+)/) || [0, 24000])[1];
+    if (bin.startsWith("RIFF")) { rate = bin.charCodeAt(24) | (bin.charCodeAt(25) << 8) | (bin.charCodeAt(26) << 16); bin = bin.slice(44); }   // a ready WAV: take the sound out of it
+    const n = bin.length >> 1, pcm = new Float32Array(n);
     for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2 * i) | (bin.charCodeAt(2 * i + 1) << 8); if (v > 32767) v -= 65536; pcm[i] = v / 32768; }
-    playPCM(pcm, rate, 1);
+    playPCM(pcm, rate, 1);   // made louder the same way as the other voices
   } catch {}
 }
 async function speak(text, lang, g = "f") {
