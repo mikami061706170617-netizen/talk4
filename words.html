@@ -373,7 +373,7 @@ async function aiPhrases(text, langs) {
   const prompt = `A ${NAMES[mine]} speaker living in Tbilisi wants to learn how to say this in real life (shop, restaurant, taxi, daily talk): "${text}". For each language give what a native speaker would actually say — short, natural, polite everyday phrasing with correct grammar, not a word-for-word translation. ${Names.namesPrompt(langs, text)} "rom" = reading in Latin letters (empty for English). Reply ONLY JSON ${shape} with keys: ${langs.map(l => l + "=" + NAMES[l]).join(", ")}.`;
   try {
     const r = await fetch(AIcfg.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
+      body: JSON.stringify({ quality: "high", request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "low" } } } }) });
     const j = await r.json(), raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
     const o = JSON.parse(raw.replace(/^```json|```$/g, "").trim());
     aiMemo[key] = o; const ks = Object.keys(aiMemo); if (ks.length > 300) delete aiMemo[ks[0]]; keep("t4w-ai", aiMemo);

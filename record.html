@@ -168,7 +168,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "
 // ---- AI call through the private relay ----
 // high = the stronger (slower) models; they do not accept "minimal" thinking, so they get "low"
 async function ask(parts, high, think, ms = 120000) {
-  if (high && (!think || think === "minimal")) think = "low";
+  high = true; if (!think || think === "minimal") think = "low";   // paid key: always the stronger models
   if (!AI?.proxy) throw new Error("noai");
   const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), ms);
   const r = await fetch(AI.proxy, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "text/plain;charset=utf-8" },

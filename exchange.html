@@ -480,7 +480,7 @@ const romOf = (t, lang) => lang === "ru" ? translit(t, RU) : lang === "ka" ? kaR
 async function callAI(prompt) {
   if (!AI?.proxy) throw new Error("no AI");
   const r = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
+    body: JSON.stringify({ quality: "high", request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "low" } } } }) });
   const j = await r.json(); if (j.error) throw new Error(j.error.message);
   return JSON.parse((j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "").replace(/^```json|```$/g, "").trim());
 }

@@ -731,7 +731,7 @@ async function runTalk(role) {
 }
 /* ---------- AI conversation partner (Gemini) ---------- */
 async function callAI(request) {
-  const r = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ request }) });
+  const r = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ request, quality: "high" }) });
   const j = await r.json();
   if (j.error) throw new Error(j.error.message || "AI error");
   return j;
@@ -751,7 +751,7 @@ Answer as JSON: {"reply": "...", "meaning": "the reply translated into ${LANG[ex
     systemInstruction: { parts: [{ text: sys }] },
     contents: history.length ? history.map(m => ({ role: m.who === "me" ? "user" : "model", parts: [{ text: m.who === "me" ? m.text : JSON.stringify({ reply: m.text }) }] }))
                              : [{ role: "user", parts: [{ text: "(Start the scene with your first line.)" }] }],
-    generationConfig: { responseMimeType: "application/json", temperature: 0.7, maxOutputTokens: 400, thinkingConfig: { thinkingLevel: "minimal" } },
+    generationConfig: { responseMimeType: "application/json", temperature: 0.7, maxOutputTokens: 400, thinkingConfig: { thinkingLevel: "low" } },
   };
   const j = await callAI(body);
   const txt = j.candidates?.[0]?.content?.parts?.map(p => p.text).join("") || "{}";

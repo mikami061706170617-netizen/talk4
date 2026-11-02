@@ -465,10 +465,10 @@ ${draft ? "Machine draft: " + draft : ""}
 ${voice ? `The last line comes from the phone's voice input and may contain misheard words (a word that sounds similar but makes no sense here). Using the conversation and common sense, work out what the speaker really said, and translate THAT.${voice.alts?.length ? " The phone also heard it as: " + voice.alts.map(a => `"${a}"`).join(", ") + "." : ""}` : ""}
 Last line: ${from === "ja" ? jaQuestion(text) : text}
 Reply ONLY JSON: {"text":"translation","rom":"Latin-letter reading of the translation (empty for English)",${voice ? `"heard":"the last line as the speaker really said it, in ${AI_NAMES[from]} (same as given if nothing was misheard)",` : ""}${Names.learnAsk}}`;
-  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), from === "ja" ? 5000 : 3500);
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 9000);
   try {
     const r = await fetch(AIcfg.proxy, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
+      body: JSON.stringify({ quality: "high", request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "low" } } } }) });
     const j = await r.json(), raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
     const o = JSON.parse(raw.replace(/^```json|```$/g, "").trim());
     Names.learn(o.names);
@@ -658,8 +658,8 @@ async function camRead() {
 Write "summary" and every "tr" in ${AI_NAMES[to]} only. Reply ONLY JSON: {"summary":"one short sentence saying what this is","items":[{"orig":"original text","orom":"reading of the original in Latin letters (empty if already Latin)","tr":"translation"}]}`;
   try {
     const r = await fetch(AIcfg.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ request: { contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data: camData } }, { text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
+      body: JSON.stringify({ quality: "high", request: { contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data: camData } }, { text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "low" } } } }) });
     const j = await r.json(); if (camRead.cur !== my) return;
     if (j.error) throw new Error(j.error.message);
     const raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
@@ -774,13 +774,13 @@ async function aiListen(side) {
     E.big.textContent = "⏳ …"; st("AIが聞き取っています…");
     try {
       const r = await fetch(AIcfg.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ request: { contents: [{ parts: [{ inline_data: { mime_type: "audio/wav", data: toWav(chunks, ctx.sampleRate) } },
+        body: JSON.stringify({ quality: "high", request: { contents: [{ parts: [{ inline_data: { mime_type: "audio/wav", data: toWav(chunks, ctx.sampleRate) } },
           { text: `Write down exactly what is said in this recording. The speaker is speaking ${AI_NAMES[lang]}. Use ${AI_NAMES[lang]} script.${lang === "ja" ? " If it is a question, end it with ？." : ""}
 ${Names.namesPrompt([lang, toL])}
 Then translate it into ${AI_NAMES[toL]} so the listener understands exactly what the speaker means (natural, polite, spoken; keep names and numbers exactly; a question stays a question).${lang === "ja" ? " Japanese leaves out who and what and speaks indirectly: translate the meaning, not the words." : ""}
 Conversation so far:\n${recent.slice(-6).join("\n") || "(none)"}
 Reply ONLY JSON {"text":"","tr":"",${Names.learnAsk}}; empty text if there is no speech.` }] }],
-          generationConfig: { responseMimeType: "application/json", temperature: 0, thinkingConfig: { thinkingLevel: "minimal" } } } }) });
+          generationConfig: { responseMimeType: "application/json", temperature: 0, thinkingConfig: { thinkingLevel: "low" } } } }) });
       const j = await r.json(), raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
       const o = JSON.parse(raw.replace(/^```json|```$/g, "").trim()), text = (o.text || "").trim();
       Names.learn(o.names); st(""); if (text) handle(text, side, o.tr ? { tr: Names.postNames(o.tr, toL), to: toL } : null); else { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; st("聞こえませんでした。もう一度どうぞ"); }
