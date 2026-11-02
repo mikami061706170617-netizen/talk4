@@ -242,11 +242,10 @@ paint();
 
 <script type="module">
 // Talk4 app plans (Free / Pro / Business), unlock code, and consultations for life in Georgia
-const JA = (navigator.languages || [navigator.language]).some(c => /^ja/i.test(c || ""));
 const WA = "819087080598", wa = m => `https://wa.me/${WA}?text=${encodeURIComponent(m)}`;
 const $ = id => document.getElementById(id);
 const row = (a, b, c, href, cta) => `<div class="row"><span>${a}</span><b>${b}</b><span class="note">${c}${href ? ` <a href="${href}" target="_blank" rel="noopener" style="color:#d8ae55;font-weight:700;white-space:nowrap">${cta}</a>` : ""}</span></div>`;
-const P = JA ? {
+const PJ = {
   h: "Talk4 アプリのプラン",
   rows: [["無料", "₾0", "通訳・覚える・3〜4人・録音まとめ、全部使えます（標準のAI）。最初の約10分は高精度AIをお試しできます。"],
          ["Pro（個人）", "₾15／月", "高精度AIが使い放題：聞き取り・名前・言い回しがいちばん正確。商談・仕事で毎日使う人に。年払いは₾120（4か月分お得）。", "Talk4 Proに申し込みたいです（月₾15 / 年₾120）", "申し込む"],
@@ -257,7 +256,8 @@ const P = JA ? {
   con: [["移住・会社設立・銀行口座", "日本人スタッフが手続きをお手伝いします。初回の相談は無料。", "ジョージアへの移住・会社設立・口座開設について相談したいです"],
         ["ジョージアで結婚式", "トビリシの教会・ワイナリーでの結婚式を、準備から当日まで。", "ジョージアでの結婚式について相談したいです"]],
   cta: "WhatsAppで相談",
-} : {
+};
+const PE = {
   h: "Talk4 app plans",
   rows: [["Free", "₾0", "Interpreter, Learn, Group and Record — all of it, with the standard AI. The first ~10 minutes include a trial of the precise AI."],
          ["Pro", "₾15 / month", "Unlimited precise AI: the most accurate listening, names and meaning. For people who use it every day for work. Yearly ₾120 (4 months free).", "I'd like Talk4 Pro (₾15/month or ₾120/year)", "Get Pro"],
@@ -269,9 +269,25 @@ const P = JA ? {
         ["Your wedding in Georgia", "Churches and wineries in Tbilisi — from planning to the day.", "I'd like to ask about a wedding in Georgia"]],
   cta: "Ask on WhatsApp",
 };
-$("proH").textContent = P.h; $("proNote").textContent = P.note; $("proCode").placeholder = P.ph; $("proGo").textContent = P.go;
-$("proRows").innerHTML = P.rows.map(r => row(r[0], r[1], r[2], r[3] && wa(r[3]), r[4])).join("");
-$("conHd").textContent = P.ch; $("conRows").innerHTML = P.con.map(r => row(r[0], "", r[1], wa(r[2]), P.cta)).join("");
+// Follows the page's language picker (lang / sel / tr come from the page script above):
+// Japanese and English are written here, the other languages are translated from English
+let P = PE;
+async function paintPro() {
+  const L = typeof lang === "string" ? lang : "en";
+  if (L === "ja") P = PJ;
+  else if (L === "en" || typeof tr !== "function") P = PE;
+  else {
+    const t = x => tr(x, L);
+    P = { ...PE, h: await t(PE.h), note: await t(PE.note), ph: await t(PE.ph), go: await t(PE.go), ok: await t(PE.ok), ng: await t(PE.ng), ch: await t(PE.ch), cta: await t(PE.cta),
+      rows: await Promise.all(PE.rows.map(async r => [await t(r[0]), r[1], await t(r[2]), r[3], r[4] && await t(r[4])])),
+      con: await Promise.all(PE.con.map(async r => [await t(r[0]), await t(r[1]), r[2]])) };
+  }
+  $("proH").textContent = P.h; $("proNote").textContent = P.note; $("proCode").placeholder = P.ph; $("proGo").textContent = P.go;
+  $("proRows").innerHTML = P.rows.map(r => row(r[0], r[1], r[2], r[3] && wa(r[3]), r[4])).join("");
+  $("conHd").textContent = P.ch; $("conRows").innerHTML = P.con.map(r => row(r[0], "", r[1], wa(r[2]), P.cta)).join("");
+}
+paintPro();
+document.getElementById("lang")?.addEventListener("change", () => setTimeout(paintPro, 0));
 try { const c = localStorage.getItem("t4c-code"); if (c) { $("proCode").value = c; if (localStorage.getItem("t4-ai-tier") === "paid") $("proSt").textContent = P.ok; } } catch {}
 // The relay checks the code: one tiny AI call tells us whether this code gets the precise AI
 $("proGo").onclick = async () => {
