@@ -81,3 +81,89 @@
   const add = () => document.body.append(nav);
   document.body ? add() : document.addEventListener("DOMContentLoaded", add);
 })();
+
+// ---------- Big view & big typing (every page) ----------
+// Tap any line of text (what was said, a translation, a word…) and it opens full screen in large letters:
+// easy to read, and easy to show to the other person (↻ turns it around for someone across the table).
+// Tapping a text box opens a large typing screen too.
+(() => {
+  const ja = (navigator.languages || [navigator.language]).some(c => /^ja/i.test(c || ""));
+  const T = ja ? { read: "🔊 読む", turn: "↻ 相手に向ける", copy: "📋 コピー", edit: "✎ 直す", close: "✕", ok: "✓ OK", copied: "コピーしました", ph: "ここに入力" }
+               : { read: "🔊 Read", turn: "↻ Turn around", copy: "📋 Copy", edit: "✎ Fix", close: "✕", ok: "✓ OK", copied: "Copied", ph: "Type here" };
+  const SEL = [
+    "#meBig", "#themBig", "#meSmall", "#themSmall", "#meRom", "#themRom", "#logList .logrow",   // interpreter
+    ".msg .orig", ".msg .tr .t", ".msg .tr .r",                                                // 3-4 people
+    ".card .t", ".card .r", ".card .q", ".card .m", ".word .a", ".quiz .q", ".quiz .ans",       // learn / exchange
+    ".answer .t", ".target", ".reading", ".meaning", ".goal", ".words td",                      // exchange / class
+    ".tx > div", ".res li", ".res p",                                                           // record
+  ].join(",");
+  const css = document.createElement("style");
+  css.textContent = `.t4z{position:fixed;inset:0;z-index:99999;background:#111010;color:#f4efe6;display:flex;flex-direction:column;padding:calc(14px + env(safe-area-inset-top,0px)) 16px calc(14px + env(safe-area-inset-bottom,0px));font-family:"Noto Sans JP","Noto Sans Georgian","Noto Sans",system-ui,sans-serif}
+  .t4z .txt{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;overflow:auto;font-weight:700;line-height:1.35;overflow-wrap:anywhere;transition:transform .25s}
+  .t4z.turned .txt{transform:rotate(180deg)}
+  .t4z .bar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+  .t4z button{border:1px solid #33302b;background:#24211e;color:#f4efe6;border-radius:12px;padding:12px 16px;font:inherit;font-size:17px;cursor:pointer}
+  .t4z button.ok{background:#d8ae55;color:#1a1307;border-color:#d8ae55;font-weight:700}
+  .t4z textarea{flex:1;width:100%;background:#1c1a18;color:#f4efe6;border:1px solid #d8ae55;border-radius:14px;padding:14px;font:inherit;font-size:28px;line-height:1.4;resize:none;margin-bottom:10px}
+  [data-t4z]{cursor:zoom-in}`;
+  document.head.append(css);
+  const fit = (el, text) => { const n = text.length; el.style.fontSize = (n < 12 ? 15 : n < 30 ? 11 : n < 60 ? 8.5 : n < 120 ? 6.5 : 5) + "vmin"; };
+  const guessLang = (el, text) => {
+    const l = el.closest("[lang]")?.getAttribute("lang");
+    if (l && /^(ja|en|ka|ru|ko|zh)/.test(l) && l !== document.documentElement.lang) return l.slice(0, 2);
+    if (/[Ⴀ-ჿ]/.test(text)) return "ka"; if (/[Ѐ-ӿ]/.test(text)) return "ru"; if (/[가-힯]/.test(text)) return "ko";
+    if (/[぀-ヿ]/.test(text)) return "ja"; if (/[一-鿿]/.test(text)) return "zh"; return "en";
+  };
+  function view(el) {
+    const text = el.innerText.trim(); if (!text || text === "…") return;
+    const lang = guessLang(el, text);
+    const z = document.createElement("div"); z.className = "t4z"; z.setAttribute("role", "dialog");
+    z.innerHTML = `<div class="txt"></div><div class="bar"></div>`;
+    const box = z.querySelector(".txt"); box.textContent = text; box.lang = lang; fit(box, text);
+    const add = (label, fn, cls) => { const b = document.createElement("button"); b.textContent = label; if (cls) b.className = cls; b.onclick = e => { e.stopPropagation(); fn(); }; z.querySelector(".bar").append(b); };
+    add(T.read, () => {
+      if (window.T4speak) return window.T4speak(text, lang);
+      try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = { ja: "ja-JP", en: "en-US", ka: "ka-GE", ru: "ru-RU", ko: "ko-KR", zh: "zh-CN" }[lang]; speechSynthesis.speak(u); } catch {}
+    });
+    add(T.turn, () => z.classList.toggle("turned"));
+    add(T.copy, async () => { try { await navigator.clipboard.writeText(text); } catch {} });
+    if (window.T4canEdit?.(el)) add(T.edit, () => { z.remove(); window.T4edit(el); });
+    add(T.close, () => z.remove(), "ok");
+    box.onclick = () => z.remove();
+    document.body.append(z);
+  }
+  document.addEventListener("click", e => {
+    if (e.target.closest(".t4z")) return;
+    const el = e.target.closest(SEL);
+    if (!el || el.closest("button,a") || el.contains(e.target.closest("button,a,select,input,textarea,label"))) return;   // buttons keep their own action
+    if (getSelection()?.toString()) return;          // selecting text to copy shouldn't pop the view
+    view(el);
+  });
+  // mark them so they look tappable
+  const mark = () => document.querySelectorAll(SEL).forEach(x => { if (!x.closest("button,a")) x.setAttribute("data-t4z", ""); });
+  new MutationObserver(() => { clearTimeout(mark.t); mark.t = setTimeout(mark, 300); }).observe(document.documentElement, { childList: true, subtree: true });
+
+  // Big typing: tapping a text box opens a large editor; OK puts the text back and sends it (like pressing Enter)
+  let editing = false;
+  document.addEventListener("focusin", e => {
+    const inp = e.target;
+    if (editing || !(inp instanceof HTMLInputElement || inp instanceof HTMLTextAreaElement) || inp.closest(".t4z")) return;
+    if (inp instanceof HTMLInputElement && !["text", "search", ""].includes(inp.type)) return;
+    if (inp.dataset.small !== undefined || inp.readOnly || inp.disabled) return;
+    editing = true;
+    const z = document.createElement("div"); z.className = "t4z";
+    z.innerHTML = `<textarea></textarea><div class="bar"></div>`;
+    const ta = z.querySelector("textarea"); ta.value = inp.value; ta.placeholder = inp.placeholder || T.ph; ta.setAttribute("enterkeyhint", "done");
+    const done = send => {
+      z.remove(); editing = false;
+      inp.value = ta.value; inp.dispatchEvent(new Event("input", { bubbles: true }));
+      if (send && ta.value.trim()) inp.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      inp.blur();
+    };
+    const add = (label, fn, cls) => { const b = document.createElement("button"); b.textContent = label; if (cls) b.className = cls; b.onclick = fn; z.querySelector(".bar").append(b); };
+    add(T.close, () => done(false));
+    add(T.ok, () => done(true), "ok");
+    ta.addEventListener("keydown", k => { if (k.key === "Enter" && !k.shiftKey && !k.isComposing) { k.preventDefault(); done(true); } });
+    document.body.append(z); inp.blur(); setTimeout(() => ta.focus(), 30);
+  });
+})();

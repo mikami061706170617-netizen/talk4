@@ -941,11 +941,15 @@ $("themMic").onclick = () => { unlockAudio(); startRec("them"); };
 
 function showType(side) { const row = $(side + "Type"); row.hidden = false; $(side + "Input").focus(); }
 // Tap what was heard to correct it: it goes into the text box, fix the word, press 訳す
-for (const side of ["me", "them"]) $(side + "Big").addEventListener("click", () => {
-  const t = $(side + "Big").textContent.trim(); if (!last[side]?.own || !t || t === "…" || /^[⏳🎙⚠]/.test(t) || $(side + "Big").classList.contains("wait")) return;
+// Tapping a line opens it big (nav.js). From there, "✎ 直す" puts your own line in the text box to correct it.
+window.T4edit = el => {
+  const side = el.id?.startsWith("me") ? "me" : el.id?.startsWith("them") ? "them" : null; if (!side) return false;
+  const t = $(side + "Big").textContent.trim(); if (!last[side]?.own || !t || t === "…" || /^[⏳🎙⚠]/.test(t)) return false;
   $(side + "Type").hidden = false; $(side + "Input").value = t; $(side + "Input").focus();
-  st("✎ 間違った所を直して「訳す」を押すと、訳し直します");
-});
+  st("✎ 間違った所を直して「訳す」を押すと、訳し直します"); return true;
+};
+window.T4canEdit = el => { const side = el.id?.startsWith("me") ? "me" : el.id?.startsWith("them") ? "them" : null; return !!(side && /Big$/.test(el.id) && last[side]?.own); };
+window.T4speak = (text, lang) => speak(text, lang);
 $("meKb").onclick = () => showType("me"); $("themKb").onclick = () => showType("them");
 // ？: the last thing said was meant as a question (voice input can't hear the rising tone) — translate it again as one
 for (const side of ["me", "them"]) $(side + "Q").onclick = () => {
@@ -969,6 +973,6 @@ paint();
 if (!SR) st("音声入力はChromeで開くと使えます。⌨で入力もできます");
 setTimeout(warmVoice, 500);
 </script>
-<script src="nav.js?v=4"></script>
+<script src="nav.js?v=5"></script>
 </body>
 </html>
