@@ -418,7 +418,9 @@ function wavBlob(pcm, rate) {
   const n = pcm.length, dv = new DataView(new ArrayBuffer(44 + n * 2)), w = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
   w(0, "RIFF"); dv.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
   dv.setUint32(24, rate, true); dv.setUint32(28, rate * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, "data"); dv.setUint32(40, n * 2, true);
-  for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, pcm[i])); dv.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true); }
+  let peak = 0; for (let i = 0; i < n; i += 2) peak = Math.max(peak, Math.abs(pcm[i]));
+  const g = peak > 0 ? Math.min(6, 1.8 / peak) : 1;   // louder than full scale, then soft-limited (like a radio compressor)
+  for (let i = 0; i < n; i++) { const v = Math.tanh(pcm[i] * g) * 0.98; dv.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true); }
   return new Blob([dv.buffer], { type: "audio/wav" });
 }
 
@@ -468,13 +470,32 @@ async function warmVoice() {
   }
   st("✓ OK", true);
 }
+// iPhone: after the microphone was used, sound goes to the quiet ear speaker (or nowhere). Telling the
+// phone "now we only play" sends it back to the loud speaker.
+const audioMode = m => { try { if (navigator.audioSession) navigator.audioSession.type = m; } catch {} };
+// Google's voice through the <audio> element: used when the phone's own voice stays silent
+async function speakGoogle(text, lang) {
+  const my = ++voiceRun;
+  for (const part of splitForVoice(text).flatMap(p => p.length > 190 ? p.match(/.{1,190}(\s|$)|.{1,190}/g) : [p])) {
+    if (my !== voiceRun) return;
+    player.stop(); player.src = "https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=" + LANG[lang].g + "&q=" + encodeURIComponent(part);
+    player.playbackRate = 1; player.volume = 1; playing = player;
+    await player.play().catch(() => {});
+    await new Promise(r => { player.onended = r; player.onerror = r; setTimeout(r, 4000 + part.length * 180); });
+  }
+}
 async function speak(text, lang, g = "f") {
   if (!text) return;
   speechSynthesis?.cancel?.(); try { playing?.stop(); } catch {}
+  audioMode("playback");
   const plan = voicePlan(lang, g);
   if (!plan.id) {
-    const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.pitch = plan.pitch;
-    speechSynthesis.speak(u); return;
+    const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.pitch = plan.pitch; u.volume = 1;
+    let started = false; u.onstart = () => { started = true; };
+    speechSynthesis.speak(u);
+    // the phone's voice didn't start (common right after the mic on iPhone): read it with Google's voice instead
+    setTimeout(() => { if (!started && !speechSynthesis.speaking) { speechSynthesis.cancel(); speakGoogle(text, lang); } }, 1500);
+    return;
   }
   try { await speakPiper(text, plan.id, plan.rate); st("✓ OK", true); }
   catch (e) { st("⚠ " + (e?.message || e)); }
@@ -787,7 +808,14 @@ async function show(o) {
     if (out.srcRom) { o.srcRom = out.srcRom; S.rom.textContent = out.srcRom; }
     // Georgian: the AI first writes the exact meaning in English, then it is put into Georgian
     // (Google is more correct in Georgian grammar from English than from Japanese)
-    const better = await aiP;
+    // Don't keep people waiting: if the AI takes more than 4 s, the quick translation is read out now
+    // (the AI's better wording still replaces it on screen when it arrives)
+    let better = await Promise.race([aiP, new Promise(r => setTimeout(() => r("late"), 4000))]), spoken = false;
+    if (better === "late") {
+      if (my !== job) return;
+      if (autoSpeak && !(link && speakerSide === "me")) { speak(out.text, to, voice[speakerSide]); spoken = true; }
+      better = await aiP;
+    }
     if (my !== job) return;
     // Misheard words: show what the AI worked out was really said (tap it to correct it yourself)
     const heard = (better?.heard || "").trim();
@@ -803,7 +831,7 @@ async function show(o) {
     // Check: translate the result back into the speaker's language, so they can see if the meaning survived
     translateRaw(out.text, to, o.lang).then(b => { if (my === job && b.text && b.text.trim() !== o.text.trim()) S.small.textContent = "↩ " + restore(b.text, o.lang); }).catch(() => {});
     logIt(o.lang, o.text, to, out.text);
-    if (autoSpeak && !(link && speakerSide === "me")) speak(out.text, to, voice[speakerSide]);
+    if (!spoken && autoSpeak && !(link && speakerSide === "me")) speak(out.text, to, voice[speakerSide]);
   } catch { if (my === job) { L.big.textContent = "⚠"; st("翻訳できませんでした。電波を確認してください（⚡定型文は電波がなくても使えます）"); } }
 }
 async function handle(text, speakerSide, pre, voice) {
@@ -843,6 +871,7 @@ async function aiListen(side) {
   const lang = side === "me" ? me : them, E = sideEls(side);
   const listener = side === "me" ? them : me, toL = listener === "ka" && lang !== "en" ? "en" : listener;
   try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} voiceRun++;
+  audioMode("play-and-record");
   let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } }); }
   catch { st("マイクを許可してください（ブラウザの設定）"); return; }
   const ctx = new (window.AudioContext || window.webkitAudioContext)(); try { await ctx.resume(); } catch {}
@@ -868,6 +897,7 @@ async function aiListen(side) {
   const stop = async () => {
     if (done) return; done = true; aiRec = null;
     try { proc.disconnect(); src.disconnect(); stream.getTracks().forEach(t => t.stop()); ctx.close(); } catch {}
+    audioMode("playback");
     E.mic.classList.remove("on"); E.mic.textContent = LANG[lang].talk; active = null;
     if (!heard && Date.now() - t0 < 1200) { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; st(""); return; }   // not sure? the AI decides
     E.big.textContent = "⏳ …"; st("AIが聞き取っています…");
