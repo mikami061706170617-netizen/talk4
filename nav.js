@@ -12,6 +12,14 @@
     trialLeft: () => Math.max(0, TRIAL_CALLS - (+get("t4-trial-calls") || 0)),
     tier: () => get("t4-ai-tier") || "",
   };
+  // Staff / plan link: talk.html#k=CODE puts the code on this phone once (then the address is cleaned up)
+  try {
+    const m = location.hash.match(/[#&]k=([A-Za-z0-9-]{4,40})/);
+    if (m) { set("t4c-code", m[1].toUpperCase()); set("t4-ai-tier", "paid"); history.replaceState(null, "", location.pathname + location.search);
+      addEventListener("DOMContentLoaded", () => { const d = document.createElement("div"); d.textContent = ja ? "✓ 高精度AIが使えるようになりました" : "✓ Precise AI is on for this phone";
+        d.style.cssText = "position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:99;background:#d8ae55;color:#1a1307;font:700 15px system-ui,sans-serif;padding:10px 16px;border-radius:12px";
+        document.body.append(d); setTimeout(() => d.remove(), 3500); }); }
+  } catch {}
   const isRelay = u => typeof u === "string" && /script\.google(usercontent)?\.com\/macros\//.test(u);
   const realFetch = window.fetch.bind(window);
   window.fetch = async (u, o) => {

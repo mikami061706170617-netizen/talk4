@@ -589,7 +589,8 @@ function toWav(chunks, rate) {
   return btoa(bin);
 }
 async function callAI(request, quality = "") {
-  const r = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ request, quality }) });
+  const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 20000);   // never hang on a bad connection
+  const r = await fetch(AI.proxy, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ request, quality }) }).finally(() => clearTimeout(tm));
   const j = await r.json();
   if (j.error) throw new Error(j.error.message || "AI error");
   return j;
@@ -643,6 +644,6 @@ paint();
 let first = true; try { first = !localStorage.getItem("t4g"); } catch {}
 if (first) { paintSetup(); $("setup").hidden = false; } else warmAll();
 </script>
-<script src="nav.js?v=5"></script>
+<script src="nav.js?v=6"></script>
 </body>
 </html>

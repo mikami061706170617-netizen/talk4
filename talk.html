@@ -160,7 +160,47 @@ const LANG = {
   zh:{name:"中文",   g:"zh-CN", sr:"zh-CN", tts:"zh_CN-huayan-medium", talk:"🎤 点击说话", wait:"翻译会显示在这里", hold:"说完请点击"},
 };
 const $ = id => document.getElementById(id);
-const st = (t, ok) => { $("status").textContent = t; $("status").classList.toggle("ok", !!ok); };
+// Screen words for phones that are not Japanese (shop staff, guests): English, Georgian or Russian
+const UIL = (() => { const l = (navigator.languages || [navigator.language]).map(c => (c || "").slice(0, 2).toLowerCase());
+  return l.includes("ja") ? "" : l.find(c => c === "ka" || c === "ru") || "en"; })();
+const UI = {
+  "AIが聞き取っています…": ["AI is listening…", "AI ისმენს…", "ИИ распознаёт…"],
+  "✎ 間違った所を直して「訳す」を押すと、訳し直します": ["✎ Fix the mistake and press Translate", "✎ შეასწორეთ შეცდომა და დააჭირეთ „თარგმნა“", "✎ Исправьте ошибку и нажмите «Перевести»"],
+  "つなぐのをやめました": ["Disconnected", "კავშირი გაითიშა", "Отключено"],
+  "つなげませんでした。もう一度QRを読んでください": ["Could not connect. Scan the QR again", "ვერ დაუკავშირდა. QR კოდი თავიდან დაასკანერეთ", "Не удалось подключиться. Отсканируйте QR ещё раз"],
+  "コピーしました": ["Copied", "დაკოპირდა", "Скопировано"],
+  "コピーできませんでした": ["Could not copy", "ვერ დაკოპირდა", "Не удалось скопировать"],
+  "マイクを許可してください（ブラウザの設定）": ["Please allow the microphone (browser settings)", "გთხოვთ, დაუშვათ მიკროფონი (ბრაუზერის პარამეტრები)", "Разрешите доступ к микрофону (настройки браузера)"],
+  "リンクをコピーしました": ["Link copied", "ბმული დაკოპირდა", "Ссылка скопирована"],
+  "先に話すか打ってから ？ を押すと、疑問文として訳し直します": ["Speak or type first, then press ? to translate it as a question", "ჯერ თქვით ან დაწერეთ, მერე დააჭირეთ ?-ს — ითარგმნება როგორც კითხვა", "Сначала скажите или напишите, затем нажмите ? — переведу как вопрос"],
+  "翻訳できませんでした。電波を確認してください（⚡定型文は電波がなくても使えます）": ["Could not translate. Check the internet (⚡ Phrases work offline)", "ვერ ითარგმნა. შეამოწმეთ ინტერნეტი (⚡ ფრაზები ინტერნეტის გარეშეც მუშაობს)", "Не удалось перевести. Проверьте интернет (⚡ Фразы работают без сети)"],
+  "聞き取れませんでした。電波を確認して、もう一度どうぞ": ["Couldn't catch that. Check the internet and try again", "ვერ გავიგე. შეამოწმეთ ინტერნეტი და სცადეთ თავიდან", "Не расслышал. Проверьте интернет и попробуйте ещё раз"],
+  "聞こえませんでした。もう一度どうぞ": ["Didn't hear anything. Please try again", "ვერაფერი გავიგე. სცადეთ თავიდან", "Ничего не слышно. Попробуйте ещё раз"],
+  "音声入力はChromeで開くと使えます。⌨で入力もできます": ["Voice input works in Chrome. You can also type with ⌨", "ხმოვანი შეყვანა მუშაობს Chrome-ში. შეგიძლიათ დაწეროთ ⌨-ით", "Голосовой ввод работает в Chrome. Можно печатать ⌨"],
+  "🎧 AIで聞き取ります。そのまま話してください": ["🎧 The AI will listen. Go ahead and speak", "🎧 AI მოგისმენთ. ილაპარაკეთ", "🎧 Слушает ИИ. Говорите"],
+  "✎ 聞き間違いを直しました（元：": ["✎ Corrected what was misheard (was: ", "✎ შესწორდა (იყო: ", "✎ Исправлено (было: "],
+  "🔗 つながりました": ["🔗 Connected", "🔗 დაკავშირდა", "🔗 Подключено"],
+  "🎧 AIが声を直接聞きます（名前・聞き取りにくい言葉に強い。1秒ほど遅くなります）": ["🎧 The AI listens to the voice itself (best for names and unclear words)", "🎧 AI პირდაპირ ისმენს ხმას (უკეთ იგებს სახელებს)", "🎧 ИИ слушает голос напрямую (лучше для имён)"],
+  "📱 スマホの音声入力に戻しました（速い）": ["📱 Back to the phone's voice input (faster)", "📱 ტელეფონის ხმოვანი შეყვანა (უფრო სწრაფი)", "📱 Голосовой ввод телефона (быстрее)"],
+  "準備中…": ["Getting ready…", "მზადდება…", "Подготовка…"],
+  "📱 スマホをつなぐ": ["📱 Link phones", "📱 ტელეფონების დაკავშირება", "📱 Связать телефоны"],
+  "📜 記録": ["📜 History", "📜 ისტორია", "📜 История"],
+  "📛 名前": ["📛 Names", "📛 სახელები", "📛 Имена"],
+  "⚡ 定型文": ["⚡ Phrases", "⚡ ფრაზები", "⚡ Фразы"],
+  "📷 写して訳す": ["📷 Photo translate", "📷 ფოტოს თარგმნა", "📷 Перевод фото"],
+  "🎙 録音まとめ": ["🎙 Record & summary", "🎙 ჩაწერა და შეჯამება", "🎙 Запись и итоги"],
+  "文字で入力": ["Type here", "აქ დაწერეთ", "Введите текст"],
+  "訳す": ["Translate", "თარგმნა", "Перевести"],
+};
+const ui = t => { if (!UIL || !t) return t; const k = ["en", "ka", "ru"].indexOf(UIL);
+  if (UI[t]) return UI[t][k];
+  for (const key in UI) if (t.startsWith(key)) return UI[key][k] + t.slice(key.length).replace(/）$/, ")");
+  return t; };
+const st = (t, ok) => { $("status").textContent = ui(t); $("status").classList.toggle("ok", !!ok); };
+if (UIL) {
+  for (const el of document.querySelectorAll(".bar .tog, #status, #meSend")) if (UI[el.textContent.trim()]) el.textContent = ui(el.textContent.trim());
+  $("meInput").placeholder = ui("文字で入力");
+}
 
 let me = "ja", them = "ka", autoSpeak = true, voice = { me: "m", them: "f" };
 let saved = null;
@@ -525,10 +565,10 @@ function nmPaint() {
 }
 // 🎧 AIで聞く: the AI listens to the sound itself (better for names and unclear words, about 1 s slower)
 // Plan members (and the owner) get the AI listening by default: it hears names and noisy rooms best
-let aiAll = (() => { try { const v = localStorage.getItem("t4-aiall"); return v === "1"; } catch { return false; } })();
-const paintAiAll = () => { $("aiAllBtn").textContent = aiAll ? "🎧 AIで聞く ON" : "🎧 AIで聞く OFF"; $("aiAllBtn").style.borderColor = aiAll ? "var(--gold)" : ""; };
+let aiAll = (() => { try { const v = localStorage.getItem("t4-aiall2"); return v === null ? !!localStorage.getItem("t4c-code") : v === "1"; } catch { return false; } })();
+const paintAiAll = () => { $("aiAllBtn").textContent = (UIL ? "🎧 AI " : "🎧 AIで聞く ") + (aiAll ? "ON" : "OFF"); $("aiAllBtn").style.borderColor = aiAll ? "var(--gold)" : ""; };
 paintAiAll();
-$("aiAllBtn").onclick = () => { aiAll = !aiAll; try { localStorage.setItem("t4-aiall", aiAll ? "1" : "0"); } catch {} paintAiAll();
+$("aiAllBtn").onclick = () => { aiAll = !aiAll; try { localStorage.setItem("t4-aiall2", aiAll ? "1" : "0"); } catch {} paintAiAll();
   st(aiAll ? "🎧 AIが声を直接聞きます（名前・聞き取りにくい言葉に強い。1秒ほど遅くなります）" : "📱 スマホの音声入力に戻しました（速い）"); };
 $("nmBtn").onclick = () => { $("nm").hidden = false; nmPaint(); $("nmIn").focus(); };
 $("nmClose").onclick = () => { $("nm").hidden = true; };
@@ -776,7 +816,7 @@ function langChanged() { save(); last.me = last.them = null; paint(); warmVoice(
 
 // Long recording: keeps listening until you tap again, or after a few seconds of silence.
 // Browsers stop on their own after a short pause, so it quietly restarts and keeps the text.
-const SILENCE_MS = 8000, MAX_MS = 300000;  // keep listening until 10 s of silence (a pause to think never cuts you off); tap ■ when done
+const SILENCE_MS = 8000, MAX_MS = 300000, AI_END_MS = 3500;  // keep listening until 10 s of silence (a pause to think never cuts you off); tap ■ when done
 let lastRecEnd = 0, stopWanted = false, silenceTimer = null, maxTimer = null, forceFinish = null, restarts = 0;
 /* AI listening: records the voice and lets the AI write it down. Used when the phone's own voice input
    can't (iPhone has no Georgian, home-screen apps on iPhone often block it, some browsers have none). */
@@ -809,6 +849,22 @@ async function aiListen(side) {
   const src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1);
   let chunks = [], heard = false, lastLoud = 0, done = false; const t0 = Date.now(), isVoice = voiceGate(), band = speechBand(ctx, src);
   active = side; E.mic.classList.add("on"); E.mic.textContent = "■ " + LANG[lang].hold; E.big.className = "big"; E.big.textContent = "🎙 …"; E.small.textContent = ""; E.rom.textContent = "";
+  // The AI is asked at each pause while the person may still go on: when they really are finished, the
+  // answer is usually already on its way, so waiting longer for them (time to think) costs almost nothing.
+  const ask = (wav, tries = 0) => {
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 20000);
+    return fetch(AIcfg.proxy, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ quality: "high", task: "listen", audio: wav,
+        from: lang, to: toL, recent: recent.slice(-6), names: Names.namesPrompt([lang, toL]) }) })
+      .then(r => r.json()).then(j => {
+        const raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+        if (!raw) throw new Error(j.error?.message || "empty");
+        return JSON.parse(raw.replace(/^```json|```$/g, "").trim());
+      })
+      .catch(e => tries < 1 ? new Promise(r => setTimeout(r, 400)).then(() => ask(wav, tries + 1)) : Promise.reject(e))
+      .finally(() => clearTimeout(t));
+  };
+  let ahead = null;   // { n: chunks covered, p: promise }
   const stop = async () => {
     if (done) return; done = true; aiRec = null;
     try { proc.disconnect(); src.disconnect(); stream.getTracks().forEach(t => t.stop()); ctx.close(); } catch {}
@@ -816,22 +872,25 @@ async function aiListen(side) {
     if (!heard && Date.now() - t0 < 1200) { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; st(""); return; }   // not sure? the AI decides
     E.big.textContent = "⏳ …"; st("AIが聞き取っています…");
     try {
-      const r = await fetch(AIcfg.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ quality: lang === "ka" || toL === "ka" ? "high" : "", task: "listen", audio: toWav(chunks, ctx.sampleRate),
-          from: lang, to: toL, recent: recent.slice(-6), names: Names.namesPrompt([lang, toL]) }) });
-      const j = await r.json(), raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
-      const o = JSON.parse(raw.replace(/^```json|```$/g, "").trim()), text = (o.text || "").trim();
+      const o = await (ahead && lastVoiceChunk < ahead.n ? ahead.p.catch(() => ask(toWav(chunks, ctx.sampleRate))) : ask(toWav(chunks, ctx.sampleRate)));
+      const text = (o.text || "").trim();
       Names.learn(o.names); st(""); if (text) handle(text, side, o.tr ? { tr: Names.postNames(o.tr, toL), to: toL } : null); else { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; st("聞こえませんでした。もう一度どうぞ"); }
     } catch { E.big.className = "big wait"; E.big.textContent = LANG[lang].wait; st("聞き取れませんでした。電波を確認して、もう一度どうぞ"); }
   };
   aiRec = { stop };
+  let lastVoiceChunk = -1;
   proc.onaudioprocess = e => {
     if (done) return;
     const d = e.inputBuffer.getChannelData(0); chunks.push(new Float32Array(d));
     let sum = 0; for (let k = 0; k < d.length; k += 8) sum += d[k] * d[k]; const rms = Math.sqrt(sum / (d.length / 8));
-    if (isVoice(rms)) { heard = true; lastLoud = Date.now(); E.big.textContent = "🎙 ●"; }
+    if (isVoice(rms)) { heard = true; lastLoud = Date.now(); lastVoiceChunk = chunks.length - 1; E.big.textContent = "🎙 ●"; }
     const now = Date.now();
-    if ((heard && now - lastLoud > 2000) || (!heard && now - t0 > 10000) || now - t0 > 180000) stop();
+    // a pause of 1 s after speaking: start listening ahead (only once per pause)
+    if (heard && now - lastLoud > 1000 && (!ahead || ahead.n <= lastVoiceChunk) && AIcfg?.proxy) {
+      const p = ask(toWav(chunks, ctx.sampleRate)); p.catch(() => {}); ahead = { n: chunks.length, p };
+    }
+    // done after AI_END_MS of quiet (time to think); ■ finishes at once
+    if ((heard && now - lastLoud > AI_END_MS) || (!heard && now - t0 > 10000) || now - t0 > 180000) stop();
   };
   band.connect(proc); proc.connect(ctx.destination);
 }
@@ -862,7 +921,11 @@ function startRec(side) {
   E.mic.classList.add("on"); E.mic.textContent = "■ " + LANG[lang].hold; E.big.className = "big"; E.big.textContent = "…"; E.small.textContent = ""; E.rom.textContent = "";
   // Before the first word: wait up to 8 s (people need a moment to start). After that: stop 1.8 s after the last word.
   let spoke = false;
-  const bump = () => { clearTimeout(silenceTimer); silenceTimer = setTimeout(spoke ? () => { stopWanted = true; finish(); } : stopRec, spoke ? SILENCE_MS : 8000); };
+  // A sentence that is clearly finished (…です / …ますか / ends with . ?) only waits 3 s; one left hanging
+  // (…て / …けど / …が, or no ending) keeps the full 8 s so there is time to think.
+  const finishedSentence = () => { const t = (done + " " + interim).trim(); if (!t || interim.trim()) return false;
+    return lang === "ja" ? /(です|ます|ました|ません|でした|ください|ですか|ますか|ませんか|でしょうか|ですね|ですよ|でしょう|[。？！?!])$/.test(t) : /[.?!。？！]$/.test(t); };
+  const bump = () => { clearTimeout(silenceTimer); silenceTimer = setTimeout(spoke ? () => { stopWanted = true; finish(); } : stopRec, spoke ? (finishedSentence() ? 3000 : SILENCE_MS) : 8000); };
   maxTimer = setTimeout(stopRec, MAX_MS);
   bump();
   const finish = () => {
@@ -914,6 +977,8 @@ function startRec(side) {
       // instantly is what fails on iPhone), until the person is done
       if (stopWanted || ++restarts > 60) finish(); else setTimeout(() => { if (!finished && rec === r) begin(); }, 120);
     };
+    let alive = false; r.onstart = r.onaudiostart = () => { alive = true; };
+    setTimeout(() => { if (!alive && !finished && rec === r) toAI("no-start"); }, 3000);   // stuck: never started
     try { r.start(); }
     catch { rec = null; if (tries < 3) setTimeout(() => { if (!finished) begin(tries + 1); }, 300); else toAI(); }
   };
@@ -973,6 +1038,6 @@ paint();
 if (!SR) st("音声入力はChromeで開くと使えます。⌨で入力もできます");
 setTimeout(warmVoice, 500);
 </script>
-<script src="nav.js?v=5"></script>
+<script src="nav.js?v=6"></script>
 </body>
 </html>
