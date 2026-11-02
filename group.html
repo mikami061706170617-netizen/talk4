@@ -467,7 +467,7 @@ Reply ONLY JSON {${want.map(l => `"${l}":""`).join(",")},${Names.learnAsk}}`;
   const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 9000);
   try {
     const r = await fetch(AI.proxy, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ quality: "", request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "low" } } } }) });
+      body: JSON.stringify({ quality: lang === "ka" || targets.includes("ka") ? "high" : "", request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "low" } } } }) });
     const j = await r.json(), raw = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("").replace(/^```json|```$/g, "").trim();
     try { return JSON.parse(raw); } catch { return JSON.parse(raw.replace(/\\(?!["\\/bfnrtu])/g, "")); }
   } catch { return null; } finally { clearTimeout(tm); }
@@ -611,7 +611,7 @@ Conversation so far:
 ${recent}
 Answer only JSON: {"lang":"<code>","text":"<transcript>","tr":{"<code>":"<translation>"},"rom":{"<code>":"<reading>"}}. If there is no speech, answer {"lang":"","text":""}.`;
   const j = await callAI({ contents: [{ role: "user", parts: [{ inline_data: { mime_type: "audio/wav", data: wavB64 } }, { text: prompt }] }],
-    generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "low" } } });   // fast model: the bigger ones are usually busy on the free plan
+    generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "low" } } }, langs.includes("ka") ? "high" : "");   // fast model: the bigger ones are usually busy on the free plan
   const raw = (j.candidates?.[0]?.content?.parts || []).map(p => p.text).join("").replace(/^```json|```$/g, "").trim() || "{}";
   try { return JSON.parse(raw); }
   catch { return JSON.parse(raw.replace(/\\(?!["\\/bfnrtu])/g, "").replace(/[\u0000-\u001f]/g, " ")); }   // the AI sometimes adds a stray backslash or line break
