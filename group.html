@@ -460,7 +460,7 @@ async function aiMeaning(text, lang, targets) {
   if (!AI?.proxy || !targets.length) return null;
   const want = [...new Set(targets.map(l => l === "ka" ? "en" : l))];
   const recent = log.slice(-5, -1).map(x => `${x.who} (${x.lang}): ${x.text}`).join("\n") || "(none yet)";
-  const prompt = `You are a professional interpreter in Tbilisi (business meetings, classes, a restaurant). Translate the last line from ${LANG[lang].name} into: ${want.map(l => `${l} (${LANG[l].name})`).join(", ")}, so each listener understands exactly what the speaker means, in natural polite spoken style. Keep names and numbers exactly. Never add ideas that were not said. The line may come from voice input with misheard words (sounds similar but makes no sense here): translate what the speaker really meant.\n${Names.namesPrompt([lang, ...want], text)}${lang === "ja" ? "\n" + JA_HINT : ""}
+  const prompt = `You are a professional interpreter in Tbilisi (business meetings, classes, a restaurant). Translate the last line from ${LANG[lang].name} into: ${want.map(l => `${l} (${LANG[l].name})`).join(", ")}, so each listener understands exactly what the speaker means, in natural polite spoken style. Keep names and numbers exactly. Never add ideas that were not said. Use the conversation only to understand words like it/that/he; NEVER add any detail (a day, time, place, number, name or reason) that is not in the last line itself. The line may come from voice input with misheard words (sounds similar but makes no sense here): translate what the speaker really meant.\n${Names.namesPrompt([lang, ...want], text)}${lang === "ja" ? "\n" + JA_HINT : ""}
 Conversation so far:\n${recent}
 Last line: ${text}
 Reply ONLY JSON {${want.map(l => `"${l}":""`).join(",")},${Names.learnAsk}}`;
@@ -601,7 +601,7 @@ async function aiHear(wavB64) {
   const prompt = `You are a live interpreter in Tbilisi (meetings, classes, the shop). People in the room speak: ${langs.map(l => `${l} (${LANG[l].name})`).join(", ")}.
 1. Listen carefully and decide which of those languages is being spoken from the sounds themselves (Georgian and Russian sound very different from Japanese).
 2. Transcribe the audio exactly, in that language and its own script (Georgian in Georgian letters, Russian in Cyrillic).
-3. Translate it into every OTHER language in the room. Use the conversation so far to resolve words like "it", "that", "he". Translate the meaning so nobody can misunderstand, in natural, polite, spoken style. ${JA_HINT}
+3. Translate it into every OTHER language in the room. Use the conversation so far to resolve words like "it", "that", "he", but NEVER add any detail (a day, time, place, number, name or reason) that was not said. Translate the meaning so nobody can misunderstand, in natural, polite, spoken style. ${JA_HINT}
 4. Give a Latin-letter reading of each translation (romaji for Japanese, pinyin for Chinese, romanization for Georgian, Russian, Korean; empty for English).
 Write numbers, prices, times and dates exactly as heard, as digits. Never guess a word to fit a topic: if a word is unclear, write what it sounds like.
 ${Names.namesPrompt(langs)}
