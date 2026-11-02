@@ -460,7 +460,10 @@ const aiCache = new Map();
 function aiFor(text, from, to, voice) {
   const key = from + ">" + to + ":" + text.trim();
   if (!aiCache.has(key)) {
-    aiCache.set(key, to === "ka" && from !== "en"
+    // Georgian: the precise AI writes better Georgian than Google, so it translates directly. On the free
+    // (light) AI, Georgian grammar is weaker: the AI writes the meaning in plain English and Google turns it into Georgian.
+    const light = (window.T4plan?.tier?.() || "free") === "free";
+    aiCache.set(key, to === "ka" && from !== "en" && light
       ? aiTranslate(text, from, "en", "", voice, true).then(en => en?.text ? translate(en.text, "en", "ka").then(k => ({ text: k.text, rom: k.rom, heard: en.heard })) : null).catch(() => null)
       : aiTranslate(text, from, to, "", voice));
     if (aiCache.size > 40) aiCache.delete(aiCache.keys().next().value);
@@ -468,11 +471,11 @@ function aiFor(text, from, to, voice) {
   return aiCache.get(key);
 }
 async function aiTranslate(text, from, to, draft, voice, plain) {
-  if (!AIcfg?.proxy || to === "ka") return null;   // Google is still more accurate for Georgian grammar than the free AI
+  if (!AIcfg?.proxy) return null;
   const words = GLOSS.map(g => `${g[from] || g.ja} = ${g[to] || g.en}`).join("; ");
   const jaHint = from === "ja" ? `
 Japanese often leaves out who and what, and says things indirectly. Translate the MEANING, not the words: fill in the missing subject or object from the conversation, and turn set phrases into what they really mean in context (e.g. 検討します = we will think about it / probably no; 大丈夫です = no thank you, or that's fine; 結構です = no thank you, or that's fine; よろしくお願いします = thank you, I look forward to working with you; お世話になっております = hello, thank you for your help; ちょっと… = that is difficult). Short, clear sentences the listener cannot misunderstand. Japanese questions often have no question mark after voice input and may drop か: if the line asks something (question word, ending like か/の/かな/ですか/ます, or it only makes sense as a question in context), translate it as a clear question ending with "?".` : "";
-  const prompt = `You are a professional interpreter in Tbilisi (business meetings, classes, a Japanese restaurant). Translate the last line from ${AI_NAMES[from]} to ${AI_NAMES[to]} so the listener understands exactly what the speaker means, in natural, polite spoken style. Fix obvious speech-recognition mistakes using context. Keep names and numbers exactly. ${plain ? "Write plain, simple English with no idioms or slang (it will be machine-translated into Georgian, so every word must be literal and clear; e.g. \"How many people?\" not \"How many in your party?\"). " : ""}Never add greetings or ideas that were not said. Use the conversation only to understand words like it/that/he; NEVER add any detail (a day, time, place, number, name or reason) that is not in the last line itself. Keep who is who exactly: I/we/us/our = the speaker's side, you = the listener.${jaHint}
+  const prompt = `You are a professional interpreter in Tbilisi (business meetings, classes, a Japanese restaurant). Translate the last line from ${AI_NAMES[from]} to ${AI_NAMES[to]} so the listener understands exactly what the speaker means, in natural, polite spoken style. Fix obvious speech-recognition mistakes using context. Keep names and numbers exactly. ${plain ? "Write plain, simple English with no idioms or slang (it will be machine-translated into Georgian, so every word must be literal and clear; e.g. \"How many people?\" not \"How many in your party?\"). " : ""}${to === "ka" ? "Write natural, grammatically correct Georgian as a native speaker would say it, with the polite forms used with customers (e.g. რამდენნი ბრძანდებით?). " : ""}Never add greetings or ideas that were not said. Use the conversation only to understand words like it/that/he; NEVER add any detail (a day, time, place, number, name or reason) that is not in the last line itself. Keep who is who exactly: I/we/us/our = the speaker's side, you = the listener.${jaHint}
 ${Names.namesPrompt([from, to], text)} Shop words (only if said): ${words}.
 Conversation so far:\n${recent.slice(-6).join("\n") || "(none)"}
 ${draft ? "Machine draft: " + draft : ""}
