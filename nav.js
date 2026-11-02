@@ -1,3 +1,42 @@
+// ---------- Plans: which AI this phone gets ----------
+// Every AI request goes to the relay with this phone's plan code (if any). The relay decides:
+// plan code → the stronger paid AI; first minutes of use → a free trial of it; after that → the standard free AI.
+// When the trial ends, a one-time message offers the plan.
+(() => {
+  const TRIAL_CALLS = 40;                      // about 10 minutes of conversation
+  const get = k => { try { return localStorage.getItem(k); } catch { return null; } };
+  const set = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+  const ja = (navigator.languages || [navigator.language]).some(c => /^ja/i.test(c || ""));
+  window.T4plan = {
+    code: () => get("t4c-code") || "",
+    trialLeft: () => Math.max(0, TRIAL_CALLS - (+get("t4-trial-calls") || 0)),
+    tier: () => get("t4-ai-tier") || "",
+  };
+  const isRelay = u => typeof u === "string" && /script\.google(usercontent)?\.com\/macros\//.test(u);
+  const realFetch = window.fetch.bind(window);
+  window.fetch = async (u, o) => {
+    if (!isRelay(u) || !o || o.method !== "POST" || typeof o.body !== "string") return realFetch(u, o);
+    try { const b = JSON.parse(o.body); b.code = T4plan.code(); b.trial = !b.code && T4plan.trialLeft() > 0; o = { ...o, body: JSON.stringify(b) }; } catch {}
+    const r = await realFetch(u, o);
+    r.clone().json().then(j => {
+      if (!j || !j.t4) return;
+      const before = get("t4-ai-tier"); set("t4-ai-tier", j.t4);
+      if (j.t4 === "trial") set("t4-trial-calls", String((+get("t4-trial-calls") || 0) + 1));
+      if (j.t4 === "free" && (before === "trial" || T4plan.trialLeft() === 0) && !get("t4-upsell-shown")) { set("t4-upsell-shown", "1"); upsell(); }
+    }).catch(() => {});
+    return r;
+  };
+  function upsell() {
+    const d = document.createElement("div");
+    d.style.cssText = "position:fixed;left:12px;right:12px;bottom:calc(70px + env(safe-area-inset-bottom,0px));z-index:20;background:#24211e;border:1px solid #d8ae55;border-radius:16px;padding:14px;color:#f4efe6;font:14px/1.5 'Noto Sans JP',system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.5)";
+    d.innerHTML = ja
+      ? `<b style="color:#d8ae55">お試しの「高精度AI」が終わりました</b><br>ここからは無料の標準AIで、このままずっと使えます。<br>聞き取り・訳をもっと正確にしたいときは <b>Talk4 Pro（月₾15）</b> にできます。<div style="display:flex;gap:8px;margin-top:10px"><a href="plans.html#pro" style="flex:1;text-align:center;background:#d8443a;color:#fff;border-radius:10px;padding:10px;text-decoration:none;font-weight:700">Proにする</a><button style="flex:1;background:none;border:1px solid #33302b;color:#f4efe6;border-radius:10px;padding:10px;font:inherit">無料で続ける</button></div>`
+      : `<b style="color:#d8ae55">Your free trial of the precise AI has ended</b><br>You can keep using Talk4 free with the standard AI.<br>For the most accurate listening and translation, get <b>Talk4 Pro (₾15/month)</b>.<div style="display:flex;gap:8px;margin-top:10px"><a href="plans.html#pro" style="flex:1;text-align:center;background:#d8443a;color:#fff;border-radius:10px;padding:10px;text-decoration:none;font-weight:700">Get Pro</a><button style="flex:1;background:none;border:1px solid #33302b;color:#f4efe6;border-radius:10px;padding:10px;font:inherit">Keep free</button></div>`;
+    d.querySelector("button").onclick = () => d.remove();
+    (document.body || document.documentElement).append(d);
+  }
+})();
+
 // Talk4 bottom tab bar, shared by every tool page. Each tool is a real page (voice input and the
 // camera only work reliably on iPhone that way), but people only ever need the one address.
 (() => {

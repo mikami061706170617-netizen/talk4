@@ -81,6 +81,22 @@ button,select{font:inherit;color:inherit}
     <div class="langs"><span>日本語</span><span>English</span><span>ქართული</span><span>Русский</span></div>
   </section>
 
+  <section class="table" id="pro">
+    <h2 id="proH"></h2>
+    <div class="rows" id="proRows"></div>
+    <p class="note" id="proNote"></p>
+    <div class="contact" style="flex-wrap:wrap;gap:8px">
+      <input id="proCode" autocomplete="off" style="flex:1;min-width:160px;background:#24211e;border:1px solid #33302b;color:#f4efe6;border-radius:10px;padding:10px;font:inherit;font-size:16px">
+      <button id="proGo" class="wa" style="border:0;cursor:pointer"></button>
+    </div>
+    <p class="note" id="proSt"></p>
+  </section>
+
+  <section class="table" id="consult">
+    <h2 id="conHd"></h2>
+    <div class="rows" id="conRows"></div>
+  </section>
+
   <section class="grid" id="plans"></section>
 
   <section class="table">
@@ -223,6 +239,56 @@ async function paint() {
 }
 paint();
 </script>
-<script src="nav.js?v=3"></script>
+
+<script type="module">
+// Talk4 app plans (Free / Pro / Business), unlock code, and consultations for life in Georgia
+const JA = (navigator.languages || [navigator.language]).some(c => /^ja/i.test(c || ""));
+const WA = "819087080598", wa = m => `https://wa.me/${WA}?text=${encodeURIComponent(m)}`;
+const $ = id => document.getElementById(id);
+const row = (a, b, c, href, cta) => `<div class="row"><span>${a}</span><b>${b}</b><span class="note">${c}${href ? ` <a href="${href}" target="_blank" rel="noopener" style="color:#d8ae55;font-weight:700;white-space:nowrap">${cta}</a>` : ""}</span></div>`;
+const P = JA ? {
+  h: "Talk4 アプリのプラン",
+  rows: [["無料", "₾0", "通訳・覚える・3〜4人・録音まとめ、全部使えます（標準のAI）。最初の約10分は高精度AIをお試しできます。"],
+         ["Pro（個人）", "₾15／月", "高精度AIが使い放題：聞き取り・名前・言い回しがいちばん正確。商談・仕事で毎日使う人に。年払いは₾120（4か月分お得）。", "Talk4 Proに申し込みたいです（月₾15 / 年₾120）", "申し込む"],
+         ["お店・会社", "₾49／月", "ホテル・レストラン・ツアー会社向け。お店のタブレットやスタッフのスマホで、外国人のお客さんと話せます。", "Talk4 をお店で使いたいです（月₾49）", "相談する"]],
+  note: "申し込むとコードが届きます。下に入れると、このスマホが高精度AIになります。語学クラスのコードもそのまま使えます。",
+  ph: "コードを入力", go: "コードを使う", ok: "✓ 高精度AIになりました", ng: "コードが違うか、電波がありません",
+  ch: "ジョージアでの生活・仕事の相談",
+  con: [["移住・会社設立・銀行口座", "日本人スタッフが手続きをお手伝いします。初回の相談は無料。", "ジョージアへの移住・会社設立・口座開設について相談したいです"],
+        ["ジョージアで結婚式", "トビリシの教会・ワイナリーでの結婚式を、準備から当日まで。", "ジョージアでの結婚式について相談したいです"]],
+  cta: "WhatsAppで相談",
+} : {
+  h: "Talk4 app plans",
+  rows: [["Free", "₾0", "Interpreter, Learn, Group and Record — all of it, with the standard AI. The first ~10 minutes include a trial of the precise AI."],
+         ["Pro", "₾15 / month", "Unlimited precise AI: the most accurate listening, names and meaning. For people who use it every day for work. Yearly ₾120 (4 months free).", "I'd like Talk4 Pro (₾15/month or ₾120/year)", "Get Pro"],
+         ["Business", "₾49 / month", "For hotels, restaurants and tour companies: talk with foreign guests on the shop tablet or staff phones.", "I'd like Talk4 for my business (₾49/month)", "Ask us"]],
+  note: "We send you a code. Enter it below and this phone gets the precise AI. Language class codes work too.",
+  ph: "Enter your code", go: "Use code", ok: "✓ Precise AI is on", ng: "Wrong code, or no connection",
+  ch: "Help with life and business in Georgia",
+  con: [["Moving, company setup, bank account", "Japanese-run support through every step. First consultation free.", "I'd like help with moving to Georgia / company setup / bank account"],
+        ["Your wedding in Georgia", "Churches and wineries in Tbilisi — from planning to the day.", "I'd like to ask about a wedding in Georgia"]],
+  cta: "Ask on WhatsApp",
+};
+$("proH").textContent = P.h; $("proNote").textContent = P.note; $("proCode").placeholder = P.ph; $("proGo").textContent = P.go;
+$("proRows").innerHTML = P.rows.map(r => row(r[0], r[1], r[2], r[3] && wa(r[3]), r[4])).join("");
+$("conHd").textContent = P.ch; $("conRows").innerHTML = P.con.map(r => row(r[0], "", r[1], wa(r[2]), P.cta)).join("");
+try { const c = localStorage.getItem("t4c-code"); if (c) { $("proCode").value = c; if (localStorage.getItem("t4-ai-tier") === "paid") $("proSt").textContent = P.ok; } } catch {}
+// The relay checks the code: one tiny AI call tells us whether this code gets the precise AI
+$("proGo").onclick = async () => {
+  const c = $("proCode").value.trim().toUpperCase().replace(/\s+/g, ""); if (!c) return;
+  try { localStorage.setItem("t4c-code", c); } catch {}
+  $("proSt").textContent = "…";
+  try {
+    const AI = (await import("./config.js?v=" + Date.now())).AI;
+    const r = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ quality: "high", request: { contents: [{ parts: [{ text: 'Reply ONLY JSON {"ok":true}' }] }], generationConfig: { responseMimeType: "application/json", thinkingConfig: { thinkingLevel: "low" } } } }) });
+    const j = await r.json();
+    if (j.t4 === "paid") { $("proSt").textContent = P.ok; try { localStorage.setItem("t4-ai-tier", "paid"); } catch {} }
+    else { $("proSt").textContent = P.ng; try { localStorage.removeItem("t4c-code"); } catch {} }
+  } catch { $("proSt").textContent = P.ng; }
+};
+if (location.hash === "#pro") setTimeout(() => $("pro").scrollIntoView({ behavior: "smooth" }), 300);
+</script>
+<script src="nav.js?v=4"></script>
 </body>
 </html>
