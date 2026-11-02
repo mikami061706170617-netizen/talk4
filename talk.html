@@ -91,7 +91,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <select id="meSel" aria-label="自分の言語"></select>
   <button class="sw" id="swap" aria-label="入れ替え">⇅</button>
   <select id="themSel" aria-label="相手の言語"></select>
-  <button class="tog" id="linkBtn">📱 2台でつなぐ</button>
+  <button class="tog" id="linkBtn">📱 スマホをつなぐ</button>
   <button class="tog" id="logBtn">📜 記録</button>
   <button class="tog" id="nmBtn">📛 名前</button>
   <button class="tog" id="aiAllBtn"></button>
@@ -110,8 +110,9 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 </section>
 
 <section class="cam" id="link" hidden>
-  <div class="camtop"><b>📱 2台でつなぐ</b><button id="linkClose">✕</button></div>
-  <div class="camsum" id="linkText">相手のスマホでこのQRを読んでもらうと、それぞれ自分のスマホで話せます。相手の画面には相手の言葉で訳が出て、読み上げます。</div>
+  <div class="camtop"><b>📱 スマホをつなぐ（2〜4台）</b><button id="linkClose">✕</button></div>
+  <div class="camsum" id="linkText">相手のスマホでこのQRを読んでもらうと、それぞれ自分のスマホで話せます。3人・4人のときは、同じQRを全員に読んでもらいます。誰かが話すと、ほかの全員の画面に、その人の言葉で訳が出て読み上げます。</div>
+  <div class="camsum" id="linkWho"></div>
   <img class="linkqr" id="linkQr" alt="QR">
   <div class="row" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="tog" id="linkCopy">🔗 リンクをコピー</button><button class="tog" id="linkOff">切る</button></div>
 </section>
@@ -554,34 +555,66 @@ $("logClear").onclick = () => { convo = []; try { localStorage.removeItem("talk4
 
 // ---------- Two phones, one conversation: each person speaks into their own phone ----------
 // Messages go through a public relay, end-to-end encrypted with a key that only lives in the QR link.
-let link = null; // { room, key, client, topic }
+let link = null; // { room, key, clients, topic, self }
 const b64u = b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const unb64u = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+// Two free public relays at once: if one is slow or drops, the other still carries every message (duplicates are ignored)
+const BROKERS = ["wss://broker.hivemq.com:8884/mqtt", "wss://broker.emqx.io:8084/mqtt"];
+const seenMsg = new Set(), members = new Map();   // members: phone id → { lang, at }
+function linkPaint() {
+  const now = Date.now(); for (const [id, m] of members) if (now - m.at > 90000) members.delete(id);
+  const n = members.size + 1, up = link?.clients.some(c => c.connected);
+  $("linkBtn").textContent = link ? (up ? `🔗 ${n}台でつながり中` : "🔗 つなぎ直し中…") : "📱 スマホをつなぐ";
+  $("linkWho").textContent = link ? `つながっているスマホ：${n}台（${[LANG[me]?.name, ...[...members.values()].map(m => LANG[m.lang]?.name || "?")].join("・")}）` : "";
+  document.body.classList.toggle("linked", !!link);
+}
 async function linkJoin(room, keyStr) {
   const key = await crypto.subtle.importKey("raw", unb64u(keyStr), "AES-GCM", false, ["encrypt", "decrypt"]);
   const mqtt = (await import("https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.esm.js")).default;
-  const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt", { clientId: "t4_" + Math.random().toString(36).slice(2, 10), clean: true, reconnectPeriod: 2000 });
   const topic = "talk4/v1/" + room, self = Math.random().toString(36).slice(2);
-  link = { room, keyStr, key, client, topic, self };
-  client.on("connect", () => { client.subscribe(topic); st("🔗 2台でつながっています", true); document.body.classList.add("linked"); $("linkBtn").textContent = "🔗 つながり中"; });
-  client.on("offline", () => st("🔗 つなぎ直しています…"));
-  client.on("message", async (t, payload) => {
-    try {
-      const buf = new Uint8Array(payload), iv = buf.slice(0, 12);
-      const m = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv }, link.key, buf.slice(12))));
-      if (m.from === link.self || !m.text) return;
-      if (LANG[m.lang] && m.lang !== them && m.lang !== me) { them = m.lang; save(); paint(); }
-      orig = { text: m.text, lang: m.lang, side: "them", remote: true }; show(orig);
-    } catch {}
-  });
+  link = { room, keyStr, key, topic, self, clients: [] };
+  for (const url of BROKERS) {
+    const c = mqtt.connect(url, { clientId: "t4_" + Math.random().toString(36).slice(2, 10), clean: true, reconnectPeriod: 1500, connectTimeout: 8000, keepalive: 20 });
+    c.on("connect", () => { c.subscribe(topic, { qos: 1 }); linkHello(); st(`🔗 つながりました`, true); linkPaint(); });
+    c.on("offline", linkPaint); c.on("close", linkPaint);
+    c.on("message", (t, payload) => linkReceive(payload));
+    link.clients.push(c);
+  }
+  linkPaint();
+  // say "I'm here" every 30 s, so every phone knows who is in the conversation
+  clearInterval(link.hello); link.hello = setInterval(() => { linkHello(); linkPaint(); }, 30000);
 }
-async function linkSend(text, lang) {
-  if (!link?.client?.connected) return;
+async function linkReceive(payload) {
+  try {
+    const buf = new Uint8Array(payload), iv = buf.slice(0, 12);
+    const m = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv }, link.key, buf.slice(12))));
+    if (m.from === link.self || seenMsg.has(m.id)) return; seenMsg.add(m.id); if (seenMsg.size > 500) seenMsg.clear();
+    if (LANG[m.lang]) members.set(m.from, { lang: m.lang, at: Date.now() });
+    if (m.hello) { if (!m.reply) linkHello(true); linkPaint(); return; }
+    if (!m.text || !LANG[m.lang]) return;
+    if (m.lang !== them && m.lang !== me) { them = m.lang; save(); paint(); }
+    if (m.partial) {
+      // the other person is still talking: show their words and start the careful translation now,
+      // so it is ready (and read out at once) when they finish
+      const T = sideEls("them"), M = sideEls("me");
+      T.big.className = "big"; T.big.textContent = m.text;
+      if (m.lang !== me) aiFor(m.text, m.lang, me, { alts: [] }).then(r => { if (r?.text && T.big.textContent === m.text) { M.big.className = "big"; M.big.textContent = r.text; } });
+      return;
+    }
+    orig = { text: m.text, lang: m.lang, side: "them", remote: true, voice: { alts: [] } }; show(orig);
+    linkPaint();
+  } catch {}
+}
+async function linkPublish(obj) {
+  if (!link) return;
+  obj.from = link.self; obj.id = obj.id || Math.random().toString(36).slice(2);
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const data = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, link.key, new TextEncoder().encode(JSON.stringify({ text, lang, from: link.self }))));
+  const data = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, link.key, new TextEncoder().encode(JSON.stringify(obj))));
   const out = new Uint8Array(12 + data.length); out.set(iv); out.set(data, 12);
-  link.client.publish(link.topic, out);
+  for (const c of link.clients) if (c.connected) c.publish(link.topic, out, { qos: 1 });
 }
+function linkHello(reply) { linkPublish({ hello: 1, reply: !!reply, lang: me }); }
+async function linkSend(text, lang, partial) { await linkPublish({ text, lang, partial: !!partial }); }
 function linkUrl() { return `${location.origin}${location.pathname}#room=${link.room}&k=${link.keyStr}&me=${them}&them=${me}`; }
 $("linkBtn").onclick = async () => {
   $("link").hidden = false;
@@ -590,7 +623,7 @@ $("linkBtn").onclick = async () => {
   try { const QR = (await import("https://cdn.jsdelivr.net/npm/qrcode@1.5.4/+esm")).default; $("linkQr").src = await QR.toDataURL(url, { margin: 1, width: 480 }); } catch { $("linkText").textContent = "QRが作れませんでした。リンクをコピーして送ってください。"; }
 };
 $("linkCopy").onclick = async () => { if (!link) return; try { await navigator.clipboard.writeText(linkUrl()); st("リンクをコピーしました", true); } catch {} };
-$("linkOff").onclick = () => { try { link?.client.end(true); } catch {} link = null; document.body.classList.remove("linked"); $("linkBtn").textContent = "📱 2台でつなぐ"; $("link").hidden = true; st("つなぐのをやめました"); history.replaceState(null, "", location.pathname); };
+$("linkOff").onclick = () => { try { link?.clients.forEach(c => c.end(true)); clearInterval(link?.hello); } catch {} link = null; members.clear(); linkPaint(); $("link").hidden = true; st("つなぐのをやめました"); history.replaceState(null, "", location.pathname); };
 $("linkClose").onclick = () => { $("link").hidden = true; };
 // Opened from a partner's QR: take the languages from the link and join
 setTimeout(() => {
@@ -869,6 +902,7 @@ function startRec(side) {
       clearTimeout(ahead); ahead = setTimeout(() => {
         const t = (done + " " + interim).trim(); if (!t || active !== side || finished) return;
         const to = side === "me" ? them : me, L = sideEls(side === "me" ? "them" : "me");
+        if (link && side === "me") linkSend(t, lang, true);   // linked phones see it and get their translation ready
         aiFor(t, lang, to, { alts: [] }).then(r => { if (r?.text && active === side && (done + " " + interim).trim() === t) { L.big.className = "big"; L.big.textContent = r.text; } });
       }, 900); };
     r.onerror = e => {
