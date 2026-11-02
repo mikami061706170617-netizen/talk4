@@ -64,7 +64,9 @@ function doPost(e) {
     if (!paidKey) return json_({ error: { message: "GEMINI_KEY is not set" } });
     let tier = "free";
     if (body.code && PLAN_HASHES.has(sha_("talk4-class-v1:" + String(body.code).trim().toUpperCase().replace(/\s+/g, "")))) tier = "paid";
-    else if (body.trial && underLimit_("trial_", TRIAL_DAILY_LIMIT)) tier = "trial";
+    // The free trial of the paid AI is only for Talk4's own interpreter tasks: a copied page or a script sending
+    // its own raw requests never reaches the paid key without a plan code
+    else if (body.trial && body.task && underLimit_("trial_", TRIAL_DAILY_LIMIT)) tier = "trial";
     const key = tier === "free" ? freeKey : paidKey;
     const request = body.task ? buildTask_(body) : (body.request || {});
     if (!request) return json_({ error: { message: "unknown task" } });
@@ -95,7 +97,7 @@ function doPost(e) {
 
 function doGet() {
   const c = CacheService.getScriptCache();
-  return json_({ ok: true, service: "talk4-ai", v: 3, models: JSON.parse(c.get("models") || "null"), last: c.get("last") });
+  return json_({ ok: true, service: "talk4-ai", v: 4, models: JSON.parse(c.get("models") || "null"), last: c.get("last") });
 }
 
 function sha_(t) {
