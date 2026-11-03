@@ -109,7 +109,8 @@ function speak_(b, key, tier) {
     } catch (e) {}
     cache.put("ttsmodels", JSON.stringify(models), 21600);
   }
-  const rq = { contents: [{ parts: [{ text: "Read this aloud clearly and naturally, in a warm, friendly voice: " + s_(b.text, 600) }] }],
+  // only the words themselves: speech models read out any instruction put in front of them
+  const rq = { contents: [{ parts: [{ text: s_(b.text, 600) }] }],
     generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: b.g === "m" ? "Charon" : "Kore" } } } } };
   for (const model of models) {
     const res = UrlFetchApp.fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
@@ -140,7 +141,7 @@ function call_(order, request, key) {
 
 function doGet() {
   const c = CacheService.getScriptCache();
-  return json_({ ok: true, service: "talk4-ai", v: 6, models: JSON.parse(c.get("models") || "null"), last: c.get("last") });
+  return json_({ ok: true, service: "talk4-ai", v: 7, models: JSON.parse(c.get("models") || "null"), last: c.get("last") });
 }
 
 function sha_(t) {
