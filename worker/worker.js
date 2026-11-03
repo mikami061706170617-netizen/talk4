@@ -145,7 +145,10 @@ async function live_(b, env, tier, key) {
     method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({ uses: 1, expireTime: new Date(now + 30 * 60e3).toISOString(), newSessionExpireTime: new Date(now + 2 * 60e3).toISOString(),
       // REST name of the locked setup (the SDKs call it liveConnectConstraints)
-      bidiGenerateContentSetup: { model: "models/" + model, generationConfig: { responseModalities: ["AUDIO"] }, systemInstruction: { parts: [{ text: sys }] },
+      bidiGenerateContentSetup: { model: "models/" + model,
+        generationConfig: { responseModalities: ["AUDIO"], thinkingConfig: { thinkingBudget: 0 } },   // no thinking pause before speaking
+        // decide "they stopped talking" quickly (0.4 s of quiet) so the translation starts at once
+        realtimeInputConfig: { automaticActivityDetection: { startOfSpeechSensitivity: "START_SENSITIVITY_HIGH", endOfSpeechSensitivity: "END_SENSITIVITY_HIGH", prefixPaddingMs: 20, silenceDurationMs: 400 } }, systemInstruction: { parts: [{ text: sys }] },
         inputAudioTranscription: {}, outputAudioTranscription: {}, sessionResumption: {} } }) });
   const j = await r.json();
   if (!j.name) return { error: { message: (j.error && j.error.message) || "no pass" }, t4: tier };
