@@ -679,11 +679,15 @@ const scriptLang = (t, langs) => {
   return langs.includes("en") ? "en" : langs.find(l => !by.some(([b, re]) => b === l)) || langs[0];
 };
 function paintLive() { $("liveBtn").textContent = Live.on ? LV.on : LV.off; $("liveBtn").classList.toggle("on", Live.on); }
-async function liveConnect() {
+function livePass() {
+  const langs = langsInRoom();
+  return fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ task: "live", langs, names: Names.namesPrompt(langs),
+    shop: GLOSS.map(g => langs.map(l => g[l]).filter(Boolean).join(" = ")).join("; ") }) }).then(r => r.json());
+}
+async function liveConnect(passP) {
   const langs = langsInRoom(); if (langs.length < 2) { st(LV.two); Live.stop(); return; }
   let pass;
-  try { pass = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ task: "live", langs, names: Names.namesPrompt(langs),
-      shop: GLOSS.map(g => langs.map(l => g[l]).filter(Boolean).join(" = ")).join("; ") }) }).then(r => r.json()); }
+  try { pass = await (passP || livePass()); }
   catch { st(LV.err); Live.stop(); return; }
   if (!pass.token) { st(pass.error?.message === "plan" ? LV.plan : LV.err + " (" + (pass.error?.message || "") + ")"); Live.stop(); return; }
   if (!Live.on) return;
@@ -695,7 +699,10 @@ async function liveConnect() {
     if (m.setupComplete) { Live.retry = 0; st(ui.listening); return; }
     const sc = m.serverContent; if (!sc) { if (m.goAway) liveRestart(); return; }
     if (sc.interrupted) liveFlush();
-    for (const part of sc.modelTurn?.parts || []) if (part.inlineData?.data) livePlay(part.inlineData.data);
+    for (const part of sc.modelTurn?.parts || []) if (part.inlineData?.data) {
+      if (!Live.timed && Live.lastVoice) { Live.timed = true; st("⏱ " + ((performance.now() - Live.lastVoice) / 1000).toFixed(1) + (uiLang === "ja" ? " 秒で訳しました" : " s")); }
+      livePlay(part.inlineData.data);
+    }
     if (sc.inputTranscription?.text || sc.outputTranscription?.text) {
       if (!Live.cur) {
         Live.cur = { text: "", lang: langs[0], who: "", color: "var(--muted)", detected: true, ai: true, live: true, out: [] };
@@ -711,7 +718,7 @@ async function liveConnect() {
         : [{ lang: scriptLang(c.outText || "", others), text: (c.outText || "").trim() || null, rom: "" }];
       clearTimeout(Live.paintT); Live.paintT = setTimeout(paintLog, 120);
     }
-    if (sc.turnComplete) { if (Live.cur) { Live.cur.text = Live.cur.text.trim(); paintLog(); } Live.cur = null; }
+    if (sc.turnComplete) { Live.timed = false; if (Live.cur) { Live.cur.text = Live.cur.text.trim(); paintLog(); } Live.cur = null; }
   };
   ws.onclose = () => { if (Live.on && Live.ws === ws) liveRestart(); };
   ws.onerror = () => {};
@@ -734,25 +741,28 @@ function livePlay(b64) {
 Live.start = async () => {
   if (handsFree) { handsFree = false; stopAuto(); paintAuto(); }
   if (rec) stopRec(); stopReading();
-  const stream = await openMic(); if (!stream) return;
+  const ctx = new (window.AudioContext || window.webkitAudioContext)(); const resumed = ctx.resume().catch(() => {});   // must start inside the tap (Safari)
+  const passP = livePass();   // ask for the pass at the same time as the microphone
+  const stream = await openMic(); if (!stream) { try { ctx.close(); } catch {} return; }
   try { if (navigator.audioSession) navigator.audioSession.type = "play-and-record"; } catch {}
-  Live.on = true; Live.retry = 0; paintLive();
-  const ctx = new (window.AudioContext || window.webkitAudioContext)(); try { await ctx.resume(); } catch {}
+  Live.on = true; Live.retry = 0; paintLive(); await resumed;
   // louder translation voice, without crackle
   const comp = ctx.createDynamicsCompressor(), gain = ctx.createGain(); gain.gain.value = 2.2; gain.connect(comp); comp.connect(ctx.destination);
   Object.assign(Live, { ctx, stream, out: gain, playUntil: 0, srcs: [] });
   const src = ctx.createMediaStreamSource(stream), band = speechBand(ctx, src), proc = ctx.createScriptProcessor(2048, 1, 1); Live.proc = proc;
+  const isVoice = voiceGate(); Live.lastVoice = 0; Live.timed = false;
   const ratio = ctx.sampleRate / 16000;
   proc.onaudioprocess = e => {
     const ws = Live.ws; if (!Live.on || !ws || ws.readyState !== 1) return;
     if (ctx.currentTime < Live.playUntil + 0.25) return;   // don't feed our own translation back in
     const x = e.inputBuffer.getChannelData(0), n = Math.floor(x.length / ratio), pcm = new Int16Array(n);
+    let sq = 0; for (let k = 0; k < x.length; k += 8) sq += x[k] * x[k]; if (isVoice(Math.sqrt(sq / (x.length / 8)))) Live.lastVoice = performance.now();
     for (let i = 0; i < n; i++) { let a = 0, c = 0; for (let k = Math.floor(i * ratio); k < Math.floor((i + 1) * ratio); k++) { a += x[k]; c++; } const v = Math.max(-1, Math.min(1, c ? a / c : 0)); pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff; }
     const u8 = new Uint8Array(pcm.buffer); let bin = ""; for (let k = 0; k < u8.length; k++) bin += String.fromCharCode(u8[k]);
     ws.send(JSON.stringify({ realtimeInput: { audio: { data: btoa(bin), mimeType: "audio/pcm;rate=16000" } } }));
   };
   band.connect(proc); proc.connect(ctx.destination);
-  liveConnect();
+  liveConnect(passP);
 };
 Live.stop = () => {
   Live.on = false; paintLive();
