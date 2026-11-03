@@ -273,7 +273,9 @@ function wavBlob(pcm, rate) {
   const n = pcm.length, dv = new DataView(new ArrayBuffer(44 + n * 2)), w = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
   w(0, "RIFF"); dv.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
   dv.setUint32(24, rate, true); dv.setUint32(28, rate * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, "data"); dv.setUint32(40, n * 2, true);
-  for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, pcm[i])); dv.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true); }
+  let peak = 0; for (let i = 0; i < n; i += 2) peak = Math.max(peak, Math.abs(pcm[i]));
+  const g = peak > 0 ? Math.min(6, 1.8 / peak) : 1;   // louder, soft-limited so it never crackles
+  for (let i = 0; i < n; i++) { const v = Math.tanh(pcm[i] * g) * 0.98; dv.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true); }
   return new Blob([dv.buffer], { type: "audio/wav" });
 }
 
@@ -395,12 +397,30 @@ $("kbBtn").onclick = () => { $("typer").hidden = !$("typer").hidden; if (!$("typ
 
 /* ---------- Speak a result out loud, one language after another ---------- */
 let readRun = 0;
+async function speakAI(text) {
+  try {
+    const j = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ task: "speak", text, g: "f" }) }).then(r => r.json());
+    if (!j.audio) return 0;
+    let bin = atob(j.audio), rate = +((j.mime || "").match(/rate=(\d+)/) || [0, 24000])[1];
+    if (bin.startsWith("RIFF")) { rate = bin.charCodeAt(24) | (bin.charCodeAt(25) << 8) | (bin.charCodeAt(26) << 16); bin = bin.slice(44); }
+    const n = bin.length >> 1, pcm = new Float32Array(n);
+    for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2 * i) | (bin.charCodeAt(2 * i + 1) << 8); if (v > 32767) v -= 65536; pcm[i] = v / 32768; }
+    playPCM(pcm, rate, 1);
+    await new Promise(r => { player.onended = r; setTimeout(r, n / rate * 1000 + 500); });
+    return 1;
+  } catch { return 0; }
+}
 function sayAndWait(text, lang) {
   return new Promise(async done => {
     const plan = voicePlan(lang, "f");
     if (!plan.id) {
-      const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.pitch = plan.pitch;
-      u.onend = u.onerror = () => done(); speechSynthesis.speak(u); setTimeout(done, 2000 + text.length * 220); return;
+      const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.pitch = plan.pitch; u.volume = 1;
+      let started = false, fin = false; const end = () => { if (!fin) { fin = true; done(); } };
+      u.onstart = () => { started = true; }; u.onend = u.onerror = () => { if (started) end(); };
+      speechSynthesis.speak(u);
+      // The phone's voice didn't start (iPhone while the microphone is on): the AI reads it instead
+      setTimeout(async () => { if (started || speechSynthesis.speaking || fin) return; speechSynthesis.cancel(); await speakAI(text); end(); }, 1500);
+      setTimeout(end, 4000 + text.length * 250); return;
     }
     try { await speakPiper(text, plan.id, plan.rate); } catch {}
     done();
