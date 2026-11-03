@@ -1,3 +1,30 @@
+// ---------- Moving to talk4.omeletrice.com ----------
+// The old address (github.io) passes everything saved on this phone (plan code, settings, names, history)
+// to the new address in the link, and the new address saves it. Nobody has to enter anything again.
+(() => {
+  const NEW = "https://talk4.omeletrice.com";
+  const MOVE = false;   // switched on once the new address is live
+  try {
+    if (/github\.io$/.test(location.hostname) && MOVE) {
+      const keep = {};
+      for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^(t4|talk4)/.test(k)) keep[k] = localStorage.getItem(k); }
+      let data = btoa(unescape(encodeURIComponent(JSON.stringify(keep))));
+      if (data.length > 400000) { delete keep["talk4-log"]; data = btoa(unescape(encodeURIComponent(JSON.stringify(keep)))); }
+      const page = location.pathname.replace(/^\/talk4\/?/, ""), rest = location.hash.replace(/^#/, "");
+      document.documentElement.style.visibility = "hidden";
+      location.replace(NEW + "/" + page + location.search + "#t4m=" + data + (rest ? "&" + rest : ""));
+      return;
+    }
+    const m = location.hash.match(/[#&]t4m=([^&]*)/);
+    if (m) {
+      const got = JSON.parse(decodeURIComponent(escape(atob(m[1]))));
+      for (const k in got) if (localStorage.getItem(k) === null) localStorage.setItem(k, got[k]);
+      const rest = location.hash.replace(/[#&]?t4m=[^&]*&?/, "").replace(/^#?/, "");
+      history.replaceState(null, "", location.pathname + location.search + (rest ? "#" + rest : ""));
+    }
+  } catch {}
+})();
+
 // ---------- Plans: which AI this phone gets ----------
 // Every AI request goes to the relay with this phone's plan code (if any). The relay decides:
 // plan code → the stronger paid AI; first minutes of use → a free trial of it; after that → the standard free AI.
