@@ -88,6 +88,7 @@ button{cursor:pointer;touch-action:manipulation}
 <div class="typer" id="typer"><input id="tin" enterkeyhint="send" autocomplete="off"><button id="tsend">→</button></div>
 <button class="auto" id="autoBtn" hidden></button>
 <button class="auto" id="liveBtn" hidden style="margin-top:8px;border-color:#d8443a;color:#ff8a7a"></button>
+<div id="liveVoiceRow" hidden style="margin-top:6px;font-size:14px;color:var(--muted);display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap"><span id="liveVoiceLbl"></span><select id="liveVoice" style="background:#24211e;color:#f4efe6;border:1px solid #33302b;border-radius:10px;padding:6px 8px;font:inherit"></select></div>
 <nav class="people" id="people"></nav>
 
 <div class="setup" id="setup" hidden>
@@ -357,6 +358,7 @@ $("setBtn").onclick = () => { paintSetup(); $("setup").hidden = false; };
 
 /* ---------- Main screen ---------- */
 function paint() {
+  try { paintLiveVoice(); } catch {}
   $("spkBtn").textContent = autoSpeak ? ui.speakOn : ui.speakOff;
   $("tin").placeholder = ui.typePh;
   const nav = $("people"); nav.replaceChildren(); nav.className = "people" + (people.length === 1 ? " n1" : "");
@@ -679,9 +681,40 @@ const scriptLang = (t, langs) => {
   return langs.includes("en") ? "en" : langs.find(l => !by.some(([b, re]) => b === l)) || langs[0];
 };
 function paintLive() { $("liveBtn").textContent = Live.on ? LV.on : LV.off; $("liveBtn").classList.toggle("on", Live.on); }
+// 3-4 languages: one spoken translation only. The first person's language is the host's: when the host speaks,
+// the translation is spoken in the chosen guest language; when anyone else speaks, it is spoken in the host's.
+// The other languages appear on screen as text right away.
+function liveRoute() {
+  const langs = langsInRoom(), host = people[0]?.lang || langs[0];
+  let guest = null; try { guest = localStorage.getItem("t4-livevoice"); } catch {}
+  if (!langs.includes(guest) || guest === host) guest = langs.find(l => l !== host && l === "en") || langs.find(l => l !== host);
+  const r = {}; for (const l of langs) r[l] = l === host ? guest : host;
+  return r;
+}
+function paintLiveVoice() {
+  const langs = langsInRoom(), row = $("liveVoiceRow"); row.hidden = langs.length < 3 || !AI.proxy;
+  if (row.hidden) return;
+  const host = people[0]?.lang || langs[0], r = liveRoute(), sel = $("liveVoice");
+  $("liveVoiceLbl").textContent = uiLang === "ja" ? `🔊 ${LANG[host].name}を声で読む言葉:` : `🔊 Speak ${LANG[host].name} aloud in:`;
+  sel.replaceChildren(...langs.filter(l => l !== host).map(l => { const o = document.createElement("option"); o.value = l; o.textContent = LANG[l].name; return o; }));
+  sel.value = r[host];
+}
+$("liveVoice").onchange = () => { try { localStorage.setItem("t4-livevoice", $("liveVoice").value); } catch {} if (Live.on) { Live.stop(); Live.start(); } };
+// the languages not spoken aloud: a quick text translation, then the AI's better wording
+async function liveFillText(c, langs) {
+  const route = liveRoute(), spoken = route[c.lang], rest = langs.filter(l => l !== c.lang && l !== spoken);
+  if (!rest.length || !c.text) return;
+  await Promise.all(rest.map(async l => { const t = c.out.find(o => o.lang === l); try { const r = await translate(c.text, c.lang, l); t.text = r.text; t.rom = r.rom; } catch {} }));
+  paintLog();
+  const mm = await aiMeaning(c.text, c.lang, rest).catch(() => null); if (!mm) return;
+  await Promise.all(rest.map(async l => { const t = c.out.find(o => o.lang === l);
+    try { if (l === "ka" && c.lang !== "en" && mm.en) { const r = await translate(mm.en, "en", "ka"); t.text = r.text; t.rom = r.rom; }
+      else if (mm[l]) { t.text = mm[l]; t.rom = romFor(t.text, l); } } catch {} }));
+  paintLog();
+}
 function livePass() {
   const langs = langsInRoom();
-  return fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ task: "live", langs, names: Names.namesPrompt(langs),
+  return fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ task: "live", langs, route: liveRoute(), names: Names.namesPrompt(langs),
     shop: GLOSS.map(g => langs.map(l => g[l]).filter(Boolean).join(" = ")).join("; ") }) }).then(r => r.json());
 }
 async function liveConnect(passP) {
@@ -713,12 +746,12 @@ async function liveConnect(passP) {
       if (sc.outputTranscription?.text) c.outText = (c.outText || "") + sc.outputTranscription.text;
       c.lang = scriptLang(c.text, langs); const i = people.findIndex(p => p.lang === c.lang);
       c.who = i >= 0 ? label(people[i], i) : "?"; c.color = i >= 0 ? COLORS[i] : "var(--muted)";
-      const others = langs.filter(l => l !== c.lang);
-      c.out = others.length === 1 ? [{ lang: others[0], text: (c.outText || "").trim() || null, rom: "" }]
-        : [{ lang: scriptLang(c.outText || "", others), text: (c.outText || "").trim() || null, rom: "" }];
+      const others = langs.filter(l => l !== c.lang), spoken = others.length === 1 ? others[0] : liveRoute()[c.lang];
+      const keep = Object.fromEntries((c.out || []).map(o => [o.lang, o]));
+      c.out = [{ lang: spoken, text: (c.outText || "").trim() || null, rom: "" }, ...others.filter(l => l !== spoken).map(l => keep[l] || { lang: l, text: null, rom: "" })];
       clearTimeout(Live.paintT); Live.paintT = setTimeout(paintLog, 120);
     }
-    if (sc.turnComplete) { Live.timed = false; if (Live.cur) { Live.cur.text = Live.cur.text.trim(); paintLog(); } Live.cur = null; }
+    if (sc.turnComplete) { Live.timed = false; const c = Live.cur; Live.cur = null; if (c) { c.text = c.text.trim(); paintLog(); liveFillText(c, langs); } }
   };
   ws.onclose = () => { if (Live.on && Live.ws === ws) liveRestart(); };
   ws.onerror = () => {};
@@ -771,7 +804,7 @@ Live.stop = () => {
   Live.ctx = null; Live.cur = null; st("");
 };
 $("liveBtn").onclick = () => { unlockAudio(); if (Live.on) Live.stop(); else Live.start(); };
-$("liveBtn").hidden = !AI.proxy; paintLive();
+$("liveBtn").hidden = !AI.proxy; paintLive(); paintLiveVoice();
 window.__t4g = { aiHear, synth, voicePlan, loadVoice, langsInRoom, get log() { return log; } };   // for testing
 
 /* ---------- Voices for every language in the room ---------- */

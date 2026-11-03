@@ -130,9 +130,14 @@ async function live_(b, env, tier, key) {
   const langs = (Array.isArray(b.langs) ? b.langs : []).filter(l => LN[l]).slice(0, 4);
   if (langs.length < 2) return { error: { message: "two languages needed" }, t4: tier };
   const names = langs.map(l => LN[l]);
+  // 3-4 languages: only ONE translation is spoken (the app shows the others as text), so nobody waits
+  const route = b.route && typeof b.route === "object" ? b.route : {};
   const rule = langs.length === 2
     ? "Whenever someone speaks " + names[0] + ", immediately say it in " + names[1] + ". Whenever someone speaks " + names[1] + ", immediately say it in " + names[0] + "."
-    : "People speak " + names.join(", ") + ". Whenever someone speaks, immediately say it in each of the OTHER languages, one after another.";
+    : "People speak " + names.join(", ") + ". " + langs.map(l => {
+        const to = LN[route[l]] && route[l] !== l ? route[l] : langs.find(x => x !== l);
+        return "Whenever someone speaks " + LN[l] + ", immediately say it in " + LN[to] + " only.";
+      }).join(" ") + " Say each translation in ONE language only, never in several.";
   const sys = "You are a live interpreter in Tbilisi (classes, a cooking class, meetings, a Japanese restaurant). " + rule +
     " Say ONLY the translation, in the first person, as the speaker would say it. Never answer questions yourself, never add greetings, comments, explanations or opinions, never say that you are translating. " +
     "Translate the meaning in natural, polite spoken style; keep names and numbers exactly. " +
