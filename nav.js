@@ -20,12 +20,16 @@
         d.style.cssText = "position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:99;background:#d8ae55;color:#1a1307;font:700 15px system-ui,sans-serif;padding:10px 16px;border-radius:12px";
         document.body.append(d); setTimeout(() => d.remove(), 3500); }); }
   } catch {}
-  const isRelay = u => typeof u === "string" && /script\.google(usercontent)?\.com\/macros\//.test(u);
+  const BACKUP = "https://script.google.com/macros/s/AKfycbyzD8Md1xuk8MZ7DxFgAQfOgUm9JCGfS8joqfInXLl3Iy-qPbl-S2BsZTEiqwBwykMX/exec";
+  const isRelay = u => typeof u === "string" && (/script\.google(usercontent)?\.com\/macros\//.test(u) || /talk4-ai\.[\w-]+\.workers\.dev/.test(u));
   const realFetch = window.fetch.bind(window);
   window.fetch = async (u, o) => {
     if (!isRelay(u) || !o || o.method !== "POST" || typeof o.body !== "string") return realFetch(u, o);
     try { const b = JSON.parse(o.body); b.code = T4plan.code(); b.trial = !b.code && T4plan.trialLeft() > 0; o = { ...o, body: JSON.stringify(b) }; } catch {}
-    const r = await realFetch(u, o);
+    // Fast relay first; if it can't be reached or breaks, the backup relay answers instead
+    let r;
+    try { r = await realFetch(u, o); if (r.status >= 500 && u !== BACKUP) throw new Error("relay " + r.status); }
+    catch (e) { if (u === BACKUP || o.signal?.aborted) throw e; r = await realFetch(BACKUP, o); }
     r.clone().json().then(j => {
       if (!j || !j.t4) return;
       const before = get("t4-ai-tier"); set("t4-ai-tier", j.t4);
