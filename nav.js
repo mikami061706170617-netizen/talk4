@@ -3,16 +3,18 @@
 // to the new address in the link, and the new address saves it. Nobody has to enter anything again.
 (() => {
   const NEW = "https://talk4.omeletrice.com";
-  const MOVE = false;   // switched on once the new address is live
   try {
-    if (/github\.io$/.test(location.hostname) && MOVE) {
+    if (/github\.io$/.test(location.hostname)) {
       const keep = {};
       for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^(t4|talk4)/.test(k)) keep[k] = localStorage.getItem(k); }
       let data = btoa(unescape(encodeURIComponent(JSON.stringify(keep))));
       if (data.length > 400000) { delete keep["talk4-log"]; data = btoa(unescape(encodeURIComponent(JSON.stringify(keep)))); }
       const page = location.pathname.replace(/^\/talk4\/?/, ""), rest = location.hash.replace(/^#/, "");
-      document.documentElement.style.visibility = "hidden";
-      location.replace(NEW + "/" + page + location.search + "#t4m=" + data + (rest ? "&" + rest : ""));
+      // Only move once the new address really answers (secure connection ready); otherwise stay here
+      const ctl = new AbortController(); setTimeout(() => ctl.abort(), 4000);
+      fetch(NEW + "/icon.png?" + Date.now(), { mode: "no-cors", cache: "no-store", signal: ctl.signal })
+        .then(() => location.replace(NEW + "/" + page + location.search + "#t4m=" + data + (rest ? "&" + rest : "")))
+        .catch(() => {});
       return;
     }
     const m = location.hash.match(/[#&]t4m=([^&]*)/);
