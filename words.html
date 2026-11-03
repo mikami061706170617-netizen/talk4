@@ -53,17 +53,17 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 <body>
 <div class="wrap">
   <h1>📝 覚える / WORDS</h1>
-  <p class="lead">覚えたい言葉を入れるか話すと、すぐに各国語・読み方・発音が出ます。⭐で単語帳に入れて、あとでテストできます。<br>無料：1日10回・単語帳30個まで（有料プランは無制限）</p>
-  <div class="row"><span class="lead">自分の言葉</span><select id="mine"></select></div>
+  <p class="lead" id="uLead">覚えたい言葉を入れるか話すと、すぐに各国語・読み方・発音が出ます。⭐で単語帳に入れて、あとでテストできます。<br>無料：1日10回・単語帳30個まで（有料プランは無制限）</p>
+  <div class="row"><span class="lead" id="uMine">自分の言葉</span><select id="mine"></select></div>
   <div class="row" id="targets"></div>
   <div class="ask"><input id="q" placeholder="例：お会計お願いします" enterkeyhint="go" autocomplete="off"><button class="btn main" id="mic">🎤</button></div>
   <p class="st" id="status"></p>
   <div id="out" style="display:flex;flex-direction:column;gap:10px"></div>
-  <h2><span>📚 単語パック</span></h2>
-  <p class="lead">場面ごとの基本の単語です。タップで発音、⭐でまとめて単語帳に入ります（🔒は有料プラン）。</p>
+  <h2><span id="uPacks">📚 単語パック</span></h2>
+  <p class="lead" id="uPacksLead">場面ごとの基本の単語です。タップで発音、⭐でまとめて単語帳に入ります（🔒は有料プラン）。</p>
   <div class="row" id="packs"></div>
   <div id="pack" style="display:flex;flex-direction:column;gap:8px"></div>
-  <h2><span>⭐ 単語帳 <span id="count" class="lead"></span></span><button class="btn" id="quizBtn">🃏 テスト</button></h2>
+  <h2><span><span id="uList">⭐ 単語帳</span> <span id="count" class="lead"></span></span><button class="btn" id="quizBtn">🃏 テスト</button></h2>
   <div class="quiz" id="quiz" hidden></div>
   <div id="list" style="display:flex;flex-direction:column;gap:8px"></div>
 </div>
@@ -303,10 +303,25 @@ const keep = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } cat
 let mine = load("t4w-mine", (navigator.language || "ja").slice(0, 2)); if (!LANG[mine]) mine = "ja";
 let targets = load("t4w-targets", ["en", "ka", "ru", "ja"].filter(l => l !== mine).slice(0, 3));
 let words = load("t4w-words", []);
+// Screen words follow "my language": Japanese for Japanese speakers, English for everyone else (tourists, Georgians, Russians).
+const T = (ja, en) => mine === "ja" ? ja : en;
+function chrome() {
+  const set = (id, ja, en) => { const e = $(id); if (e) e.innerHTML = T(ja, en); };
+  set("uLead", "覚えたい言葉を入れるか話すと、すぐに各国語・読み方・発音が出ます。⭐で単語帳に入れて、あとでテストできます。<br>無料：1日10回・単語帳30個まで（有料プランは無制限）",
+    "Type or say a word or phrase — you get it in each language with the reading and the sound. Tap ⭐ to keep it, then test yourself.<br>Free: 10 lookups a day, 30 saved words (no limits on a plan)");
+  set("uMine", "自分の言葉", "My language");
+  set("uPacks", "📚 単語パック", "📚 Word packs");
+  set("uPacksLead", "場面ごとの基本の単語です。タップで発音、⭐でまとめて単語帳に入ります（🔒は有料プラン）。", "Basic words for everyday places. Tap to hear, ⭐ to add them all (🔒 = plan).");
+  set("uList", "⭐ 単語帳", "⭐ My words");
+  $("quizBtn").textContent = T("🃏 テスト", "🃏 Test");
+  $("q").placeholder = T("例：お会計お願いします", "e.g. The bill, please");
+  document.documentElement.lang = mine;
+}
+chrome();
 for (const k of ALL) $("mine").add(new Option(LANG[k].name, k)); $("mine").value = mine;
-$("mine").onchange = () => { mine = $("mine").value; targets = targets.filter(t => t !== mine); keep("t4w-mine", mine); keep("t4w-targets", targets); chips(); run(true); packs(); };
+$("mine").onchange = () => { mine = $("mine").value; chrome(); list(); targets = targets.filter(t => t !== mine); keep("t4w-mine", mine); keep("t4w-targets", targets); chips(); run(true); packs(); };
 function chips() {
-  const box = $("targets"); box.innerHTML = '<span class="lead">覚えたい言葉</span>';
+  const box = $("targets"); box.innerHTML = `<span class="lead">${T("覚えたい言葉", "Learn in")}</span>`;
   for (const k of ALL) { if (k === mine) continue;
     const b = h("button", { class: "chip", "aria-pressed": String(targets.includes(k)) }, LANG[k].name);
     b.onclick = () => { targets = targets.includes(k) ? targets.filter(x => x !== k) : [...targets, k]; keep("t4w-targets", targets); chips(); run(true); warmFor(targets); packs(); };
@@ -325,14 +340,15 @@ function allowLookup(text) {
   u.list = u.list.filter(x => !text.startsWith(x));
   if (u.list.length >= FREE_DAY) return false;
   u.list.push(text); keep("t4w-use", u);
-  const left = FREE_DAY - u.list.length; st(left <= 3 ? `無料はあと${left}回（今日）` : "");
+  const left = FREE_DAY - u.list.length; st(left <= 3 ? T(`無料はあと${left}回（今日）`, `Free today: ${left} left`) : "");
   return true;
 }
 function paywallCard(words) {
   return h("div", { class: "card" },
-    h("div", { class: "t" }, words ? `🔒 無料の単語帳は${FREE_WORDS}個まで` : `🔒 今日の無料分（${FREE_DAY}回）を使い切りました`),
-    h("div", { class: "lead" }, "有料プランなら回数も単語帳も無制限。教室のレッスン・交流会とセットで使えます。明日になるとまた無料で使えます。"),
-    h("div", { class: "acts" }, h("a", { class: "btn main", href: "class.html?plans=1", style: "text-decoration:none" }, "💳 プランを見る・解除コード")));
+    h("div", { class: "t" }, words === "pack" ? T("🔒 このパックは有料プランで使えます（無料は「食べ物」「数字」）", "🔒 This pack comes with a plan (free: Food and Numbers)") : words ? T(`🔒 無料の単語帳は${FREE_WORDS}個まで`, `🔒 The free word list holds ${FREE_WORDS} words`) : T(`🔒 今日の無料分（${FREE_DAY}回）を使い切りました`, `🔒 You've used today's ${FREE_DAY} free lookups`)),
+    h("div", { class: "lead" }, T("有料プランなら回数も単語帳も無制限。教室のレッスン・交流会とセットで使えます。明日になるとまた無料で使えます。", "A Talk4 Class plan removes all limits and comes with lessons and language-exchange sessions at Omurice Land. Your free lookups come back tomorrow.")),
+    h("div", { class: "acts" }, h("a", { class: "btn main", href: "class.html?plans=1", style: "text-decoration:none" }, "💳 " + T("プランを見る・解除コード", "See plans · enter code"))),
+    h("div", { class: "acts" }, h("a", { class: "btn", href: "plans.html", style: "text-decoration:none" }, T("☕ 無料体験レッスンを予約", "☕ Book a free trial lesson"))));
 }
 const memo = load("t4w-cache", {});
 async function tr(text, from, to) {
@@ -353,13 +369,13 @@ async function run(force) {
   const ai = aiPhrases(text, targets);
   await Promise.all(cards.map(async ([to, c]) => {
     try { const r = await tr(text, mine, to); if (my !== job) return; if (!c.dataset.ai) fill(c, text, to, r); }
-    catch { if (my === job && !c.dataset.ai) c.children[1].textContent = "⚠ 電波を確認してください"; }
+    catch { if (my === job && !c.dataset.ai) c.children[1].textContent = T("⚠ 電波を確認してください", "⚠ Check your connection"); }
   }));
   const better = await ai; if (my !== job || !better) return;
   for (const [to, c] of cards) { const b = better[to]; if (!b?.text) continue;
     const g = memo[mine + ">" + to + ":" + text];
     c.dataset.ai = "1"; fill(c, text, to, { text: b.text, rom: to === "en" ? "" : to === "ka" ? kaRoman(b.text) : to === "ru" ? translit(b.text, RU) : (b.rom || "") });
-    c.children[0].textContent = LANG[to].name + "  ✓ 自然な言い方" + (g && g.text.replace(/[.!?。]$/, "") !== b.text.replace(/[.!?。]$/, "") ? "（直訳: " + g.text + "）" : ""); }
+    c.children[0].textContent = LANG[to].name + T("  ✓ 自然な言い方", "  ✓ natural way to say it") + (g && g.text.replace(/[.!?。]$/, "") !== b.text.replace(/[.!?。]$/, "") ? T("（直訳: ", " (word for word: ") + g.text + T("）", ")") : ""); }
 }
 const RU = {"а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"yo","ж":"zh","з":"z","и":"i","й":"y","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r","с":"s","т":"t","у":"u","ф":"f","х":"kh","ц":"ts","ч":"ch","ш":"sh","щ":"shch","ъ":"","ы":"y","ь":"'","э":"e","ю":"yu","я":"ya"};
 const translit = (t, map) => [...t].map(c => { const lo = c.toLowerCase(), r = map[lo]; if (r == null) return c; return c !== lo && r ? r[0].toUpperCase() + r.slice(1) : r; }).join("");
@@ -385,12 +401,12 @@ function fill(c, text, to, r) {
   const acts = c.children[3]; acts.innerHTML = "";
   const stars = h("span", { class: "stars" });
   const saved = () => words.some(w => w.a === text && w.lang === to);
-  const star = h("button", { class: "btn" + (saved() ? " on" : "") }, saved() ? "⭐ 保存済み" : "⭐ 保存");
+  const star = h("button", { class: "btn" + (saved() ? " on" : "") }, saved() ? T("⭐ 保存済み", "⭐ Saved") : T("⭐ 保存", "⭐ Save"));
   star.onclick = () => { if (saved()) return; if (!paid() && words.length >= FREE_WORDS) { $("out").prepend(paywallCard(true)); return; } words.unshift({ a: text, mine, lang: to, t: r.text, rom: r.rom || "", n: 0, at: Date.now() }); keep("t4w-words", words); star.className = "btn on"; star.textContent = "⭐ 保存済み"; list(); };
-  const check = h("button", { class: "btn" }, "🎤 言ってみる");
-  check.onclick = async () => { if (Ears.busy()) { Ears.stopAI(); return; } unlockAudio(); check.textContent = "👂 …"; const res = await listenOnce(to); check.textContent = "🎤 言ってみる";
+  const check = h("button", { class: "btn" }, T("🎤 言ってみる", "🎤 Say it"));
+  check.onclick = async () => { if (Ears.busy()) { Ears.stopAI(); return; } unlockAudio(); check.textContent = "👂 …"; const res = await listenOnce(to); check.textContent = T("🎤 言ってみる", "🎤 Say it");
     const s = Math.max(0, ...res.alts.map(x => scoreOf(r.text, x, to))), n = starsFor(s);
-    stars.textContent = res.alts.length ? "★".repeat(n) + "☆".repeat(3 - n) + "  " + res.alts[0] : (res.err === "nosr" ? "この端末は音声入力に未対応" : "聞こえませんでした"); };
+    stars.textContent = res.alts.length ? "★".repeat(n) + "☆".repeat(3 - n) + "  " + res.alts[0] : (res.err === "nosr" ? T("この端末は音声入力に未対応", "This phone has no voice input") : T("聞こえませんでした", "Didn't catch that")); };
   const play = h("button", { class: "btn" }, "🔊"); play.onclick = () => { unlockAudio(); say(r.text, to); };
   const slow = h("button", { class: "btn" }, "🐢"); slow.onclick = () => { unlockAudio(); say(r.text, to, true); };
   acts.append(play, slow, check, star, stars);
@@ -399,11 +415,11 @@ $("mic").onclick = async () => {
   if (Ears.busy()) { Ears.stopAI(); return; }
   unlockAudio(); $("mic").classList.add("on"); $("mic").textContent = "👂";
   const res = await listenOnce(mine); $("mic").classList.remove("on"); $("mic").textContent = "🎤";
-  if (res.alts[0]) { $("q").value = res.alts[0]; run(true); } else st(res.err === "nosr" ? "この端末は音声入力に未対応です。文字で入れてください" : "聞こえませんでした。もう一度どうぞ");
+  if (res.alts[0]) { $("q").value = res.alts[0]; run(true); } else st(res.err === "nosr" ? T("この端末は音声入力に未対応です。文字で入れてください", "This phone has no voice input. Please type instead") : T("聞こえませんでした。もう一度どうぞ", "Didn't catch that. Please try again"));
 };
 function list() {
   $("count").textContent = (words.length ? `${words.length}  ` : "") + streakText(); const box = $("list"); box.innerHTML = "";
-  if (!words.length) { box.append(h("p", { class: "lead" }, "まだありません。訳の下の ⭐ を押すとここに入ります。")); return; }
+  if (!words.length) { box.append(h("p", { class: "lead" }, T("まだありません。訳の下の ⭐ を押すとここに入ります。", "Nothing yet. Tap ⭐ under a translation to keep it here."))); return; }
   words.forEach((w, i) => {
     const play = h("button", { "aria-label": "play" }, "🔊"); play.onclick = () => { unlockAudio(); say(w.t, w.lang); };
     const del = h("button", { "aria-label": "delete" }, "✕"); del.onclick = () => { words.splice(i, 1); keep("t4w-words", words); list(); };
@@ -420,23 +436,23 @@ function practised() {
 }
 function streakText() {
   const s = load("t4w-streak", { day: "", n: 0, today: 0 }), today = dayStr(Date.now()), yest = dayStr(Date.now() - 864e5);
-  if (s.day === today) return `🔥 ${s.n}日連続 · 今日${s.today}問`;
-  if (s.day === yest && s.n) return `🔥 ${s.n}日連続 — 今日も1問で続きます`;
+  if (s.day === today) return T(`🔥 ${s.n}日連続 · 今日${s.today}問`, `🔥 ${s.n}-day streak · ${s.today} today`);
+  if (s.day === yest && s.n) return T(`🔥 ${s.n}日連続 — 今日も1問で続きます`, `🔥 ${s.n}-day streak — one card today keeps it going`);
   return "";
 }
 // Flashcards: your words first, the answer after a tap; ones you miss come back sooner
 let qi = 0;
-$("quizBtn").onclick = () => { if (!words.length) { st("先に ⭐ で言葉を保存してください"); return; } $("quiz").hidden = !$("quiz").hidden; if (!$("quiz").hidden) { words.sort((x, y) => x.n - y.n); qi = 0; card(); } };
+$("quizBtn").onclick = () => { if (!words.length) { st(T("先に ⭐ で言葉を保存してください", "Save some words with ⭐ first")); return; } $("quiz").hidden = !$("quiz").hidden; if (!$("quiz").hidden) { words.sort((x, y) => x.n - y.n); qi = 0; card(); } };
 function card() {
   const w = words[qi % words.length], Q = $("quiz"); Q.innerHTML = "";
   const ans = h("div", { hidden: "" }, h("div", { class: "ans" }, w.t), h("div", { class: "r", style: "color:var(--gold)" }, w.rom));
-  const show = h("button", { class: "btn main" }, "👀 答えを見る");
-  const good = h("button", { class: "btn", hidden: "" }, "⭕ 言えた"), bad = h("button", { class: "btn", hidden: "" }, "❌ もう一度");
+  const show = h("button", { class: "btn main" }, T("👀 答えを見る", "👀 Show answer"));
+  const good = h("button", { class: "btn", hidden: "" }, T("⭕ 言えた", "⭕ Got it")), bad = h("button", { class: "btn", hidden: "" }, T("❌ もう一度", "❌ Again"));
   show.onclick = () => { unlockAudio(); ans.hidden = false; show.hidden = true; good.hidden = bad.hidden = false; say(w.t, w.lang); };
   good.onclick = () => { practised(); w.n++; keep("t4w-words", words); qi++; card(); };
   bad.onclick = () => { practised(); w.n = Math.max(0, w.n - 1); keep("t4w-words", words); words.splice(qi % words.length, 1); words.splice(Math.min(words.length, (qi % (words.length + 1)) + 2), 0, w); qi++; card(); };
   $("count").textContent = (words.length ? words.length + "  " : "") + streakText();
-  Q.append(h("div", { class: "lead" }, `${(qi % words.length) + 1} / ${words.length} · ${LANG[w.lang].name}で言うと？`), h("div", { class: "q" }, w.a), ans, h("div", { class: "row", style: "justify-content:center" }, show, good, bad));
+  Q.append(h("div", { class: "lead" }, `${(qi % words.length) + 1} / ${words.length} · ` + T(`${LANG[w.lang].name}で言うと？`, `Say it in ${LANG[w.lang].name}`)), h("div", { class: "q" }, w.a), ans, h("div", { class: "row", style: "justify-content:center" }, show, good, bad));
 }
 
 /* ---------- Word packs ---------- */
@@ -454,15 +470,15 @@ function packs() {
   }
   const out = $("pack"); out.innerHTML = ""; if (!openPack) return;
   const P = PACKS.find(x => x.id === openPack);
-  if (!paid() && !FREE_PACKS.includes(P.id)) { out.append(paywallCard()); return; }
+  if (!paid() && !FREE_PACKS.includes(P.id)) { out.append(paywallCard("pack")); return; }
   const langs = targets.length ? targets : ["en"];
-  const all = h("button", { class: "btn main" }, `⭐ ${P.words.length}語を単語帳に入れる`);
+  const all = h("button", { class: "btn main" }, T(`⭐ ${P.words.length}語を単語帳に入れる`, `⭐ Add all ${P.words.length} words`));
   all.onclick = () => {
     let n = 0, full = false;
     for (const wd of P.words) for (const L of langs) if (!words.some(x => x.t === wd[L] && x.lang === L)) {
       if (!paid() && words.length >= FREE_WORDS) { full = true; break; }   // free plan: same 30-word cap as ⭐
       words.unshift({ a: wd[mine] || wd.en, mine, lang: L, t: wd[L], rom: readOf(wd, L) || "", n: 0, at: Date.now() }); n++; }
-    keep("t4w-words", words); list(); all.textContent = `⭐ ${n}語を入れました`;
+    keep("t4w-words", words); list(); all.textContent = T(`⭐ ${n}語を入れました`, `⭐ Added ${n} words`);
     if (full) out.prepend(paywallCard(true));
   };
   out.append(h("div", { class: "row" }, all));
