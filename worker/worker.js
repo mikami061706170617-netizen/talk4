@@ -138,7 +138,9 @@ async function live_(b, env, tier, key) {
     "Translate the meaning in natural, polite spoken style; keep names and numbers exactly. " +
     (langs.includes("ja") ? "Japanese leaves out who and what and speaks indirectly: translate what is really meant; a Japanese line that asks something is a question. " : "") +
     (langs.includes("ka") ? "Speak natural, correct Georgian with polite forms. " : "") +
-    "If the sound is unclear, only noise, or nobody is talking to the room, stay silent.";
+    "Listen very carefully: if a word sounds odd, choose what makes sense in this conversation. " +
+    (b.names ? "\n" + s_(b.names, 2500) : "") + (b.shop ? "\nWords used here: " + s_(b.shop, 800) : "") +
+    "\nIf the sound is unclear, only noise, or nobody is talking to the room, stay silent.";
   const model = await liveModel_(key);
   const now = Date.now();
   const r = await fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens", {
@@ -147,8 +149,8 @@ async function live_(b, env, tier, key) {
       // REST name of the locked setup (the SDKs call it liveConnectConstraints)
       bidiGenerateContentSetup: { model: "models/" + model,
         generationConfig: { responseModalities: ["AUDIO"], thinkingConfig: { thinkingBudget: 0 } },   // no thinking pause before speaking
-        // decide "they stopped talking" quickly (0.4 s of quiet) so the translation starts at once
-        realtimeInputConfig: { automaticActivityDetection: { startOfSpeechSensitivity: "START_SENSITIVITY_HIGH", endOfSpeechSensitivity: "END_SENSITIVITY_HIGH", prefixPaddingMs: 20, silenceDurationMs: 400 } }, systemInstruction: { parts: [{ text: sys }] },
+        // keep 0.3 s before the first sound (so the first word is never cut off); 0.6 s of quiet ends a sentence
+        realtimeInputConfig: { automaticActivityDetection: { startOfSpeechSensitivity: "START_SENSITIVITY_HIGH", endOfSpeechSensitivity: "END_SENSITIVITY_HIGH", prefixPaddingMs: 300, silenceDurationMs: 600 } }, systemInstruction: { parts: [{ text: sys }] },
         inputAudioTranscription: {}, outputAudioTranscription: {}, sessionResumption: {} } }) });
   const j = await r.json();
   if (!j.name) return { error: { message: (j.error && j.error.message) || "no pass" }, t4: tier };

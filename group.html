@@ -682,7 +682,8 @@ function paintLive() { $("liveBtn").textContent = Live.on ? LV.on : LV.off; $("l
 async function liveConnect() {
   const langs = langsInRoom(); if (langs.length < 2) { st(LV.two); Live.stop(); return; }
   let pass;
-  try { pass = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ task: "live", langs }) }).then(r => r.json()); }
+  try { pass = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ task: "live", langs, names: Names.namesPrompt(langs),
+      shop: GLOSS.map(g => langs.map(l => g[l]).filter(Boolean).join(" = ")).join("; ") }) }).then(r => r.json()); }
   catch { st(LV.err); Live.stop(); return; }
   if (!pass.token) { st(pass.error?.message === "plan" ? LV.plan : LV.err + " (" + (pass.error?.message || "") + ")"); Live.stop(); return; }
   if (!Live.on) return;
