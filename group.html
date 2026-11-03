@@ -87,6 +87,7 @@ button{cursor:pointer;touch-action:manipulation}
 <main class="log" id="log"></main>
 <div class="typer" id="typer"><input id="tin" enterkeyhint="send" autocomplete="off"><button id="tsend">→</button></div>
 <button class="auto" id="autoBtn" hidden></button>
+<button class="auto" id="liveBtn" hidden style="margin-top:8px;border-color:#d8443a;color:#ff8a7a"></button>
 <nav class="people" id="people"></nav>
 
 <div class="setup" id="setup" hidden>
@@ -664,7 +665,102 @@ async function sendClip(clip, rate) {
     await publish(out);
   } catch (e) { st(ui.aiErr + " (" + (e.message || e) + ")"); }
 }
-$("autoBtn").onclick = () => { unlockAudio(); handsFree = !handsFree; paintAuto(); if (handsFree) startAuto(); else stopAuto(); };
+$("autoBtn").onclick = () => { unlockAudio(); if (Live.on) Live.stop(); handsFree = !handsFree; paintAuto(); if (handsFree) startAuto(); else stopAuto(); };
+
+/* ---------- ⚡ Fast mode (Gemini Live): the phone streams the sound to Google's real-time interpreter and
+   hears the translation while the conversation goes on. The relay only hands out a 30-minute pass. ---------- */
+const LV = uiLang === "ja"
+  ? { off: "⚡ 速いモード（Live・話しながら訳す）", on: "■ 速いモード中（押すと止まる）", plan: "速いモードは有料プラン・従業員コードで使えます", err: "速いモードにつながりませんでした", two: "言葉を2つ以上選んでください" }
+  : { off: "⚡ Fast mode (Live, translates as you talk)", on: "■ Fast mode on (press to stop)", plan: "Fast mode needs a plan or staff code", err: "Couldn't start fast mode", two: "Choose at least two languages" };
+const Live = { on: false, ws: null, ctx: null, stream: null, proc: null, playUntil: 0, cur: null, retry: 0 };
+const scriptLang = (t, langs) => {
+  const by = [["ka", /[\u10a0-\u10ff]/], ["ru", /[\u0400-\u04ff]/], ["ko", /[\uac00-\ud7af]/], ["ja", /[\u3040-\u30ff]/], ["zh", /[\u4e00-\u9fff]/]];
+  for (const [l, re] of by) if (re.test(t) && langs.includes(l)) return l;
+  return langs.includes("en") ? "en" : langs.find(l => !by.some(([b, re]) => b === l)) || langs[0];
+};
+function paintLive() { $("liveBtn").textContent = Live.on ? LV.on : LV.off; $("liveBtn").classList.toggle("on", Live.on); }
+async function liveConnect() {
+  const langs = langsInRoom(); if (langs.length < 2) { st(LV.two); Live.stop(); return; }
+  let pass;
+  try { pass = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ task: "live", langs }) }).then(r => r.json()); }
+  catch { st(LV.err); Live.stop(); return; }
+  if (!pass.token) { st(pass.error?.message === "plan" ? LV.plan : LV.err + " (" + (pass.error?.message || "") + ")"); Live.stop(); return; }
+  if (!Live.on) return;
+  const ws = new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=" + encodeURIComponent(pass.token));
+  Live.ws = ws;
+  ws.onopen = () => ws.send(JSON.stringify({ setup: { model: "models/" + pass.model, generationConfig: { responseModalities: ["AUDIO"] }, inputAudioTranscription: {}, outputAudioTranscription: {} } }));
+  ws.onmessage = async ev => {
+    let m; try { m = JSON.parse(typeof ev.data === "string" ? ev.data : await ev.data.text()); } catch { return; }
+    if (m.setupComplete) { Live.retry = 0; st(ui.listening); return; }
+    const sc = m.serverContent; if (!sc) { if (m.goAway) liveRestart(); return; }
+    if (sc.interrupted) liveFlush();
+    for (const part of sc.modelTurn?.parts || []) if (part.inlineData?.data) livePlay(part.inlineData.data);
+    if (sc.inputTranscription?.text || sc.outputTranscription?.text) {
+      if (!Live.cur) {
+        Live.cur = { text: "", lang: langs[0], who: "", color: "var(--muted)", detected: true, ai: true, live: true, out: [] };
+        log.push(Live.cur); if (log.length > 60) log.shift();
+      }
+      const c = Live.cur;
+      if (sc.inputTranscription?.text) c.text += sc.inputTranscription.text;
+      if (sc.outputTranscription?.text) c.outText = (c.outText || "") + sc.outputTranscription.text;
+      c.lang = scriptLang(c.text, langs); const i = people.findIndex(p => p.lang === c.lang);
+      c.who = i >= 0 ? label(people[i], i) : "?"; c.color = i >= 0 ? COLORS[i] : "var(--muted)";
+      const others = langs.filter(l => l !== c.lang);
+      c.out = others.length === 1 ? [{ lang: others[0], text: (c.outText || "").trim() || null, rom: "" }]
+        : [{ lang: scriptLang(c.outText || "", others), text: (c.outText || "").trim() || null, rom: "" }];
+      clearTimeout(Live.paintT); Live.paintT = setTimeout(paintLog, 120);
+    }
+    if (sc.turnComplete) { if (Live.cur) { Live.cur.text = Live.cur.text.trim(); paintLog(); } Live.cur = null; }
+  };
+  ws.onclose = () => { if (Live.on && Live.ws === ws) liveRestart(); };
+  ws.onerror = () => {};
+}
+function liveRestart() {   // sessions last ~10 minutes: carry on with a fresh pass
+  if (!Live.on) return;
+  try { Live.ws?.close(); } catch {} Live.ws = null;
+  if (++Live.retry > 5) { st(LV.err); Live.stop(); return; }
+  setTimeout(() => { if (Live.on) liveConnect(); }, 400);
+}
+function liveFlush() { (Live.srcs || []).forEach(s => { try { s.stop(); } catch {} }); Live.srcs = []; Live.playUntil = Live.ctx ? Live.ctx.currentTime : 0; }
+function livePlay(b64) {
+  const ctx = Live.ctx; if (!ctx) return;
+  const bin = atob(b64), n = bin.length >> 1, buf = ctx.createBuffer(1, n, 24000), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2 * i) | (bin.charCodeAt(2 * i + 1) << 8); if (v > 32767) v -= 65536; d[i] = v / 32768; }
+  const src = ctx.createBufferSource(); src.buffer = buf; src.connect(Live.out);
+  const at = Math.max(ctx.currentTime + 0.03, Live.playUntil); src.start(at); Live.playUntil = at + buf.duration;
+  (Live.srcs = Live.srcs || []).push(src); src.onended = () => { Live.srcs = Live.srcs.filter(x => x !== src); };
+}
+Live.start = async () => {
+  if (handsFree) { handsFree = false; stopAuto(); paintAuto(); }
+  if (rec) stopRec(); stopReading();
+  const stream = await openMic(); if (!stream) return;
+  try { if (navigator.audioSession) navigator.audioSession.type = "play-and-record"; } catch {}
+  Live.on = true; Live.retry = 0; paintLive();
+  const ctx = new (window.AudioContext || window.webkitAudioContext)(); try { await ctx.resume(); } catch {}
+  // louder translation voice, without crackle
+  const comp = ctx.createDynamicsCompressor(), gain = ctx.createGain(); gain.gain.value = 2.2; gain.connect(comp); comp.connect(ctx.destination);
+  Object.assign(Live, { ctx, stream, out: gain, playUntil: 0, srcs: [] });
+  const src = ctx.createMediaStreamSource(stream), band = speechBand(ctx, src), proc = ctx.createScriptProcessor(2048, 1, 1); Live.proc = proc;
+  const ratio = ctx.sampleRate / 16000;
+  proc.onaudioprocess = e => {
+    const ws = Live.ws; if (!Live.on || !ws || ws.readyState !== 1) return;
+    if (ctx.currentTime < Live.playUntil + 0.25) return;   // don't feed our own translation back in
+    const x = e.inputBuffer.getChannelData(0), n = Math.floor(x.length / ratio), pcm = new Int16Array(n);
+    for (let i = 0; i < n; i++) { let a = 0, c = 0; for (let k = Math.floor(i * ratio); k < Math.floor((i + 1) * ratio); k++) { a += x[k]; c++; } const v = Math.max(-1, Math.min(1, c ? a / c : 0)); pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff; }
+    const u8 = new Uint8Array(pcm.buffer); let bin = ""; for (let k = 0; k < u8.length; k++) bin += String.fromCharCode(u8[k]);
+    ws.send(JSON.stringify({ realtimeInput: { audio: { data: btoa(bin), mimeType: "audio/pcm;rate=16000" } } }));
+  };
+  band.connect(proc); proc.connect(ctx.destination);
+  liveConnect();
+};
+Live.stop = () => {
+  Live.on = false; paintLive();
+  try { Live.ws?.close(); } catch {} Live.ws = null;
+  try { Live.proc?.disconnect(); Live.stream?.getTracks().forEach(t => t.stop()); Live.ctx?.close(); } catch {}
+  Live.ctx = null; Live.cur = null; st("");
+};
+$("liveBtn").onclick = () => { unlockAudio(); if (Live.on) Live.stop(); else Live.start(); };
+$("liveBtn").hidden = !AI.proxy; paintLive();
 window.__t4g = { aiHear, synth, voicePlan, loadVoice, langsInRoom, get log() { return log; } };   // for testing
 
 /* ---------- Voices for every language in the room ---------- */

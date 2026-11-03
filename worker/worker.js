@@ -109,10 +109,52 @@ async function speak_(b, key, tier) {
   return { error: { message: "no voice" }, t4: tier };
 }
 
+// ---------- Live (fast mode): a 30-minute, single-use pass to Google's real-time interpreter ----------
+// The phone talks to Google directly with the pass (fast); the key and the interpreter's instructions stay here.
+let LIVE = null;
+async function liveModel_(key) {
+  if (LIVE) return LIVE;
+  LIVE = "gemini-3.8-live";
+  try {
+    const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": key } });
+    const names = ((await r.json()).models || []).filter(m => (m.supportedGenerationMethods || []).includes("bidiGenerateContent")).map(m => m.name.replace("models/", ""));
+    const ver = n => parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/) || [0, 0])[1]);
+    const pick = names.filter(n => !/preview|exp/.test(n)).sort((a, b) => ver(b) - ver(a))[0] || names.sort((a, b) => ver(b) - ver(a))[0];
+    if (pick) LIVE = pick;
+  } catch (e) {}
+  return LIVE;
+}
+async function live_(b, env, tier, key) {
+  if (tier === "free") return { error: { message: "plan" }, t4: tier };
+  if (!await underLimit_(env, "live_", 200)) return { error: { message: "daily limit reached" }, t4: tier };
+  const langs = (Array.isArray(b.langs) ? b.langs : []).filter(l => LN[l]).slice(0, 4);
+  if (langs.length < 2) return { error: { message: "two languages needed" }, t4: tier };
+  const names = langs.map(l => LN[l]);
+  const rule = langs.length === 2
+    ? "Whenever someone speaks " + names[0] + ", immediately say it in " + names[1] + ". Whenever someone speaks " + names[1] + ", immediately say it in " + names[0] + "."
+    : "People speak " + names.join(", ") + ". Whenever someone speaks, immediately say it in each of the OTHER languages, one after another.";
+  const sys = "You are a live interpreter in Tbilisi (classes, a cooking class, meetings, a Japanese restaurant). " + rule +
+    " Say ONLY the translation, in the first person, as the speaker would say it. Never answer questions yourself, never add greetings, comments, explanations or opinions, never say that you are translating. " +
+    "Translate the meaning in natural, polite spoken style; keep names and numbers exactly. " +
+    (langs.includes("ja") ? "Japanese leaves out who and what and speaks indirectly: translate what is really meant; a Japanese line that asks something is a question. " : "") +
+    (langs.includes("ka") ? "Speak natural, correct Georgian with polite forms. " : "") +
+    "If the sound is unclear, only noise, or nobody is talking to the room, stay silent.";
+  const model = await liveModel_(key);
+  const now = Date.now();
+  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens", {
+    method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+    body: JSON.stringify({ uses: 1, expireTime: new Date(now + 30 * 60e3).toISOString(), newSessionExpireTime: new Date(now + 2 * 60e3).toISOString(),
+      liveConnectConstraints: { model: "models/" + model, config: { responseModalities: ["AUDIO"], systemInstruction: { parts: [{ text: sys }] },
+        inputAudioTranscription: {}, outputAudioTranscription: {}, sessionResumption: {} } } }) });
+  const j = await r.json();
+  if (!j.name) return { error: { message: (j.error && j.error.message) || "no pass" }, t4: tier };
+  return { token: j.name, model, t4: tier };
+}
+
 export default {
   async fetch(req, env) {
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
-    if (req.method !== "POST") return json_({ ok: true, service: "talk4-ai", v: 7, host: "cloudflare", last: LAST });
+    if (req.method !== "POST") return json_({ ok: true, service: "talk4-ai", v: 8, host: "cloudflare", last: LAST });
     try {
       const body = JSON.parse(await req.text() || "{}");
       if (!await underLimit_(env, "count_", DAILY_LIMIT)) return json_({ error: { message: "daily limit reached" } });
@@ -125,6 +167,7 @@ export default {
       else if (body.trial && body.task && await underLimit_(env, "trial_", TRIAL_DAILY_LIMIT)) tier = "trial";
       const key = tier === "free" ? freeKey : paidKey;
       if (body.task === "speak") return json_(await speak_(body, key, tier));
+      if (body.task === "live") return json_(await live_(body, env, tier, paidKey));
       const request = body.task ? buildTask_(body) : (body.request || {});
       if (!request) return json_({ error: { message: "unknown task" } });
       if (tier === "free" && request.generationConfig?.thinkingConfig) request.generationConfig.thinkingConfig.thinkingLevel = "minimal";
