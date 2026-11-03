@@ -144,8 +144,9 @@ async function live_(b, env, tier, key) {
   const r = await fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens", {
     method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({ uses: 1, expireTime: new Date(now + 30 * 60e3).toISOString(), newSessionExpireTime: new Date(now + 2 * 60e3).toISOString(),
-      liveConnectConstraints: { model: "models/" + model, config: { responseModalities: ["AUDIO"], systemInstruction: { parts: [{ text: sys }] },
-        inputAudioTranscription: {}, outputAudioTranscription: {}, sessionResumption: {} } } }) });
+      // REST name of the locked setup (the SDKs call it liveConnectConstraints)
+      bidiGenerateContentSetup: { model: "models/" + model, generationConfig: { responseModalities: ["AUDIO"] }, systemInstruction: { parts: [{ text: sys }] },
+        inputAudioTranscription: {}, outputAudioTranscription: {}, sessionResumption: {} } }) });
   const j = await r.json();
   if (!j.name) return { error: { message: (j.error && j.error.message) || "no pass" }, t4: tier };
   return { token: j.name, model, t4: tier };
