@@ -11,10 +11,10 @@
       if (data.length > 400000) { delete keep["talk4-log"]; data = btoa(unescape(encodeURIComponent(JSON.stringify(keep)))); }
       const page = location.pathname.replace(/^\/talk4\/?/, ""), rest = location.hash.replace(/^#/, "");
       // Only move once the new address really answers (secure connection ready); otherwise stay here
-      const ctl = new AbortController(); setTimeout(() => ctl.abort(), 4000);
-      fetch(NEW + "/icon.png?" + Date.now(), { mode: "no-cors", cache: "no-store", signal: ctl.signal })
-        .then(() => location.replace(NEW + "/" + page + location.search + "#t4m=" + data + (rest ? "&" + rest : "")))
-        .catch(() => {});
+      // (a real picture from the new address must load: an error page or a half-set-up address won't count)
+      const probe = new Image(); let gone = false;
+      probe.onload = () => { if (!gone && probe.naturalWidth > 0) { gone = true; location.replace(NEW + "/" + page + location.search + "#t4m=" + data + (rest ? "&" + rest : "")); } };
+      probe.src = NEW + "/icon.png?" + Date.now();
       return;
     }
     const m = location.hash.match(/[#&]t4m=([^&]*)/);
