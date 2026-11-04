@@ -775,7 +775,10 @@ async function liveConnect(passP) {
       c.out = [{ lang: spoken, text: (c.outText || "").trim() || null, rom: "" }, ...others.filter(l => l !== spoken).map(l => keep[l] || { lang: l, text: null, rom: "" })];
       clearTimeout(Live.paintT); Live.paintT = setTimeout(paintLog, 120);
     }
-    if (sc.turnComplete) { Live.timed = false; const c = Live.cur; Live.cur = null; const clip = Live.clip; Live.clip = [];
+    if (sc.turnComplete) { Live.timed = false; let c = Live.cur; Live.cur = null; const clip = Live.clip; Live.clip = [];
+      // some Live models speak but send no words back: then the precise AI listens to the sentence and writes it on screen
+      if (!c && clip.length) { c = { text: "…", lang: langs[0], who: "…", color: "var(--muted)", detected: true, ai: true, live: true, out: [] };
+        log.push(c); if (log.length > 60) log.shift(); paintLog(); liveCheck(c, clip, langs); return; }
       if (c) { c.text = c.text.trim(); paintLog(); liveFillText(c, langs); liveCheck(c, clip, langs); } }
   };
   ws.onclose = () => { if (Live.on && Live.ws === ws) liveRestart(); };
