@@ -160,6 +160,7 @@ h2.head{margin:0;font-size:clamp(24px,3.4vw,40px);text-wrap:balance}
 .ai .fix{font-size:14px;color:#ffcf8a;border-top:1px dashed #4a3d22;padding-top:6px}
 .ai input{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;color:var(--fg);font:inherit;font-size:16px}
 .status{font-size:12px;color:var(--muted);text-align:center;min-height:16px}
+.status:not(:empty){position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));background:#24211e;color:#f4efe6;font-size:16px;padding:10px 16px;border-radius:12px;border:1px solid var(--gold);z-index:50;max-width:90vw;box-shadow:0 6px 20px #0008}
 @media print{
   body{background:#fff;color:#111;padding:0}
   .top,.steps,.side,.nav,.actions,.mini,.status,.noprint{display:none!important}
@@ -246,7 +247,7 @@ const UI = {
         pair:"ペア練習", pairHint:"2人で交互にセリフを言います。自分の番になったら🎤が赤くなります", pairResult:"結果", playerA:"Aの人", playerB:"Bの人",
         aiTitle:"AIと会話", aiStart:"🤖 AIと会話をはじめる", aiHint:"この場面の相手役をAIがやります。自由に話しかけてください。間違いはAIが直してくれます",
         aiType:"文字で入力もできます", aiSend:"送る", aiFix:"こう言うともっと自然", aiOff:"AI会話は準備中です。もうしばらくお待ちください",
-        aiFreeLeft:"無料体験：AIとあと{n}回話せます", aiLocked:"AI会話の続きは有料プランで使えます", aiErr:"AIが返事できませんでした。もう一度話しかけてください", aiEnd:"終わる", current:"{lv}プラン ✓", applyMsg:"Talk4 Class の「{lv}」プランに申し込みたいです。", noMic:"このブラウザでは発音チェックが使えません（Chromeかスマホで開いてください）", micErr:"マイクが使えませんでした。もう一度押してください" },
+        aiFreeLeft:"無料体験：AIとあと{n}回話せます", aiLocked:"AI会話の続きは有料プランで使えます", aiErr:"AIが返事できませんでした。もう一度話しかけてください", aiEnd:"終わる", current:"{lv}プラン ✓", applyMsg:"Talk4 Class の「{lv}」プランに申し込みたいです。", noMic:"このブラウザでは発音チェックが使えません（Chromeかスマホで開いてください）", micErr:"マイクが使えませんでした。もう一度押してください", talkNow:"🎤 どうぞ、話してください…（終わったら自動で止まります）", noVoice:"声が聞こえませんでした。マイクに近づいて、もう一度どうぞ" },
   en: { lesson:"Lesson", learn:"Learn", ex:"Explain in", class:"Group", study:"Solo", share:"Student link",
         s0:"Goal", s1:"Practice", s2:"Talk", s3:"Listen", s4:"Quiz", s5:"Review",
         goal:"Today's goal", words:"Today's words", tip:"Tip", start:"Start practising →",
@@ -271,7 +272,7 @@ const UI = {
         pair:"Pair practice", pairHint:"Two people take turns saying the lines. The 🎤 turns red when it's your turn", pairResult:"Result", playerA:"Player A", playerB:"Player B",
         aiTitle:"Talk with AI", aiStart:"🤖 Start talking with AI", aiHint:"The AI plays the other person in this scene. Say anything — it will correct your mistakes",
         aiType:"You can also type", aiSend:"Send", aiFix:"More natural", aiOff:"AI conversation is being set up. Please check back soon",
-        aiFreeLeft:"Free trial: {n} AI replies left", aiLocked:"Keep talking with AI on a paid plan", aiErr:"The AI couldn't reply. Please try again", aiEnd:"End", current:"{lv} plan ✓", applyMsg:"I'd like to join the Talk4 Class {lv} plan.", noMic:"Pronunciation check needs Chrome or a phone browser", micErr:"The microphone didn't start. Press again" },
+        aiFreeLeft:"Free trial: {n} AI replies left", aiLocked:"Keep talking with AI on a paid plan", aiErr:"The AI couldn't reply. Please try again", aiEnd:"End", current:"{lv} plan ✓", applyMsg:"I'd like to join the Talk4 Class {lv} plan.", noMic:"Pronunciation check needs Chrome or a phone browser", micErr:"The microphone didn't start. Press again", talkNow:"🎤 Speak now… (it stops by itself)", noVoice:"We couldn't hear you. Move closer to the mic and try again" },
 };
 const cache = (() => { try { return JSON.parse(localStorage.getItem("t4c-tr") || "{}"); } catch { return {}; } })();
 async function gtr(text, from, to) {
@@ -491,18 +492,19 @@ function listenOnce(lang) {
     r.onresult = e => { best = [...e.results[0]].map(a => a.transcript); };
     r.onerror = e => { if (e.error !== "no-speech" && e.error !== "aborted") err = e.error; };
     r.onend = finish;
-    timer = setTimeout(() => { try { r.stop(); } catch {} setTimeout(finish, 1200); }, 12000);
+    timer = setTimeout(() => { try { r.stop(); } catch {} setTimeout(finish, 1200); }, 8000);
     try { r.start(); } catch { err = "start"; finish(); }
   });
 }
 function stopListening() { Ears.stopAI(); if (rec) { const r = rec; try { r.stop(); } catch {} setTimeout(() => { if (rec === r) recDone?.({ alts: [], err: null }); }, 1500); } }
 async function tryIt(target, btn) {
   if (rec) { stopListening(); return null; }
-  btn.classList.add("on"); btn.textContent = ui.stop;
+  btn.classList.add("on"); btn.textContent = ui.stop; st(ui.talkNow);
   const { alts, err } = await listenOnce(S.learn);
   btn.classList.remove("on"); btn.textContent = ui.speak;
   if (err === "nosr") { st(ui.noMic); return null; }
   if (err && !alts.length) { st(ui.micErr + " (" + err + ")"); return null; }
+  if (!alts.some(a => a && a.trim())) { st(ui.noVoice); return null; }
   st("");
   let best = { s: 0, heard: alts[0] || "" };
   for (const a of alts) { const s = scoreOf(target, a, S.learn); if (s > best.s) best = { s, heard: a }; }
@@ -752,7 +754,7 @@ Answer as JSON: {"reply": "...", "meaning": "the reply translated into ${LANG[ex
     systemInstruction: { parts: [{ text: sys }] },
     contents: history.length ? history.map(m => ({ role: m.who === "me" ? "user" : "model", parts: [{ text: m.who === "me" ? m.text : JSON.stringify({ reply: m.text }) }] }))
                              : [{ role: "user", parts: [{ text: "(Start the scene with your first line.)" }] }],
-    generationConfig: { responseMimeType: "application/json", temperature: 0.7, maxOutputTokens: 400, thinkingConfig: { thinkingLevel: "low" } },
+    generationConfig: { responseMimeType: "application/json", temperature: 0.7, maxOutputTokens: 400, thinkingConfig: { thinkingLevel: "minimal" } },
   };
   const j = await callAI(body);
   const txt = j.candidates?.[0]?.content?.parts?.map(p => p.text).join("") || "{}";
@@ -767,7 +769,7 @@ async function aiTurn(L, ex, userText) {
     const out = await askAI(L, ex, A.msgs);
     if (userText && out.fix && norm(out.fix, S.learn) !== norm(userText, S.learn)) A.msgs[A.msgs.length - 1].fix = { text: out.fix, why: out.why || "" };
     A.msgs.push({ who: "bot", text: out.reply || "…", meaning: out.meaning || "" });
-    aiUsed++; try { localStorage.setItem("t4c-ai", String(aiUsed)); } catch {}
+    if (userText) { aiUsed++; try { localStorage.setItem("t4c-ai", String(aiUsed)); } catch {} }
     say(out.reply || "", S.learn);
   } catch (e) { st(ui.aiErr + " (" + (e.message || e) + ")"); }
   A.busy = false; render();
@@ -802,11 +804,11 @@ async function aiPanel(L, ex) {
   mic.onclick = async () => {
     unlockAudio(); if (A.busy) return;
     if (rec || Ears.busy()) { stopListening(); return; }
-    mic.classList.add("on"); mic.textContent = ui.stop;
+    mic.classList.add("on"); mic.textContent = ui.stop; st(ui.talkNow);
     const { alts, err } = await listenOnce(S.learn);
     mic.classList.remove("on"); mic.textContent = ui.speak;
     if (err === "nosr") { st(ui.noMic); return; }
-    if (alts[0]) aiTurn(L, ex, alts[0]); else if (err) st(ui.micErr);
+    if (alts[0]) { st(""); aiTurn(L, ex, alts[0]); } else st(err ? ui.micErr : ui.noVoice);
   };
   const inp = h("input", { id: "aiIn", placeholder: ui.aiType, autocomplete: "off" });
   const send = () => { const v = inp.value.trim(); if (v && !A.busy) { inp.value = ""; aiTurn(L, ex, v); } };
@@ -930,6 +932,6 @@ await loadUI(S.ex);
 render();
 warm(S.learn);
 </script>
-<script src="nav.js?v=9"></script>
+<script src="nav.js?v=10"></script>
 </body>
 </html>

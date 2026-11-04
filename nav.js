@@ -205,6 +205,6 @@
     add(T.close, () => done(false));
     add(T.ok, () => done(true), "ok");
     ta.addEventListener("keydown", k => { if (k.key === "Enter" && !k.shiftKey && !k.isComposing) { k.preventDefault(); done(true); } });
-    document.body.append(z); inp.blur(); setTimeout(() => ta.focus(), 30);
+    document.body.append(z); ta.focus(); inp.blur(); setTimeout(() => ta.focus(), 30);
   });
 })();
