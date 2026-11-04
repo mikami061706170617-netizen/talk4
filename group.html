@@ -88,6 +88,7 @@ button{cursor:pointer;touch-action:manipulation}
 <div class="typer" id="typer"><input id="tin" enterkeyhint="send" autocomplete="off"><button id="tsend">→</button></div>
 <button class="auto" id="autoBtn" hidden></button>
 <button class="auto" id="liveBtn" hidden style="margin-top:8px;border-color:#d8443a;color:#ff8a7a"></button>
+<button id="bargeBtn" hidden style="margin-top:6px;width:100%;background:none;border:1px solid #33302b;color:var(--muted);border-radius:12px;padding:8px;font:inherit;font-size:14px"></button>
 <div id="liveVoiceRow" hidden style="margin-top:6px;font-size:14px;color:var(--muted);display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap"><span id="liveVoiceLbl"></span><select id="liveVoice" style="background:#24211e;color:#f4efe6;border:1px solid #33302b;border-radius:10px;padding:6px 8px;font:inherit"></select></div>
 <nav class="people" id="people"></nav>
 
@@ -809,7 +810,9 @@ Live.start = async () => {
   const ratio = ctx.sampleRate / 16000;
   proc.onaudioprocess = e => {
     const ws = Live.ws; if (!Live.on || !ws || ws.readyState !== 1) return;
-    if (ctx.currentTime < Live.playUntil + 0.25) return;   // don't feed our own translation back in
+    // off: don't feed our own translation back in. on: people may talk over it (the phone cancels its own sound
+    // and the interpreter stops reading the moment someone speaks)
+    if (!Live.barge && ctx.currentTime < Live.playUntil + 0.25) return;
     const x = e.inputBuffer.getChannelData(0), n = Math.floor(x.length / ratio), pcm = new Int16Array(n);
     Live.clip.push(new Float32Array(x)); if (Live.clip.length > 30 * ctx.sampleRate / 2048) Live.clip.shift();   // last ~30 s
     let sq = 0; for (let k = 0; k < x.length; k += 8) sq += x[k] * x[k]; if (isVoice(Math.sqrt(sq / (x.length / 8)))) Live.lastVoice = performance.now();
@@ -828,6 +831,12 @@ Live.stop = () => {
 };
 $("liveBtn").onclick = () => { unlockAudio(); if (Live.on) Live.stop(); else Live.start(); };
 $("liveBtn").hidden = !AI.proxy; paintLive(); paintLiveVoice();
+try { Live.barge = localStorage.getItem("t4-barge") === "1"; } catch {}
+function paintBarge() { const b = $("bargeBtn"); b.hidden = !AI.proxy;
+  b.textContent = (uiLang === "ja" ? "🗣 読み上げ中も話せる: " : "🗣 Talk over the translation: ") + (Live.barge ? "ON" : "OFF");
+  b.style.borderColor = Live.barge ? "var(--gold)" : ""; b.style.color = Live.barge ? "var(--gold)" : ""; }
+$("bargeBtn").onclick = () => { Live.barge = !Live.barge; try { localStorage.setItem("t4-barge", Live.barge ? "1" : "0"); } catch {} paintBarge(); };
+paintBarge();
 window.__t4g = { aiHear, synth, voicePlan, loadVoice, langsInRoom, get log() { return log; } };   // for testing
 
 /* ---------- Voices for every language in the room ---------- */
