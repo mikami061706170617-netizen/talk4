@@ -57,9 +57,11 @@ async function sha_(t) {
 const day_ = () => new Date(Date.now() + 4 * 3600e3).toISOString().slice(0, 10);   // Tbilisi day
 async function underLimit_(env, prefix, limit) {
   if (!env.T4) return true;
-  const k = prefix + day_(), n = Number(await env.T4.get(k) || 0);
-  if (n >= limit) return false;
-  await env.T4.put(k, String(n + 1), { expirationTtl: 3 * 86400 });
+  try {   // KV free plan allows only 1,000 writes a day: if the counter can't be written, keep translating instead of failing
+    const k = prefix + day_(), n = Number(await env.T4.get(k) || 0);
+    if (n >= limit) return false;
+    await env.T4.put(k, String(n + 1), { expirationTtl: 3 * 86400 });
+  } catch (e) {}
   return true;
 }
 let MODELS = null, MODELS_AT = 0, TTS = null;
