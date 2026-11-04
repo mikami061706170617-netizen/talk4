@@ -440,15 +440,40 @@ function playPCM(pcm, rate, speed = 1) {
   playing = player;
 }
 
+// Last resort for every language: the AI reads it (when the phone has no voice for it, or its voice stays silent)
+const aiVoice = {};
+async function speakAI(text, slow) {
+  if (!AI.proxy) return 0;
+  try {
+    st("🔊 …");
+    const k = text; let got = aiVoice[k];
+    if (!got) {
+      const j = await fetch(AI.proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ task: "speak", text, g: "f" }) }).then(r => r.json());
+      if (!j.audio) { st(""); return 0; }
+      let bin = atob(j.audio), rate = +((j.mime || "").match(/rate=(\d+)/) || [0, 24000])[1];
+      if (bin.startsWith("RIFF")) { rate = bin.charCodeAt(24) | (bin.charCodeAt(25) << 8) | (bin.charCodeAt(26) << 16); bin = bin.slice(44); }
+      const n = bin.length >> 1, pcm = new Float32Array(n);
+      for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2 * i) | (bin.charCodeAt(2 * i + 1) << 8); if (v > 32767) v -= 65536; pcm[i] = Math.tanh(1.6 * v / 32768); }
+      got = aiVoice[k] = { pcm, rate };
+    }
+    st(""); playPCM(got.pcm, got.rate, slow ? 0.75 : 1);
+    await new Promise(r => { player.onended = r; setTimeout(r, got.pcm.length / got.rate * 1000 / (slow ? 0.75 : 1) + 500); });
+    return 1;
+  } catch { st(""); return 0; }
+}
 function say(text, lang, slow = false) {
   text = text.replace(/＿＿|__/g, lang === "ja" ? "、" : ", ");
   speechSynthesis?.cancel?.(); try { playing?.stop(); } catch {}
   const plan = voicePlan(lang, "f");
   return new Promise(async done => {
     if (!plan.id) {
-      const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.rate = slow ? 0.6 : 0.95;
-      u.onend = u.onerror = () => done(); speechSynthesis.speak(u);
-      setTimeout(done, 1500 + text.length * 250); return;
+      if (!plan.nv && speechSynthesis?.getVoices?.().length) { if (!await speakAI(text, slow)) st("🔇"); return done(); }   // no voice for this language here
+      const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.rate = slow ? 0.6 : 0.95; u.volume = 1;
+      let started = false, fin = false; const end = () => { if (!fin) { fin = true; done(); } };
+      u.onstart = () => { started = true; }; u.onend = u.onerror = () => { if (started) end(); };
+      speechSynthesis.speak(u);
+      setTimeout(async () => { if (started || speechSynthesis.speaking || fin) return; speechSynthesis.cancel(); await speakAI(text, slow); end(); }, 1500);
+      setTimeout(end, 4000 + text.length * 250); return;
     }
     try {
       st("🔊 …");
@@ -456,7 +481,7 @@ function say(text, lang, slow = false) {
       playPCM(pcm, rate, slow ? 0.75 : 1); st("");
       const p = playing; p.onended = () => done();
       setTimeout(done, (pcm.length / rate) * 1000 / (slow ? 0.75 : 1) + 600);
-    } catch (e) { st("⚠ " + (e?.message || e)); done(); }
+    } catch (e) { if (!await speakAI(text, slow)) st("⚠ " + (e?.message || e)); done(); }
   });
 }
 async function warm(lang) {

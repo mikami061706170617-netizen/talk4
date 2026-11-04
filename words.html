@@ -259,8 +259,28 @@ function say(text, lang, slow = false) {
   text = text.replace(/＿＿|__/g, lang === "ja" ? "、" : ", ");
   speechSynthesis?.cancel?.(); try { playing?.stop(); } catch {}
   const plan = voicePlan(lang, "f");
-  if (!plan.id) { const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.rate = slow ? 0.6 : 0.95; speechSynthesis.speak(u); return; }
-  synth(text, plan.id).then(({ pcm, rate }) => playPCM(pcm, rate, slow ? 0.75 : 1)).catch(e => st("⚠ " + (e?.message || e)));
+  if (!plan.id) {
+    if (!plan.nv && speechSynthesis?.getVoices?.().length) { speakAI(text, slow); return; }   // no voice for this language here
+    const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.rate = slow ? 0.6 : 0.95; u.volume = 1;
+    let started = false; u.onstart = () => { started = true; }; speechSynthesis.speak(u);
+    setTimeout(() => { if (!started && !speechSynthesis.speaking) { speechSynthesis.cancel(); speakAI(text, slow); } }, 1500);
+    return;
+  }
+  synth(text, plan.id).then(({ pcm, rate }) => playPCM(pcm, rate, slow ? 0.75 : 1)).catch(() => speakAI(text, slow));
+}
+// Last resort for every language: the AI reads it (no voice on this phone, or its voice stays silent)
+async function speakAI(text, slow) {
+  const proxy = (AIcfg || (await aiReady, AIcfg))?.proxy; if (!proxy) { st("🔇"); return; }
+  try {
+    st("🔊 …");
+    const j = await fetch(proxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ task: "speak", text, g: "f" }) }).then(r => r.json());
+    if (!j.audio) { st("🔇"); return; }
+    let bin = atob(j.audio), rate = +((j.mime || "").match(/rate=(\d+)/) || [0, 24000])[1];
+    if (bin.startsWith("RIFF")) { rate = bin.charCodeAt(24) | (bin.charCodeAt(25) << 8) | (bin.charCodeAt(26) << 16); bin = bin.slice(44); }
+    const n = bin.length >> 1, pcm = new Float32Array(n);
+    for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2 * i) | (bin.charCodeAt(2 * i + 1) << 8); if (v > 32767) v -= 65536; pcm[i] = Math.tanh(1.6 * v / 32768); }
+    st(""); playPCM(pcm, rate, slow ? 0.75 : 1);
+  } catch { st("🔇"); }
 }
 async function warmFor(langs) {
   for (const lang of langs) { const id = voicePlan(lang, "f").id; if (!id || sessions[id]) continue;

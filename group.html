@@ -427,7 +427,7 @@ function sayAndWait(text, lang) {
       setTimeout(async () => { if (started || speechSynthesis.speaking || fin) return; speechSynthesis.cancel(); await speakAI(text); end(); }, 1500);
       setTimeout(end, 4000 + text.length * 250); return;
     }
-    try { await speakPiper(text, plan.id, plan.rate); } catch {}
+    try { await speakPiper(text, plan.id, plan.rate); } catch { await speakAI(text); }
     done();
   });
 }

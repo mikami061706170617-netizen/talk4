@@ -507,7 +507,7 @@ async function speak(text, lang, g = "f") {
     return;
   }
   try { await speakPiper(text, plan.id, plan.rate); st("✓ OK", true); }
-  catch (e) { st("⚠ " + (e?.message || e)); }
+  catch (e) { st("⚠ " + (e?.message || e)); speakAI(text, g); }
 }
 speechSynthesis?.addEventListener?.("voiceschanged", () => {});
 
