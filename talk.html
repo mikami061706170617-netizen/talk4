@@ -817,9 +817,9 @@ async function show(o) {
     if (out.srcRom) { o.srcRom = out.srcRom; S.rom.textContent = out.srcRom; }
     // Georgian: the AI first writes the exact meaning in English, then it is put into Georgian
     // (Google is more correct in Georgian grammar from English than from Japanese)
-    // Don't keep people waiting: if the AI takes more than 4 s, the quick translation is read out now
+    // Don't keep people waiting: if the AI takes more than 2.5 s, the quick translation is read out now
     // (the AI's better wording still replaces it on screen when it arrives)
-    let better = await Promise.race([aiP, new Promise(r => setTimeout(() => r("late"), 4000))]), spoken = false;
+    let better = await Promise.race([aiP, new Promise(r => setTimeout(() => r("late"), 2500))]), spoken = false;
     if (better === "late") {
       if (my !== job) return;
       if (autoSpeak && !(link && speakerSide === "me")) { speak(out.text, to, voice[speakerSide]); spoken = true; }
