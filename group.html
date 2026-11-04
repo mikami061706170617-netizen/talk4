@@ -700,13 +700,28 @@ function paintLiveVoice() {
   sel.value = r[host];
 }
 $("liveVoice").onchange = () => { try { localStorage.setItem("t4-livevoice", $("liveVoice").value); } catch {} if (Live.on) { Live.stop(); Live.start(); } };
+// Accuracy: the fast interpreter answers at once; then the precise AI listens to the same sentence again
+// and the screen shows its (more accurate) words and translations, marked ✓
+async function liveCheck(c, clip, langs) {
+  const secs = clip.reduce((a, x) => a + x.length, 0) / (Live.rate || 48000);
+  if (secs < 0.6) return;
+  try {
+    const out = await aiHear(toWav(clip, Live.rate));
+    if (!out?.text || !LANG[out.lang] || !langs.includes(out.lang)) return;
+    c.checked = true; c.text = out.text; c.lang = out.lang;
+    const i = people.findIndex(p => p.lang === out.lang); c.who = (i >= 0 ? label(people[i], i) : "?") + " ✓"; c.color = i >= 0 ? COLORS[i] : c.color;
+    c.out = langs.filter(l => l !== out.lang).map(l => ({ lang: l, text: out.tr?.[l] ? Names.postNames(restore(protect(out.tr[l]), l), l) : (c.out.find(o => o.lang === l)?.text ?? null), rom: "" }));
+    c.out.forEach(t => { if (t.text) t.rom = romFor(t.text, t.lang); });
+    paintLog();
+  } catch {}
+}
 // the languages not spoken aloud: a quick text translation, then the AI's better wording
 async function liveFillText(c, langs) {
   const route = liveRoute(), spoken = route[c.lang], rest = langs.filter(l => l !== c.lang && l !== spoken);
-  if (!rest.length || !c.text) return;
-  await Promise.all(rest.map(async l => { const t = c.out.find(o => o.lang === l); try { const r = await translate(c.text, c.lang, l); t.text = r.text; t.rom = r.rom; } catch {} }));
+  if (!rest.length || !c.text || c.checked) return;
+  await Promise.all(rest.map(async l => { const t = c.out.find(o => o.lang === l); try { const r = await translate(c.text, c.lang, l); if (!c.checked && t) { t.text = r.text; t.rom = r.rom; } } catch {} }));
   paintLog();
-  const mm = await aiMeaning(c.text, c.lang, rest).catch(() => null); if (!mm) return;
+  const mm = await aiMeaning(c.text, c.lang, rest).catch(() => null); if (!mm || c.checked) return;
   await Promise.all(rest.map(async l => { const t = c.out.find(o => o.lang === l);
     try { if (l === "ka" && c.lang !== "en" && mm.en) { const r = await translate(mm.en, "en", "ka"); t.text = r.text; t.rom = r.rom; }
       else if (mm[l]) { t.text = mm[l]; t.rom = romFor(t.text, l); } } catch {} }));
@@ -751,7 +766,8 @@ async function liveConnect(passP) {
       c.out = [{ lang: spoken, text: (c.outText || "").trim() || null, rom: "" }, ...others.filter(l => l !== spoken).map(l => keep[l] || { lang: l, text: null, rom: "" })];
       clearTimeout(Live.paintT); Live.paintT = setTimeout(paintLog, 120);
     }
-    if (sc.turnComplete) { Live.timed = false; const c = Live.cur; Live.cur = null; if (c) { c.text = c.text.trim(); paintLog(); liveFillText(c, langs); } }
+    if (sc.turnComplete) { Live.timed = false; const c = Live.cur; Live.cur = null; const clip = Live.clip; Live.clip = [];
+      if (c) { c.text = c.text.trim(); paintLog(); liveFillText(c, langs); liveCheck(c, clip, langs); } }
   };
   ws.onclose = () => { if (Live.on && Live.ws === ws) liveRestart(); };
   ws.onerror = () => {};
@@ -783,12 +799,13 @@ Live.start = async () => {
   const comp = ctx.createDynamicsCompressor(), gain = ctx.createGain(); gain.gain.value = 2.2; gain.connect(comp); comp.connect(ctx.destination);
   Object.assign(Live, { ctx, stream, out: gain, playUntil: 0, srcs: [] });
   const src = ctx.createMediaStreamSource(stream), band = speechBand(ctx, src), proc = ctx.createScriptProcessor(2048, 1, 1); Live.proc = proc;
-  const isVoice = voiceGate(); Live.lastVoice = 0; Live.timed = false;
+  const isVoice = voiceGate(); Live.lastVoice = 0; Live.timed = false; Live.clip = []; Live.rate = ctx.sampleRate;
   const ratio = ctx.sampleRate / 16000;
   proc.onaudioprocess = e => {
     const ws = Live.ws; if (!Live.on || !ws || ws.readyState !== 1) return;
     if (ctx.currentTime < Live.playUntil + 0.25) return;   // don't feed our own translation back in
     const x = e.inputBuffer.getChannelData(0), n = Math.floor(x.length / ratio), pcm = new Int16Array(n);
+    Live.clip.push(new Float32Array(x)); if (Live.clip.length > 30 * ctx.sampleRate / 2048) Live.clip.shift();   // last ~30 s
     let sq = 0; for (let k = 0; k < x.length; k += 8) sq += x[k] * x[k]; if (isVoice(Math.sqrt(sq / (x.length / 8)))) Live.lastVoice = performance.now();
     for (let i = 0; i < n; i++) { let a = 0, c = 0; for (let k = Math.floor(i * ratio); k < Math.floor((i + 1) * ratio); k++) { a += x[k]; c++; } const v = Math.max(-1, Math.min(1, c ? a / c : 0)); pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff; }
     const u8 = new Uint8Array(pcm.buffer); let bin = ""; for (let k = 0; k < u8.length; k++) bin += String.fromCharCode(u8[k]);
