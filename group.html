@@ -88,6 +88,7 @@ button{cursor:pointer;touch-action:manipulation}
 <div class="typer" id="typer"><input id="tin" enterkeyhint="send" autocomplete="off"><button id="tsend">→</button></div>
 <button class="auto" id="autoBtn" hidden></button>
 <button class="auto" id="liveBtn" hidden style="margin-top:8px;border-color:#d8443a;color:#ff8a7a"></button>
+<div id="liveMeter" hidden style="height:8px;background:#2a2a2a;border-radius:4px;margin:6px 4px 0;overflow:hidden"><i style="display:block;height:100%;width:0;background:#4caf50;transition:width .1s"></i></div>
 <button id="bargeBtn" hidden style="margin-top:6px;width:100%;background:none;border:1px solid #33302b;color:var(--muted);border-radius:12px;padding:8px;font:inherit;font-size:14px"></button>
 <div id="liveVoiceRow" hidden style="margin-top:6px;font-size:14px;color:var(--muted);display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap"><span id="liveVoiceLbl"></span><select id="liveVoice" style="background:#24211e;color:#f4efe6;border:1px solid #33302b;border-radius:10px;padding:6px 8px;font:inherit"></select></div>
 <nav class="people" id="people"></nav>
@@ -679,8 +680,8 @@ $("autoBtn").onclick = () => { unlockAudio(); if (Live.on) Live.stop(); handsFre
 /* ---------- ⚡ Fast mode (Gemini Live): the phone streams the sound to Google's real-time interpreter and
    hears the translation while the conversation goes on. The relay only hands out a 30-minute pass. ---------- */
 const LV = uiLang === "ja"
-  ? { off: "⚡ 速いモード（Live・話しながら訳す）", on: "■ 速いモード中（押すと止まる）", plan: "速いモードは有料プラン・従業員コードで使えます", err: "速いモードにつながりませんでした", two: "言葉を2つ以上選んでください" }
-  : { off: "⚡ Fast mode (Live, translates as you talk)", on: "■ Fast mode on (press to stop)", plan: "Fast mode needs a plan or staff code", err: "Couldn't start fast mode", two: "Choose at least two languages" };
+  ? { off: "⚡ 速いモード（Live・話しながら訳す）", on: "■ 速いモード中（押すと止まる）", plan: "速いモードは有料プラン・従業員コードで使えます", err: "速いモードにつながりませんでした", two: "言葉を2つ以上選んでください", noMic: "🎤 マイクの音が届いていません。Safariのマイク許可を確認するか、Chromeで開いてください" }
+  : { off: "⚡ Fast mode (Live, translates as you talk)", on: "■ Fast mode on (press to stop)", plan: "Fast mode needs a plan or staff code", err: "Couldn't start fast mode", two: "Choose at least two languages", noMic: "🎤 No sound from the microphone. Check the mic permission or try Chrome" };
 const Live = { on: false, ws: null, ctx: null, stream: null, proc: null, playUntil: 0, cur: null, retry: 0 };
 const scriptLang = (t, langs) => {
   const by = [["ka", /[\u10a0-\u10ff]/], ["ru", /[\u0400-\u04ff]/], ["ko", /[\uac00-\ud7af]/], ["ja", /[\u3040-\u30ff]/], ["zh", /[\u4e00-\u9fff]/]];
@@ -753,6 +754,7 @@ async function liveConnect(passP) {
     let m; try { m = JSON.parse(typeof ev.data === "string" ? ev.data : await ev.data.text()); } catch { return; }
     if (m.setupComplete) { Live.retry = 0; st(ui.listening); return; }
     const sc = m.serverContent; if (!sc) { if (m.goAway) liveRestart(); return; }
+    if (sc.inputTranscription?.text || sc.modelTurn) Live.gotAt = performance.now();
     if (sc.interrupted) liveFlush();
     for (const part of sc.modelTurn?.parts || []) if (part.inlineData?.data) {
       if (!Live.timed && Live.lastVoice) { Live.timed = true; st("⏱ " + ((performance.now() - Live.lastVoice) / 1000).toFixed(1) + (uiLang === "ja" ? " 秒で訳しました" : " s")); }
@@ -808,23 +810,51 @@ Live.start = async () => {
   const src = ctx.createMediaStreamSource(stream), band = speechBand(ctx, src), proc = ctx.createScriptProcessor(2048, 1, 1); Live.proc = proc;
   const isVoice = voiceGate(); Live.lastVoice = 0; Live.timed = false; Live.clip = []; Live.rate = ctx.sampleRate;
   const ratio = ctx.sampleRate / 16000;
+  const meter = $("liveMeter"), bar = meter.firstElementChild; meter.hidden = false;
+  const t0 = performance.now(); let peak = 0, warned = false;
+  Object.assign(Live, { gotAt: 0, flushed: false, rescued: 0, chunks: 0, mute: false });
   proc.onaudioprocess = e => {
+    const x = e.inputBuffer.getChannelData(0);
+    let sq = 0; for (let k = 0; k < x.length; k += 8) sq += x[k] * x[k]; const rms = Math.sqrt(sq / (x.length / 8));
+    bar.style.width = Math.min(100, rms * 900) + "%"; peak = Math.max(peak, rms);   // the green bar moves = the mic hears you
+    if (!warned && performance.now() - t0 > 5000 && peak < 0.002) { warned = true; st(LV.noMic); }
     const ws = Live.ws; if (!Live.on || !ws || ws.readyState !== 1) return;
     // off: don't feed our own translation back in. on: people may talk over it (the phone cancels its own sound
     // and the interpreter stops reading the moment someone speaks)
-    if (!Live.barge && ctx.currentTime < Live.playUntil + 0.25) return;
-    const x = e.inputBuffer.getChannelData(0), n = Math.floor(x.length / ratio), pcm = new Int16Array(n);
+    if (Live.mute || (!Live.barge && ctx.currentTime < Live.playUntil + 0.25)) return;
+    const n = Math.floor(x.length / ratio), pcm = new Int16Array(n);
     Live.clip.push(new Float32Array(x)); if (Live.clip.length > 30 * ctx.sampleRate / 2048) Live.clip.shift();   // last ~30 s
-    let sq = 0; for (let k = 0; k < x.length; k += 8) sq += x[k] * x[k]; if (isVoice(Math.sqrt(sq / (x.length / 8)))) Live.lastVoice = performance.now();
+    if (isVoice(rms)) { Live.lastVoice = performance.now(); Live.flushed = false; Live.chunks++; }
     for (let i = 0; i < n; i++) { let a = 0, c = 0; for (let k = Math.floor(i * ratio); k < Math.floor((i + 1) * ratio); k++) { a += x[k]; c++; } const v = Math.max(-1, Math.min(1, c ? a / c : 0)); pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff; }
     const u8 = new Uint8Array(pcm.buffer); let bin = ""; for (let k = 0; k < u8.length; k++) bin += String.fromCharCode(u8[k]);
     ws.send(JSON.stringify({ realtimeInput: { audio: { data: btoa(bin), mimeType: "audio/pcm;rate=16000" } } }));
   };
   band.connect(proc); proc.connect(ctx.destination);
   liveConnect(passP);
+  // Rescue: in a noisy room the fast AI sometimes never notices the sentence ended and stays silent.
+  // 1.5 s after the voice stops with no answer: tell it the sentence is over. Still nothing after 4 s:
+  // the precise AI listens to the recording and translates it the normal way.
+  clearInterval(Live.rescueT);
+  Live.rescueT = setInterval(() => {
+    const v = Live.lastVoice, ws = Live.ws; if (!Live.on || !v || Live.gotAt > v || Live.rescued === v) return;
+    const quiet = performance.now() - v;
+    if (quiet > 1500 && !Live.flushed && ws?.readyState === 1) { Live.flushed = true; try { ws.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } })); } catch {} }
+    if (quiet > 4000) {
+      Live.rescued = v; const clip = Live.clip, enough = Live.chunks >= 5; Live.clip = []; Live.chunks = 0;
+      if (!enough || clip.reduce((a, b) => a + b.length, 0) / ctx.sampleRate < 0.6) return;
+      st(ui.translating);
+      aiHear(toWav(clip, ctx.sampleRate)).then(async out => {
+        if (!Live.on || !out?.text || !LANG[out.lang] || Live.gotAt > v) { if (Live.on) st(ui.listening); return; }
+        const i = people.findIndex(p => p.lang === out.lang);
+        Live.mute = true;
+        try { await addUtterance(out.text, out.lang, (i >= 0 ? label(people[i], i) : "?") + " ✓", i >= 0 ? COLORS[i] : "var(--muted)", true, out); }
+        finally { Live.mute = false; Live.lastVoice = 0; if (Live.on) st(ui.listening); }
+      }).catch(() => { if (Live.on) st(ui.listening); });
+    }
+  }, 300);
 };
 Live.stop = () => {
-  Live.on = false; paintLive();
+  Live.on = false; paintLive(); clearInterval(Live.rescueT); $("liveMeter").hidden = true;
   try { Live.ws?.close(); } catch {} Live.ws = null;
   try { Live.proc?.disconnect(); Live.stream?.getTracks().forEach(t => t.stop()); Live.ctx?.close(); } catch {}
   Live.ctx = null; Live.cur = null; st("");
