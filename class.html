@@ -202,12 +202,16 @@ h2.head{margin:0;font-size:clamp(24px,3.4vw,40px);text-wrap:balance}
 </div>
 
 <script type="module">
-const Names = await import("./names.js?v=" + Math.floor(Date.now() / 600000));   // registered names: never translated by meaning
-const Ears = await import("./ears.js?v=" + Math.floor(Date.now() / 600000));   // AI listening when the phone can't
 const VER = new URLSearchParams(location.search).get("v") || String(Math.floor(Date.now() / 600000));  // fresh files after an update
-const { LESSONS, MISSIONS, MISSION_REWARD } = await import("./lessons.js?v=" + VER);
-let AI = { proxy: "", freeTurns: 5 };
-try { AI = { ...AI, ...(await import("./config.js?v=" + Date.now())).AI }; } catch {}
+const T10 = Math.floor(Date.now() / 600000);
+// all files at once (one after another made the page stay dark for seconds)
+const [Names, Ears, { LESSONS, MISSIONS, MISSION_REWARD }, cfg] = await Promise.all([
+  import("./names.js?v=" + T10),   // registered names: never translated by meaning
+  import("./ears.js?v=" + T10),    // AI listening when the phone can't
+  import("./lessons.js?v=" + VER),
+  import("./config.js?v=" + T10).catch(() => ({})),
+]);
+let AI = { proxy: "", freeTurns: 5, ...(cfg.AI || {}) };
 
 const LANG = {
   ja:{name:"日本語", g:"ja", sr:"ja-JP", tts:null},
@@ -619,7 +623,7 @@ const starKey = i => `${S.learn}:${S.lesson}:${i}`;
 const doneKey = s => `${S.learn}:${S.lesson}:${s}`;
 const lineOf = (L, x) => typeof x === "number" ? L.phrases[x] : x;
 function reset() { S.i = 0; S.shown = false; S.score = null; S.quiz = null; S.lquiz = null; S.line = -1; S.dlgScores = {}; S.playing = false; S.checks = {}; }
-function goStep(n) { S.showPlans = false; stopAll(); doneSteps[doneKey(S.step)] = true; save(); S.step = n; S.score = null; S.shown = false; S.line = -1; render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+function goStep(n, finished) { S.showPlans = false; stopAll(); if (finished) doneSteps[doneKey(S.step)] = true; save(); S.step = n; S.score = null; S.shown = false; S.line = -1; render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
 
 /* ---------- Header ---------- */
 for (const k of LEARN) $("learnSel").add(new Option(LANG[k].name, k));
@@ -669,7 +673,7 @@ function paintHeader() {
 const h = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k.startsWith("on")) e[k] = v; else if (k === "html") e.innerHTML = v; else e.setAttribute(k, v); } for (const c of kids) if (c != null && c !== "") e.append(c); return e; };
 const play = (t, slow) => h("button", { class: "mini", "aria-label": "play", onclick: e => { e.stopPropagation(); unlockAudio(); say(t, S.learn, slow); } }, "▶");
 const starsHtml = n => "★".repeat(n) + `<span class="off">${"★".repeat(3 - n)}</span>`;
-const nextStepBtn = () => h("button", { class: "btn main", onclick: () => goStep(S.step + 1) }, ui.nextStep);
+const nextStepBtn = () => h("button", { class: "btn main", onclick: () => goStep(S.step + 1, true) }, ui.nextStep);
 
 let renderNo = 0;
 async function render() {
@@ -696,7 +700,7 @@ async function stepGoal(card, L, ex) {
   card.append(h("div", { class: "goal", html: `<b>${ui.words}</b>` }), h("div", { class: "tablebox" }, tb));
   const tip = L.tips?.[S.learn]; if (tip) card.append(h("div", { class: "tipbox", html: `<b>${ui.tip}</b>` }, await note(tip, ex)));
   if (!canUse(L, 1)) card.append(h("div", { class: "lockline" }, "🔒 " + ui.lockedLv.replace("{lv}", lvName(lvRank(L)))));
-  card.append(h("div", { class: "nav" }, h("span"), h("button", { class: "btn main", onclick: () => goStep(1) }, ui.start)));
+  card.append(h("div", { class: "nav" }, h("span"), h("button", { class: "btn main", onclick: () => goStep(1, true) }, ui.start)));
 }
 
 /* ⭐ Put a lesson phrase into the same word list as the 📝 覚える tab, for flashcards later */
@@ -953,8 +957,9 @@ document.addEventListener("keydown", e => {
   if (e.key === "ArrowRight" && S.i < n - 1) { S.i++; S.shown = false; S.score = null; render(); }
   if (e.key === "ArrowLeft" && S.i > 0) { S.i--; S.shown = false; S.score = null; render(); }
 });
-await loadUI(S.ex);
+if (UI[S.ex]) ui = UI[S.ex]; else ui = UI.en;
 render();
+if (!UI[S.ex]) loadUI(S.ex).then(render);
 warm(S.learn);
 </script>
 <script src="nav.js?v=10"></script>
