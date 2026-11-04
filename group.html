@@ -598,7 +598,13 @@ function stopAuto() {
   const R = recording; recording = null;
   try { R?.proc.disconnect(); R?.stream.getTracks().forEach(t => t.stop()); R?.ctx.close(); } catch {}
 }
-function paintAuto() { $("autoBtn").classList.toggle("on", handsFree); $("autoBtn").textContent = handsFree ? ui.autoOn : ui.auto; }
+function paintAuto() { $("autoBtn").classList.toggle("on", handsFree); $("autoBtn").textContent = handsFree ? ui.autoOn : ui.auto; paintHandsFree(); }
+function paintHandsFree() {
+  const on = handsFree || (typeof Live !== "undefined" && Live.on);
+  $("people").style.opacity = on ? ".35" : ""; $("people").style.pointerEvents = on ? "none" : "";
+  let tip = $("hfTip"); if (!tip) { tip = document.createElement("div"); tip.id = "hfTip"; tip.style.cssText = "text-align:center;color:var(--gold);font-weight:700;margin:6px 0"; $("people").before(tip); }
+  tip.textContent = on ? (uiLang === "ja" ? "👂 誰が何語で話しても自動で聞いています。ボタンは押さなくて大丈夫です" : "👂 Listening to everyone in any language. No need to press anything") : "";
+}
 function toWav(chunks, rate) {
   const target = 16000, len = chunks.reduce((a, c) => a + c.length, 0), ratio = rate / target, n = Math.floor(len / ratio);
   const all = new Float32Array(len); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
@@ -680,7 +686,7 @@ const scriptLang = (t, langs) => {
   for (const [l, re] of by) if (re.test(t) && langs.includes(l)) return l;
   return langs.includes("en") ? "en" : langs.find(l => !by.some(([b, re]) => b === l)) || langs[0];
 };
-function paintLive() { $("liveBtn").textContent = Live.on ? LV.on : LV.off; $("liveBtn").classList.toggle("on", Live.on); }
+function paintLive() { $("liveBtn").textContent = Live.on ? LV.on : LV.off; $("liveBtn").classList.toggle("on", Live.on); paintHandsFree(); }
 // 3-4 languages: one spoken translation only. The first person's language is the host's: when the host speaks,
 // the translation is spoken in the chosen guest language; when anyone else speaks, it is spoken in the host's.
 // The other languages appear on screen as text right away.
