@@ -124,7 +124,9 @@ function speak_(b, key, tier) {
 
 function call_(order, request, key) {
     let res = null;
-    for (const model of order) {
+    const cache = CacheService.getScriptCache();
+    const live = order.filter(m => !cache.get("dead:" + m));
+    for (const model of live.length ? live : order) {
       const rq = JSON.parse(JSON.stringify(request));
       // the light models accept "minimal" thinking; the full ones need at least "low"
       if (/lite/.test(model) === false && rq.generationConfig && rq.generationConfig.thinkingConfig && rq.generationConfig.thinkingConfig.thinkingLevel === "minimal") rq.generationConfig.thinkingConfig.thinkingLevel = "low";
@@ -134,7 +136,8 @@ function call_(order, request, key) {
       });
       const code = res.getResponseCode();
       CacheService.getScriptCache().put("last", model + " " + code, 3600);
-      if (code !== 429 && code !== 503 && code !== 500 && code !== 400) break;
+      if (code === 404) { cache.put("dead:" + model, "1", 21600); continue; }   // switched off by Google: next model
+      if (code !== 429 && code !== 503 && code !== 500 && code !== 400 && code !== 403) break;
     }
     return res;
 }
@@ -150,7 +153,7 @@ function sha_(t) {
 }
 
 function pickModels_(key) {
-  const cache = CacheService.getScriptCache(), hit = cache.get("models3");
+  const cache = CacheService.getScriptCache(), hit = cache.get("models4");
   if (hit) return JSON.parse(hit);
   let models = ["gemini-2.5-flash-lite", "gemini-2.5-flash"];
   try {
@@ -160,11 +163,12 @@ function pickModels_(key) {
       .map(m => m.name.replace("models/", ""))
       .filter(n => /flash/.test(n) && !/(image|tts|audio|live|thinking|exp|8b|embedding)/.test(n));
     const ver = n => parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/) || [0, 0])[1]);
-    const sorted = names.sort((a, b) => (/preview/.test(a) - /preview/.test(b)) || ver(b) - ver(a) || a.length - b.length);
+    // newest version first (old ones get switched off for new keys); at the same version a finished model before a preview
+    const sorted = names.sort((a, b) => ver(b) - ver(a) || (/preview/.test(a) - /preview/.test(b)) || a.length - b.length);
     const lite = sorted.filter(n => /lite/.test(n)).slice(0, 3), full = sorted.filter(n => !/lite/.test(n)).slice(0, 3);
     if (lite.length || full.length) models = lite.concat(full);
   } catch (e) {}
-  cache.put("models3", JSON.stringify(models), 21600); cache.put("models", JSON.stringify(models), 21600);
+  cache.put("models4", JSON.stringify(models), 21600); cache.put("models", JSON.stringify(models), 21600);
   return models;
 }
 

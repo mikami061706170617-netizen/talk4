@@ -63,6 +63,7 @@ async function underLimit_(env, prefix, limit) {
   return true;
 }
 let MODELS = null, MODELS_AT = 0, TTS = null;
+const DEAD = new Map();   // models Google has switched off (404 "no longer available"): skipped for 6 h, the next one is used at once
 async function listModels_(key) {
   const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": key } });
   return ((await r.json()).models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent")).map(m => m.name.replace("models/", ""));
@@ -73,7 +74,8 @@ async function pickModels_(key) {
   try {
     const names = (await listModels_(key)).filter(n => /flash/.test(n) && !/(image|tts|audio|live|thinking|exp|8b|embedding)/.test(n));
     const ver = n => parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/) || [0, 0])[1]);
-    const sorted = names.sort((a, b) => (/preview/.test(a) - /preview/.test(b)) || ver(b) - ver(a) || a.length - b.length);
+    // newest version first (old ones get switched off for new keys); at the same version a finished model before a preview
+    const sorted = names.sort((a, b) => ver(b) - ver(a) || (/preview/.test(a) - /preview/.test(b)) || a.length - b.length);
     const lite = sorted.filter(n => /lite/.test(n)).slice(0, 3), full = sorted.filter(n => !/lite/.test(n)).slice(0, 3);
     if (lite.length || full.length) models = lite.concat(full);
   } catch (e) {}
@@ -81,13 +83,15 @@ async function pickModels_(key) {
 }
 async function call_(order, request, key) {
   let res = null;
-  for (const model of order) {
+  const live = order.filter(m => !(DEAD.get(m) > Date.now()));
+  for (const model of live.length ? live : order) {
     const rq = JSON.parse(JSON.stringify(request));
     if (!/lite/.test(model) && rq.generationConfig?.thinkingConfig?.thinkingLevel === "minimal") rq.generationConfig.thinkingConfig.thinkingLevel = "low";
     res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
       method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(rq) });
     LAST = model + " " + res.status;
-    if (![429, 503, 500, 400].includes(res.status)) break;
+    if (res.status === 404) { DEAD.set(model, Date.now() + 6 * 3600e3); continue; }   // switched off: try the next model
+    if (![429, 503, 500, 400, 403].includes(res.status)) break;
   }
   return res;
 }
