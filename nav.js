@@ -208,3 +208,44 @@
     document.body.append(z); ta.focus(); inp.blur(); setTimeout(() => ta.focus(), 30);
   });
 })();
+
+// Microphone help: in-app browsers (Instagram, Facebook, LINE…) can't use the mic, and a blocked mic needs to be
+// allowed in the phone's settings. Show the person exactly what to do, in big letters, instead of failing silently.
+(() => {
+  const ja = (navigator.language || "").startsWith("ja"), ua = navigator.userAgent;
+  const IOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const inApp = /FBAN|FBAV|FB_IAB|Instagram|Line\/|KAKAOTALK|Twitter|TikTok|Snapchat|; wv\)/i.test(ua);
+  const T = ja ? {
+    inApp: `🎤 このアプリの中ではマイクが使えません。<br><b>${IOS ? "右下か右上の「…」→「Safariで開く」" : "右上の「⋮」→「ブラウザで開く（Chrome）」"}</b>を押してください`,
+    denied: IOS ? "🎤 マイクが止められています。<br>画面の上（または下）のアドレス欄の左にある <b>「ぁあ」→「Webサイトの設定」→「マイク」→「許可」</b> にしてから、ページを読み込み直してください"
+                : "🎤 マイクが止められています。<br>アドレス欄の左の <b>鍵マーク（⚙）→「権限」→「マイク」→「許可」</b> にしてから、ページを読み込み直してください",
+    copy: "リンクをコピー", copied: "コピーしました", close: "閉じる" } : {
+    inApp: `🎤 The microphone doesn't work inside this app.<br>Tap <b>${IOS ? "“…” → “Open in Safari”" : "“⋮” → “Open in browser (Chrome)”"}</b>`,
+    denied: IOS ? "🎤 The microphone is blocked.<br>Tap <b>“aA” next to the address → Website Settings → Microphone → Allow</b>, then reload the page"
+                : "🎤 The microphone is blocked.<br>Tap <b>the lock (⚙) next to the address → Permissions → Microphone → Allow</b>, then reload the page",
+    copy: "Copy link", copied: "Copied", close: "Close" };
+  let shown = false;
+  function show(html) {
+    if (shown || !document.body) return; shown = true;
+    const z = document.createElement("div");
+    z.style.cssText = "position:fixed;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top,0px));z-index:99998;background:#2a1d10;color:#fff3dc;border:2px solid #d8ae55;border-radius:16px;padding:16px;font:600 18px/1.5 system-ui,sans-serif;box-shadow:0 8px 30px #000a";
+    z.innerHTML = `<div>${html}</div><div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"></div>`;
+    const bar = z.lastElementChild, btn = (t, fn, main) => { const b = document.createElement("button"); b.textContent = t; b.onclick = fn;
+      b.style.cssText = `font:inherit;font-size:16px;padding:10px 14px;border-radius:12px;border:1px solid #d8ae55;${main ? "background:#d8ae55;color:#1a1307" : "background:transparent;color:#fff3dc"}`; bar.append(b); return b; };
+    const c = btn(T.copy, async () => { try { await navigator.clipboard.writeText(location.href); c.textContent = T.copied; } catch {} }, true);
+    btn(T.close, () => { z.remove(); shown = false; });
+    document.body.append(z);
+  }
+  const ready = f => document.readyState === "loading" ? addEventListener("DOMContentLoaded", f) : f();
+  if (inApp) ready(() => show(T.inApp));
+  // already blocked → say so at once
+  try { navigator.permissions?.query({ name: "microphone" }).then(p => { const chk = () => { if (p.state === "denied") ready(() => show(T.denied)); }; chk(); p.onchange = chk; }).catch(() => {}); } catch {}
+  // blocked at the moment someone presses a mic button
+  const md = navigator.mediaDevices;
+  if (md?.getUserMedia) { const orig = md.getUserMedia.bind(md);
+    md.getUserMedia = c => orig(c).catch(e => { if (/NotAllowed|Security|Permission/i.test(e?.name || "")) show(inApp ? T.inApp : T.denied); throw e; }); }
+  const SRc = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SRc) { const start = SRc.prototype.start; SRc.prototype.start = function () {
+    this.addEventListener("error", e => { if (e.error === "not-allowed" || e.error === "service-not-allowed" && !IOS) show(inApp ? T.inApp : T.denied); });
+    return start.apply(this, arguments); }; }
+})();
