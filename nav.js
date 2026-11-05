@@ -232,12 +232,22 @@
     z.innerHTML = `<div>${html}</div><div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"></div>`;
     const bar = z.lastElementChild, btn = (t, fn, main) => { const b = document.createElement("button"); b.textContent = t; b.onclick = fn;
       b.style.cssText = `font:inherit;font-size:16px;padding:10px 14px;border-radius:12px;border:1px solid #d8ae55;${main ? "background:#d8ae55;color:#1a1307" : "background:transparent;color:#fff3dc"}`; bar.append(b); return b; };
-    const c = btn(T.copy, async () => { try { await navigator.clipboard.writeText(location.href); c.textContent = T.copied; } catch {} }, true);
+    if (inApp && html === T.inApp) btn(IOS ? (ja ? "Safariで開く" : "Open in Safari") : (ja ? "Chromeで開く" : "Open in Chrome"), () => {
+      location.href = IOS ? "x-safari-" + location.href : "intent://" + location.href.replace(/^https?:\/\//, "") + "#Intent;scheme=https;package=com.android.chrome;end"; }, true);
+    const c = btn(T.copy, async () => { try { await navigator.clipboard.writeText(location.href); c.textContent = T.copied; } catch {} }, !inApp);
     btn(T.close, () => { z.remove(); shown = false; });
     document.body.append(z);
   }
   const ready = f => document.readyState === "loading" ? addEventListener("DOMContentLoaded", f) : f();
-  if (inApp) ready(() => show(T.inApp));
+  // Inside Instagram/Facebook/LINE…: jump straight to the real browser so the mic just works
+  if (inApp) {
+    let tried = false; try { tried = sessionStorage.getItem("t4-out") === "1"; sessionStorage.setItem("t4-out", "1"); } catch {}
+    const url = location.href;
+    if (/Line\//i.test(ua) && !/openExternalBrowser=1/.test(url)) { location.replace(url + (url.includes("?") ? "&" : "?") + "openExternalBrowser=1"); return; }
+    if (IOS && !tried) location.href = "x-safari-" + url;   // iOS 17+: opens the same page in Safari
+    else if (!IOS && !tried) location.href = "intent://" + url.replace(/^https?:\/\//, "") + "#Intent;scheme=https;package=com.android.chrome;end";
+    ready(() => show(T.inApp));
+  }
   // already blocked → say so at once
   try { navigator.permissions?.query({ name: "microphone" }).then(p => { const chk = () => { if (p.state === "denied") ready(() => show(T.denied)); }; chk(); p.onchange = chk; }).catch(() => {}); } catch {}
   // blocked at the moment someone presses a mic button
