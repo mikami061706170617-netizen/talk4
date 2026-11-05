@@ -643,7 +643,7 @@ Conversation so far:
 ${recent}
 ${before ? `The speaker had just said "${before}" and stopped in the middle. This recording is the rest of the SAME sentence: in "text" write the WHOLE sentence (that beginning + this recording), and translate the whole sentence.` : ""}
 4. "complete": true if the speaker clearly finished a sentence or thought; false if they stopped in the middle (e.g. Japanese ending in て/で/が/けど/から/ので/と/は/を, English ending in "and", "so", "but", "the", "because", or a sentence cut off).
-Answer only JSON: {"lang":"<code>","text":"<transcript>","tr":{"<code>":"<translation>"},"complete":true}. If there is no speech, answer {"lang":"","text":""}.`;
+Answer only JSON: {"lang":"<code>","text":"<transcript>","tr":{"<code>":"<translation>"},"complete":true}. If there is no clear speech (only noise, music, clatter, a voice too far away, or the translator's own voice reading a translation), or you are not sure what was said, answer {"lang":"","text":""}. Never make up words.`;
   const j = await callAI({ contents: [{ role: "user", parts: [{ inline_data: { mime_type: "audio/wav", data: wavB64 } }, { text: prompt }] }],
     generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "low" } } }, "high");   // tested: the light model is no faster here and mistranslates (rice → bath)   // fast model: the bigger ones are usually busy on the free plan
   const raw = (j.candidates?.[0]?.content?.parts || []).map(p => p.text).join("").replace(/^```json|```$/g, "").trim() || "{}";
@@ -808,7 +808,9 @@ Live.start = async () => {
   try { if (navigator.audioSession) navigator.audioSession.type = "play-and-record"; } catch {}
   Live.on = true; Live.retry = 0; paintLive(); await resumed;
   // louder translation voice, without crackle
-  const comp = ctx.createDynamicsCompressor(), gain = ctx.createGain(); gain.gain.value = 2.2; gain.connect(comp); comp.connect(ctx.destination);
+  const comp = ctx.createDynamicsCompressor(), gain = ctx.createGain(); gain.gain.value = 1.6;
+  comp.threshold.value = -10; comp.knee.value = 6; comp.ratio.value = 20; comp.attack.value = 0.002; comp.release.value = 0.15;   // a limiter: loud but no crackle
+  gain.connect(comp); comp.connect(ctx.destination);
   Object.assign(Live, { ctx, stream, out: gain, playUntil: 0, srcs: [] });
   const src = ctx.createMediaStreamSource(stream), band = speechBand(ctx, src), proc = ctx.createScriptProcessor(2048, 1, 1); Live.proc = proc;
   const isVoice = voiceGate(); Live.lastVoice = 0; Live.timed = false; Live.clip = []; Live.rate = ctx.sampleRate;
@@ -824,14 +826,27 @@ Live.start = async () => {
     const ws = Live.ws; if (!Live.on || !ws || ws.readyState !== 1) return;
     // off: don't feed our own translation back in. on: people may talk over it (the phone cancels its own sound
     // and the interpreter stops reading the moment someone speaks)
-    if (Live.mute || (!Live.barge && ctx.currentTime < Live.playUntil + 0.25)) return;
+    const playing = ctx.currentTime < Live.playUntil + 0.25;
+    if (Live.mute || (!Live.barge && playing)) return;
+    const now = performance.now(), f = new Float32Array(x);
+    if (isVoice(rms) || rms > 0.015) {   // clearly loud always counts, so long steady speech never gets cut
+      if (now - Live.lastVoice > 1500) Live.clip = [];   // a new sentence: the check recording starts here (not 30 s of room noise)
+      Live.lastVoice = now; Live.flushed = false; Live.chunks++;
+    }
+    // Noise gate: between sentences the AI gets silence, not room noise (noise made it "hear" words nobody said).
+    // When someone starts talking, the last 0.4 s before is sent too, so the first sound isn't cut off.
+    const open = now - Live.lastVoice < 900, out = [];
+    if (open) { out.push(...pre.splice(0), f); if (!(Live.barge && playing)) { Live.clip.push(...out); if (Live.clip.length > 20 * ctx.sampleRate / 2048) Live.clip.shift(); } }
+    else { pre.push(f); if (pre.length > PRE) pre.shift(); out.push(new Float32Array(x.length)); }
+    for (const fr of out) send16k(ws, fr);
+  };
+  const pre = [], PRE = Math.ceil(0.4 * ctx.sampleRate / 2048);
+  function send16k(ws, x) {
     const n = Math.floor(x.length / ratio), pcm = new Int16Array(n);
-    Live.clip.push(new Float32Array(x)); if (Live.clip.length > 30 * ctx.sampleRate / 2048) Live.clip.shift();   // last ~30 s
-    if (isVoice(rms)) { Live.lastVoice = performance.now(); Live.flushed = false; Live.chunks++; }
     for (let i = 0; i < n; i++) { let a = 0, c = 0; for (let k = Math.floor(i * ratio); k < Math.floor((i + 1) * ratio); k++) { a += x[k]; c++; } const v = Math.max(-1, Math.min(1, c ? a / c : 0)); pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff; }
     const u8 = new Uint8Array(pcm.buffer); let bin = ""; for (let k = 0; k < u8.length; k++) bin += String.fromCharCode(u8[k]);
     ws.send(JSON.stringify({ realtimeInput: { audio: { data: btoa(bin), mimeType: "audio/pcm;rate=16000" } } }));
-  };
+  }
   band.connect(proc); proc.connect(ctx.destination);
   liveConnect(passP);
   // Rescue: in a noisy room the fast AI sometimes never notices the sentence ended and stays silent.
