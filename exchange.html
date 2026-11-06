@@ -103,7 +103,7 @@ a.btn{display:inline-flex;align-items:center;justify-content:center;text-decorat
 <body>
 <header class="top">
   <div class="brand">TALK4 <b>EXCHANGE</b></div>
-  <a class="tool" href="words.html" style="text-decoration:none;color:inherit">📒 単語帳</a>
+  <a class="tool" id="wordsLink" href="words.html" style="text-decoration:none;color:inherit">📒 単語帳</a>
   <button class="tool" id="endBtn" hidden></button>
 </header>
 <p class="st" id="status"></p>
@@ -346,6 +346,7 @@ async function gtr(text, from, to) {
 const pickLang = c => { c = (c || "").toLowerCase(); return c.startsWith("zh") ? "zh" : LANG[c.slice(0, 2)] ? c.slice(0, 2) : null; };
 const uiLang = (navigator.languages || [navigator.language]).map(pickLang).find(Boolean) === "ja" ? "ja" : "en";
 const ui = UI[uiLang];
+if (uiLang !== "ja") $("wordsLink").textContent = "📒 My words";
 const fmt = (s, o) => s.replace(/\{(\w+)\}/g, (m, k) => o[k] ?? m);
 
 /* ---------- Readings ---------- */
@@ -432,6 +433,8 @@ function chooseLesson(lv) {
 // Every turn gets a long, shuffled list: the chosen lesson's questions first, then questions from
 // all lessons up to this level, then the conversation bank — so a 30-60 minute session never runs out.
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+function askedLoad() { try { return JSON.parse(localStorage.getItem("t4x-asked") || "[]"); } catch { return []; } }
+function askedAdd(en) { if (!en) return; try { const a = askedLoad().filter(x => x !== en); a.push(en); localStorage.setItem("t4x-asked", JSON.stringify(a.slice(-400))); } catch {} }
 function questionsFor(L, lang, lv) {
   const isQ = p => /[?？]/.test(p[lang] || p.en || "");
   const lessonQ = p => p[lang] && isQ(p) && !/＿＿|__/.test(p[lang]);
@@ -439,7 +442,9 @@ function questionsFor(L, lang, lv) {
   const fromLessons = LESSONS.filter(l => LV.indexOf(l.level || "basic") <= lv).flatMap(l => l.phrases.filter(lessonQ));
   const bank = QUESTIONS.filter(q => q.lv <= lv && q[lang]);
   const seen = new Set(), out = [];
-  for (const p of [...first, ...shuffle([...bank, ...bank.filter(q => q.lv === lv), ...fromLessons])]) { const k = (p[lang] || "").replace(/[?？!！。.\s]/g, ""); if (seen.has(p.en) || seen.has(k)) continue; seen.add(p.en); seen.add(k); out.push({ p }); }
+  // Returning guests: questions they were already asked on earlier visits go to the back of the list.
+  const asked = new Set(askedLoad()), rest = shuffle([...bank, ...bank.filter(q => q.lv === lv), ...fromLessons]);
+  for (const p of [...first, ...rest.filter(q => !asked.has(q.en)), ...rest.filter(q => asked.has(q.en))]) { const k = (p[lang] || "").replace(/[?？!！。.\s]/g, ""); if (seen.has(p.en) || seen.has(k)) continue; seen.add(p.en); seen.add(k); out.push({ p }); }
   return out;
 }
 function startSession(pr) {
@@ -504,6 +509,7 @@ async function sessionView() {
   if (!S) return;
   const a = cur(), b = partnerOf(a), lang = a.learning, list = S.qs[a.i], Q = list[S.k % list.length];
   const main = $("main"); const my = (sessionView.n = (sessionView.n || 0) + 1);
+  askedAdd(Q.p.en);
   const meaningNative = Q.p[a.native] || await gtr(Q.p.en, "en", a.native);
   if (my !== sessionView.n) return;
   const stars = n => "★".repeat(n) + `<span class="off">${"★".repeat(3 - n)}</span>`;
