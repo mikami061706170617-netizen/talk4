@@ -647,8 +647,10 @@ Answer only JSON: {"lang":"<code>","text":"<transcript>","tr":{"<code>":"<transl
   const j = await callAI({ contents: [{ role: "user", parts: [{ inline_data: { mime_type: "audio/wav", data: wavB64 } }, { text: prompt }] }],
     generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "low" } } }, "high");   // tested: the light model is no faster here and mistranslates (rice → bath)   // fast model: the bigger ones are usually busy on the free plan
   const raw = (j.candidates?.[0]?.content?.parts || []).map(p => p.text).join("").replace(/^```json|```$/g, "").trim() || "{}";
-  try { return JSON.parse(raw); }
-  catch { return JSON.parse(raw.replace(/\\(?!["\\/bfnrtu])/g, "").replace(/[\u0000-\u001f]/g, " ")); }   // the AI sometimes adds a stray backslash or line break
+  let out; try { out = JSON.parse(raw); }
+  catch { out = JSON.parse(raw.replace(/\\(?!["\\/bfnrtu])/g, "").replace(/[\u0000-\u001f]/g, " ")); }   // the AI sometimes adds a stray backslash or line break
+  if (out) { out.text = noNoise(out.text).trim(); for (const k in out.tr || {}) out.tr[k] = noNoise(out.tr[k]).trim(); }   // sounds are not words
+  return out;
 }
 // A sentence left hanging ("…and then", "…けど") is not translated yet: it waits for the rest, and the
 // two parts are heard together as one sentence. If nobody goes on for 4 s, it is translated as it is.
@@ -766,8 +768,9 @@ async function liveConnect(passP) {
         log.push(Live.cur); if (log.length > 60) log.shift();
       }
       const c = Live.cur;
-      if (sc.inputTranscription?.text) c.text += sc.inputTranscription.text;
-      if (sc.outputTranscription?.text) c.outText = (c.outText || "") + sc.outputTranscription.text;
+      // the fast AI writes sounds like "<noise>" into its notes: never show them as words
+      if (sc.inputTranscription?.text) { c.raw = (c.raw || "") + sc.inputTranscription.text; c.text = noNoise(c.raw); }
+      if (sc.outputTranscription?.text) { c.rawOut = (c.rawOut || "") + sc.outputTranscription.text; c.outText = noNoise(c.rawOut); }
       c.lang = scriptLang(c.text, langs); const i = people.findIndex(p => p.lang === c.lang);
       c.who = i >= 0 ? label(people[i], i) : "?"; c.color = i >= 0 ? COLORS[i] : "var(--muted)";
       const others = langs.filter(l => l !== c.lang), spoken = others.length === 1 ? others[0] : liveRoute()[c.lang];
@@ -779,7 +782,9 @@ async function liveConnect(passP) {
       // some Live models speak but send no words back: then the precise AI listens to the sentence and writes it on screen
       if (!c && clip.length) { c = { text: "…", lang: langs[0], who: "…", color: "var(--muted)", detected: true, ai: true, live: true, out: [] };
         log.push(c); if (log.length > 60) log.shift(); paintLog(); liveCheck(c, clip, langs); return; }
-      if (c) { c.text = c.text.trim(); paintLog(); liveFillText(c, langs); liveCheck(c, clip, langs); } }
+      if (c) { c.text = c.text.trim();
+        if (!c.text && !(c.outText || "").trim()) { log = log.filter(x => x !== c); paintLog(); return; }   // only noise: show nothing
+        paintLog(); liveFillText(c, langs); liveCheck(c, clip, langs); } }
   };
   ws.onclose = () => { if (Live.on && Live.ws === ws) liveRestart(); };
   ws.onerror = () => {};
@@ -791,6 +796,10 @@ function liveRestart() {   // sessions last ~10 minutes: carry on with a fresh p
   setTimeout(() => { if (Live.on) liveConnect(); }, 400);
 }
 function liveFlush() { (Live.srcs || []).forEach(s => { try { s.stop(); } catch {} }); Live.srcs = []; Live.playUntil = Live.ctx ? Live.ctx.currentTime : 0; }
+// "<noise>", "[雑音]", "(music)"… are sounds, not words
+function noNoise(t) {
+  return String(t || "").replace(/<[^<>]{0,20}>|[\[(（【]\s*(noise|雑音|ノイズ|music|音楽|laughter|笑い?|inaudible|聞き取れない|silence|無音|cough|咳|applause|拍手)\s*[\])）】]/gi, " ").replace(/\s{2,}/g, " ").trimStart();
+}
 function livePlay(b64) {
   const ctx = Live.ctx; if (!ctx || !autoSpeak) return;   // read-aloud off: words on screen only
   const bin = atob(b64), n = bin.length >> 1, buf = ctx.createBuffer(1, n, 24000), d = buf.getChannelData(0);
