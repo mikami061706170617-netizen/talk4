@@ -817,8 +817,8 @@ Live.start = async () => {
   try { if (navigator.audioSession) navigator.audioSession.type = "play-and-record"; } catch {}
   Live.on = true; Live.retry = 0; paintLive(); await resumed;
   // louder translation voice, without crackle
-  const comp = ctx.createDynamicsCompressor(), gain = ctx.createGain(); gain.gain.value = 1.6;
-  comp.threshold.value = -10; comp.knee.value = 6; comp.ratio.value = 20; comp.attack.value = 0.002; comp.release.value = 0.15;   // a limiter: loud but no crackle
+  const comp = ctx.createDynamicsCompressor(), gain = ctx.createGain(); gain.gain.value = 3.2;   // the iPhone turns sound down while the mic is open: push it back up
+  comp.threshold.value = -6; comp.knee.value = 3; comp.ratio.value = 20; comp.attack.value = 0.002; comp.release.value = 0.15;   // a limiter: loud but no crackle
   gain.connect(comp); comp.connect(ctx.destination);
   Object.assign(Live, { ctx, stream, out: gain, playUntil: 0, srcs: [] });
   const src = ctx.createMediaStreamSource(stream), band = speechBand(ctx, src), proc = ctx.createScriptProcessor(2048, 1, 1); Live.proc = proc;
@@ -844,7 +844,7 @@ Live.start = async () => {
     }
     // Noise gate: between sentences the AI gets silence, not room noise (noise made it "hear" words nobody said).
     // When someone starts talking, the last 0.4 s before is sent too, so the first sound isn't cut off.
-    const open = now - Live.lastVoice < 900, out = [];
+    const open = now - Live.lastVoice < 400, out = [];   // short tail: the AI notices the end of the sentence sooner
     if (open) { out.push(...pre.splice(0), f); if (!(Live.barge && playing)) { Live.clip.push(...out); if (Live.clip.length > 20 * ctx.sampleRate / 2048) Live.clip.shift(); } }
     else { pre.push(f); if (pre.length > PRE) pre.shift(); out.push(new Float32Array(x.length)); }
     for (const fr of out) send16k(ws, fr);
