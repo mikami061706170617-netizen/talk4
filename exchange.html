@@ -348,7 +348,10 @@ const uiLang = (navigator.languages || [navigator.language]).map(pickLang).find(
 let ui = UI[uiLang];
 // Screen words in anyone's language: Japanese and English are written by hand, the others are translated once and kept
 const uiCache = {};
-async function uiFor(l) {
+// One translation job per language at a time (the pairs screen starts it early; Start reuses it).
+const uiBusy = {};
+async function uiFor(l) { return UI[l] || uiCache[l] || (uiBusy[l] ??= uiMake(l).finally(() => { delete uiBusy[l]; })); }
+async function uiMake(l) {
   if (UI[l]) return UI[l]; if (uiCache[l]) return uiCache[l];
   let saved = null; try { saved = JSON.parse(localStorage.getItem("t4x-ui-" + l)); } catch {}
   if (saved && saved._v === 2) return (uiCache[l] = saved);
@@ -436,8 +439,10 @@ function pairsView() {
     const names = pr.m.map(i => `${nm(people[i], i)} (${LANG[people[i].native].name} → ${LANG[people[i].learning].name})`).join("  ×  ");
     const tag = pr.alone ? ui.none : pr.m.length === 3 ? ui.trio : pr.full ? "" : ui.oneWay;
     list.append(h("div", { class: "pair" }, h("div", {}, h("b", {}, names), tag ? h("div", { class: "note" }, tag) : null),
-      pr.alone ? null : h("button", { class: "btn main", onclick: () => { unlockAudio(); startSession(pr); } }, ui.start)));
+      pr.alone ? null : h("button", { class: "btn main", onclick: e => { const b = e.currentTarget; b.disabled = true; b.textContent = "⏳ " + (uiLang === "ja" ? "準備中…" : "Getting ready…"); unlockAudio(); startSession(pr); } }, ui.start)));
   });
+  // Start getting each person's screen words ready now, so "Start" opens at once (first visit for ka/ru/ko/zh speakers).
+  for (const l of new Set(people.map(p => p.native))) uiFor(l).catch(() => {});
   main.append(list, h("div", { class: "row" }, h("button", { class: "btn", onclick: setupView }, ui.restart)));
 }
 
