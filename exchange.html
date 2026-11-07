@@ -348,7 +348,8 @@ const pickLang = c => { c = (c || "").toLowerCase(); return c.startsWith("zh") ?
 const uiLang = (navigator.languages || [navigator.language]).map(pickLang).find(Boolean) === "ja" ? "ja" : "en";
 let ui = UI[uiLang];
 // Screen words in anyone's language: Japanese and English are written by hand, the others are translated once and kept
-const uiCache = {};
+const uiCache = {}, hintCache = {};
+const withTimeout = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
 // One translation job per language at a time (the pairs screen starts it early; Start reuses it).
 const uiBusy = {};
 async function uiFor(l) { return UI[l] || uiCache[l] || (uiBusy[l] ??= uiMake(l).finally(() => { delete uiBusy[l]; })); }
@@ -535,12 +536,19 @@ async function sessionView() {
   if (!S) return;
   const a = cur(), b = partnerOf(a), lang = a.learning, list = S.qs[a.i], Q = list[S.k % list.length];
   const main = $("main"); const my = (sessionView.n = (sessionView.n || 0) + 1);
-  const [U, UB] = await Promise.all([uiFor(a.native), b ? uiFor(b.native) : null]);
+  // Never wait for translations: show the screen at once (English for now), switch words in when they arrive
+  const U = UI[a.native] || uiCache[a.native];
+  if (!U) { const n = sessionView.n; withTimeout(uiFor(a.native), 6000).then(x => { if (x && sessionView.n === n) sessionView(); }); }
+  ui = U || UI.en;
   // the partner's hint is translated as a whole sentence, so language names come out grammatical ("на русском")
-  const hint = !b ? "" : UI[b.native] ? fmt(UI[b.native].answerHint, { partner: nm(b, b.i), lang: LANG[lang].name, how: UI[b.native].how[a.level] || "" })
-    : await gtr(fmt(UI.en.answerHint, { partner: nm(b, b.i), lang: NAMES[lang], how: UI.en.how[a.level] || "" }), "en", b.native);
-  if (my !== sessionView.n) return;
-  ui = U;
+  const hintKey = b ? [b.native, lang, a.level, nm(b, b.i)].join("|") : "";
+  let hint = "";
+  if (b) {
+    if (UI[b.native]) hint = fmt(UI[b.native].answerHint, { partner: nm(b, b.i), lang: LANG[lang].name, how: UI[b.native].how[a.level] || "" });
+    else if (hintCache[hintKey]) hint = hintCache[hintKey];
+    else { const en = fmt(UI.en.answerHint, { partner: nm(b, b.i), lang: NAMES[lang], how: UI.en.how[a.level] || "" }); hint = en;
+      const n = sessionView.n; withTimeout(gtr(en, "en", b.native), 6000).then(x => { if (x && x !== en) { hintCache[hintKey] = x; if (sessionView.n === n) sessionView(); } }); }
+  }
   askedAdd(Q.p.en);
   const meaningNative = Q.p[a.native] || await gtr(Q.p.en, "en", a.native);
   if (my !== sessionView.n) return;
