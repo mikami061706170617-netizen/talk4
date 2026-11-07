@@ -587,8 +587,11 @@ function paintPill() {
 }
 async function sha(t) { const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join(""); }
 async function tryCode(raw) {
-  const c = raw.trim().toUpperCase().replace(/\s+/g, "");
-  const t = CODES[await sha("talk4-class-v1:" + c)];
+  // full-width letters, Japanese dashes, no dash at all… all count as the same code
+  const base = raw.normalize("NFKC").toUpperCase().replace(/\s+/g, "").replace(/[ー‐‑‒–—―−_]/g, "-");
+  const tries = [base, base.replace(/^([A-Z]{3,5})-?([A-Z0-9]{4,})$/, "$1-$2"), base.replace(/^([A-Z0-9]{3})-?([A-Z0-9]{4})-?([A-Z0-9]{4})$/, "$1-$2-$3")];
+  let c = base, t = null;
+  for (const x of tries) { t = CODES[await sha("talk4-class-v1:" + x)]; if (t) { c = x; break; } }
   if (!t) return false;
   if (RANK[t] > RANK[tier]) { tier = t; try { localStorage.setItem("t4c-tier", t); } catch {} }
   try { localStorage.setItem("t4c-code", c); } catch {}   // the AI relay checks this code to give the stronger AI
