@@ -593,7 +593,7 @@ async function sessionView() {
     mic.classList.add("on"); mic.textContent = ui.stop; st(ui.talkNow);
     const { alts, err } = await listenOnce(lang);
     mic.classList.remove("on"); mic.textContent = ui.speak; st("");
-    if (err === "nosr") return st(ui.noSr); if (err && !alts.length) return st(ui.micErr);
+    if (err === "nosr") return st(ui.noSr); if (err && !alts.length) return st(ui.micErr + " (" + err + ")");
     if (!alts.some(x => x && x.trim())) return st(ui.noVoice);
     let best = { s: 0, heard: alts[0] || "" }; for (const x of alts) { const s = scoreOf(Q.p[lang], x, lang); if (s > best.s) best = { s, heard: x }; }
     S.score = best; sessionView();
@@ -605,7 +605,7 @@ async function sessionView() {
     const { alts, err } = await listenOnce(lang, true);
     hear.classList.remove("on"); hear.textContent = ui.hear2; st("");
     if (err === "nosr") return st(ui.noSr);
-    if (alts[0]) { S.answer = { text: alts[0] }; S.judge = null; sessionView(); } else st(err ? ui.micErr : ui.noVoice);
+    if (alts[0]) { S.answer = { text: alts[0] }; S.judge = null; sessionView(); } else st(err ? ui.micErr + " (" + err + ")" : ui.noVoice);
   };
   const runJudge = async guess => { S.judge = "wait"; sessionView(); const J = await judge(a, lang, Q.p[lang], S.answer.text, guess); J.guess = guess;
     if (J.score != null && J.score >= 50) S.got[a.i]++; S.judge = J; sessionView(); };
@@ -615,7 +615,7 @@ async function sessionView() {
     guessBtn.classList.add("on"); guessBtn.textContent = fmt(ui.helpOn, { lang: LANG[a.native].name }); st(ui.talkNow);
     const { alts, err } = await listenOnce(a.native, true);
     guessBtn.classList.remove("on"); guessBtn.textContent = fmt(ui.guess, { lang: LANG[a.native].name }); st("");
-    if (alts[0]) runJudge(alts[0]); else st(err ? ui.micErr : ui.noVoice);
+    if (alts[0]) runJudge(alts[0]); else st(err ? ui.micErr + " (" + err + ")" : ui.noVoice);
   };
   const typeIn = h("input", { placeholder: ui.guessType, enterkeyhint: "send" });
   typeIn.onkeydown = e => { if (e.key === "Enter" && typeIn.value.trim()) runJudge(typeIn.value.trim()); };
