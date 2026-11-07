@@ -308,7 +308,7 @@ const UI = {
         people: "参加する人", name: "名前", native: "話せる言葉", learning: "学びたい言葉", level: "レベル", add: "＋ 人を追加", minutes: "時間", lesson: "話題",
         auto: "おまかせ（レベルに合わせる）", make: "ペアを作る", pairs: "今日のペア", start: "このペアではじめる", restart: "メンバーを変える",
         none: "相手がいない人", trio: "3人組", oneWay: "（片方向：相手はアプリのお手本で練習）",
-        turn: "{who}の練習：{lang}タイム", ask: "{who}が相手に聞いてみよう", answerHint: "{partner}は{lang}でゆっくり答えてあげてください。間違えたら正しく言い直してあげましょう。",
+        turn: "{who}の練習：{lang}タイム", ask: "{who}が相手に聞いてみよう", answerHint: "{partner}は{lang}で、{how}答えてあげてください。間違えたら正しく言い直してあげましょう。", how: ["短い言葉だけで、とてもゆっくり", "短い文で、ゆっくり", "ふつうの文で、少しゆっくり", "ふつうの速さで、くわしく"],
         listen: "▶ お手本", slow: "🐢 ゆっくり", speak: "🎤 言ってみる", stop: "■ 止める", next: "次の質問 →", skip: "飛ばす",
         hearAnswer: "👂 相手の答えを訳す", help: "🆘 言いたいことを訳す", helpOn: "■ 話してください（{lang}）", answerFrom: "相手の答え",
         switchBig: "交代！", switchSub: "今度は{who}が{lang}を練習する番です。スマホを相手の方に向けてください。", go: "はじめる",
@@ -324,7 +324,7 @@ const UI = {
         people: "Who's here", name: "Name", native: "I speak", learning: "I'm learning", level: "Level", add: "+ Add person", minutes: "Time", lesson: "Topic",
         auto: "Automatic (by level)", make: "Make pairs", pairs: "Today's pairs", start: "Start with this pair", restart: "Change people",
         none: "No partner", trio: "Group of three", oneWay: "(one-way: the partner practises with the app's model voice)",
-        turn: "{who} practises: {lang} time", ask: "{who}, ask your partner", answerHint: "{partner}, answer slowly in {lang}. If they make a mistake, say it correctly for them.",
+        turn: "{who} practises: {lang} time", ask: "{who}, ask your partner", answerHint: "{partner}: please answer in {lang}, {how}. If they make a mistake, say it correctly for them.", how: ["with just a few words, very slowly", "in short sentences, slowly", "in normal sentences, a little slowly", "at normal speed, in detail"],
         listen: "▶ Model", slow: "🐢 Slow", speak: "🎤 Try it", stop: "■ Stop", next: "Next question →", skip: "Skip",
         hearAnswer: "👂 Translate partner's answer", help: "🆘 Translate what I want to say", helpOn: "■ Speak now ({lang})", answerFrom: "Partner's answer",
         switchBig: "Switch!", switchSub: "Now {who} practises {lang}. Turn the phone toward them.", go: "Start",
@@ -345,7 +345,25 @@ async function gtr(text, from, to) {
 }
 const pickLang = c => { c = (c || "").toLowerCase(); return c.startsWith("zh") ? "zh" : LANG[c.slice(0, 2)] ? c.slice(0, 2) : null; };
 const uiLang = (navigator.languages || [navigator.language]).map(pickLang).find(Boolean) === "ja" ? "ja" : "en";
-const ui = UI[uiLang];
+let ui = UI[uiLang];
+// Screen words in anyone's language: Japanese and English are written by hand, the others are translated once and kept
+const uiCache = {};
+async function uiFor(l) {
+  if (UI[l]) return UI[l]; if (uiCache[l]) return uiCache[l];
+  let saved = null; try { saved = JSON.parse(localStorage.getItem("t4x-ui-" + l)); } catch {}
+  if (saved && saved._v === 2) return (uiCache[l] = saved);
+  const src = UI.en, out = { _v: 2 }, jobs = [];
+  for (const [k, v] of Object.entries(src)) {
+    const one = async t => { const keep = t.match(/\{\w+\}/g) || []; let r = await gtr(t.replace(/\{(\w+)\}/g, (m, x) => "[" + keep.indexOf(m) + "]"), "en", l);
+      r = r.replace(/\[\s*(\d)\s*\]/g, (m, n) => keep[+n] ?? m); return keep.every(x => r.includes(x)) ? r : t; };   // names like {who} must survive translation
+    jobs.push((Array.isArray(v) ? Promise.all(v.map(one)) : typeof v === "string" ? one(v) : Promise.resolve(v)).then(r => { out[k] = r; }));
+  }
+  await Promise.all(jobs);
+  const changed = Object.keys(src).filter(k => typeof src[k] === "string" && out[k] !== src[k]).length;
+  if (changed < 10) return out;   // the translator was unreachable: try again next time instead of keeping English
+  try { localStorage.setItem("t4x-ui-" + l, JSON.stringify(out)); } catch {}
+  return (uiCache[l] = out);
+}
 if (uiLang !== "ja") $("wordsLink").textContent = "📒 My words";
 const fmt = (s, o) => s.replace(/\{(\w+)\}/g, (m, k) => o[k] ?? m);
 
@@ -387,6 +405,7 @@ function makePairs() {
 
 /* ---------- Setup screen ---------- */
 async function setupView() {
+  ui = UI[uiLang];
   $("endBtn").hidden = true;
   const main = $("main"); main.replaceChildren();
   main.insertAdjacentHTML("beforeend", `<h1>${ui.h1}</h1><p class="lead"></p>`); main.querySelector(".lead").textContent = ui.lead;
@@ -454,7 +473,7 @@ function startSession(pr) {
   const lv = Math.min(...m.map(x => x.level));
   const L = chooseLesson(lv);
   S = { m, turns, L, t: 0, start: Date.now(), slot: minutes * 60000 / turns.length, k: 0, qs: {}, stars: {}, count: {}, got: {}, saved: [], score: null, answer: null, judge: null, flip: false };
-  for (const a of turns) { S.qs[a.i] = questionsFor(L, a.learning, lv); S.stars[a.i] = 0; S.count[a.i] = 0; S.got[a.i] = 0; }
+  for (const a of turns) { S.qs[a.i] = questionsFor(topic !== "auto" ? L : chooseLesson(a.level), a.learning, a.level); S.stars[a.i] = 0; S.count[a.i] = 0; S.got[a.i] = 0; }   // everyone at their own level
   $("endBtn").hidden = false; $("endBtn").textContent = ui.end; $("endBtn").onclick = endSession;
   clearInterval(tick); tick = setInterval(clock, 1000);
   warmFor([...new Set(m.map(x => x.learning))]);
@@ -473,6 +492,7 @@ function chime() { try { const c = new (window.AudioContext || window.webkitAudi
 function switchTurn() {
   stopAll(); S.t++; S.k = 0; S.score = null; S.answer = null; S.judge = null; S.flip = !S.flip; chime();
   const a = cur();
+  uiFor(a.native).then(U => { ui = U; $("swBig").textContent = ui.switchBig; $("swSub").textContent = fmt(ui.switchSub, { who: nm(a, a.i), lang: LANG[a.learning].name }); $("swGo").textContent = ui.go; });
   $("swBig").textContent = ui.switchBig; $("swSub").textContent = fmt(ui.switchSub, { who: nm(a, a.i), lang: LANG[a.learning].name }); $("swGo").textContent = ui.go;
   $("switch").hidden = false; $("swGo").onclick = () => { $("switch").hidden = true; sessionView(); };
 }
@@ -497,7 +517,7 @@ const NAMES = { ja: "Japanese", en: "English", ka: "Georgian", ru: "Russian", ko
 async function judge(a, lang, question, answer, guess) {
   try {
     const o = await callAI(`A ${NAMES[a.native]} speaker learning ${NAMES[lang]} asked: "${question}". Their partner answered in ${NAMES[lang]}: "${answer}". The learner says it means (in ${NAMES[a.native]}): "${guess || "(no idea)"}".
-Score 0-100 for how much of the meaning they understood (all of it = 100, about half = 50, wrong or nothing = 0; small wording differences do not matter). Write everything for the learner in ${NAMES[a.native]}.
+Score 0-100 for how much of the meaning they understood (all of it = 100, about half = 50, wrong or nothing = 0; small wording differences do not matter). The learner is at level ${["beginner (accept the gist)", "everyday conversation", "intermediate", "advanced (expect the details)"][a.level || 0]}. Write everything for the learner in ${NAMES[a.native]}.
 Reply ONLY JSON {"score":0,"meaning":"just the natural ${NAMES[a.native]} translation of the answer, nothing else","comment":"one short encouraging sentence on what they got or missed","words":[{"w":"key ${NAMES[lang]} word or phrase from the answer","m":"its meaning in ${NAMES[a.native]}"}]} with 2-4 words.`);
     return o;
   } catch {
@@ -509,6 +529,9 @@ async function sessionView() {
   if (!S) return;
   const a = cur(), b = partnerOf(a), lang = a.learning, list = S.qs[a.i], Q = list[S.k % list.length];
   const main = $("main"); const my = (sessionView.n = (sessionView.n || 0) + 1);
+  const [U, UB] = await Promise.all([uiFor(a.native), b ? uiFor(b.native) : null]);
+  if (my !== sessionView.n) return;
+  ui = U;
   askedAdd(Q.p.en);
   const meaningNative = Q.p[a.native] || await gtr(Q.p.en, "en", a.native);
   if (my !== sessionView.n) return;
@@ -526,7 +549,7 @@ async function sessionView() {
     h("div", { class: "m", lang: a.native }, meaningNative),
     h("div", { class: "stars", html: S.score ? stars(starsFor(S.score.s)) : "" }),
     S.score ? h("div", { class: "heard" }, `“${S.score.heard}”`) : null,
-    b ? h("div", { class: "help" }, fmt(ui.answerHint, { partner: nm(b, b.i), lang: LANG[lang].name })) : null);
+    b ? h("div", { class: "help", lang: b.native }, fmt(UB.answerHint, { partner: nm(b, b.i), lang: LANG[lang].name, how: (UB.how || UI.en.how)[a.level] || "" })) : null);
   // ② the partner's answer, heard by the phone (shown in the language being learned, not translated yet)
   if (S.answer) {
     const again = h("button", { class: "btn" }, ui.again2); again.onclick = () => { unlockAudio(); say(S.answer.text, lang); };
@@ -607,6 +630,7 @@ async function sessionView() {
 }
 function endSession() {
   if (!S) return; clearInterval(tick); stopAll();
+  ui = UI[uiLang];   // the summary is for the organiser
   try { const d = JSON.parse(localStorage.getItem("t4x-done") || "[]"); if (!d.includes(S.L.id)) d.push(S.L.id); localStorage.setItem("t4x-done", JSON.stringify(d)); } catch {}
   const main = $("main"); main.replaceChildren(h("h1", {}, ui.done));
   const sum = h("div", { class: "sum" });

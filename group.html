@@ -432,13 +432,22 @@ function sayAndWait(text, lang) {
   });
 }
 let reading = false;
+// iPhone: while the microphone is open, the phone switches to "call" sound — quieter, and with a noise
+// burst when a voice ends. So in hands-free mode the mic is fully closed while reading and reopened after.
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const audioMode = m => { try { if (navigator.audioSession) navigator.audioSession.type = m; } catch {} };
 async function readOut(m) {
   const my = ++readRun; speechSynthesis?.cancel?.(); try { playing?.stop(); } catch {}
   reading = true;
+  const reopen = IOS && handsFree && recording;
+  if (reopen) { stopAuto(); audioMode("playback"); }
   try { for (const t of m.out) { if (my !== readRun || !t.text) return; await sayAndWait(t.text, t.lang); await new Promise(r => setTimeout(r, 250)); } }
-  finally { if (my === readRun) reading = false; }
+  finally {
+    if (my === readRun) reading = false;
+    if (reopen && my === readRun && handsFree && !recording) { audioMode("auto"); await startAuto(); }
+  }
 }
-function stopReading() { readRun++; reading = false; try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} }
+function stopReading() { readRun++; reading = false; try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} if (IOS && handsFree && !recording) { audioMode("auto"); startAuto(); } }
 
 /* ---------- One utterance → every other language in the room ---------- */
 // Spoken Japanese questions often come out of voice input without "？" (and "か" is often dropped),
@@ -885,6 +894,7 @@ Live.stop = () => {
   try { Live.ws?.close(); } catch {} Live.ws = null;
   try { Live.proc?.disconnect(); Live.stream?.getTracks().forEach(t => t.stop()); Live.ctx?.close(); } catch {}
   Live.ctx = null; Live.cur = null; st("");
+  audioMode("auto");   // leaving fast mode: normal loud sound again
 };
 $("liveBtn").onclick = () => { unlockAudio(); if (Live.on) Live.stop(); else Live.start(); };
 $("liveBtn").hidden = !AI.proxy; paintLive(); paintLiveVoice();
