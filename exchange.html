@@ -325,7 +325,7 @@ const UI = {
         people: "Who's here", name: "Name", native: "I speak", learning: "I'm learning", level: "Level", add: "+ Add person", minutes: "Time", lesson: "Topic",
         auto: "Automatic (by level)", make: "Make pairs", pairs: "Today's pairs", start: "Start with this pair", restart: "Change people",
         none: "No partner", trio: "Group of three", oneWay: "(one-way: the partner practises with the app's model voice)",
-        turn: "{who} practises: {lang} time", ask: "{who}, ask your partner", answerHint: "{partner}: please answer in {lang}, {how}. If they make a mistake, say it correctly for them.", how: ["with just a few words, very slowly", "in short sentences, slowly", "in normal sentences, a little slowly", "at normal speed, in detail"],
+        turn: "{who} practises: {lang} time", ask: "{who}, ask your partner", answerHint: "{partner}: please answer in {lang}, {how}. If there is a mistake, say the correct sentence.", how: ["with just a few words, very slowly", "in short sentences, slowly", "in normal sentences, a little slowly", "at normal speed, in detail"],
         listen: "▶ Model", slow: "🐢 Slow", speak: "🎤 Try it", stop: "■ Stop", next: "Next question →", skip: "Skip",
         hearAnswer: "👂 Translate partner's answer", help: "🆘 Translate what I want to say", helpOn: "■ Speak now ({lang})", answerFrom: "Partner's answer",
         switchBig: "Switch!", switchSub: "Now {who} practises {lang}. Turn the phone toward them.", go: "Start",
@@ -536,6 +536,9 @@ async function sessionView() {
   const a = cur(), b = partnerOf(a), lang = a.learning, list = S.qs[a.i], Q = list[S.k % list.length];
   const main = $("main"); const my = (sessionView.n = (sessionView.n || 0) + 1);
   const [U, UB] = await Promise.all([uiFor(a.native), b ? uiFor(b.native) : null]);
+  // the partner's hint is translated as a whole sentence, so language names come out grammatical ("на русском")
+  const hint = !b ? "" : UI[b.native] ? fmt(UI[b.native].answerHint, { partner: nm(b, b.i), lang: LANG[lang].name, how: UI[b.native].how[a.level] || "" })
+    : await gtr(fmt(UI.en.answerHint, { partner: nm(b, b.i), lang: NAMES[lang], how: UI.en.how[a.level] || "" }), "en", b.native);
   if (my !== sessionView.n) return;
   ui = U;
   askedAdd(Q.p.en);
@@ -555,7 +558,7 @@ async function sessionView() {
     h("div", { class: "m", lang: a.native }, meaningNative),
     h("div", { class: "stars", html: S.score ? stars(starsFor(S.score.s)) : "" }),
     S.score ? h("div", { class: "heard" }, `“${S.score.heard}”`) : null,
-    b ? h("div", { class: "help", lang: b.native }, fmt(UB.answerHint, { partner: nm(b, b.i), lang: LANG[lang].name, how: (UB.how || UI.en.how)[a.level] || "" })) : null);
+    b ? h("div", { class: "help", lang: b.native }, hint) : null);
   // ② the partner's answer, heard by the phone (shown in the language being learned, not translated yet)
   if (S.answer) {
     const again = h("button", { class: "btn" }, ui.again2); again.onclick = () => { unlockAudio(); say(S.answer.text, lang); };
