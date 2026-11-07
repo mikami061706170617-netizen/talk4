@@ -10,7 +10,8 @@ const KEY = "t4-aiears";
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch { return {}; } };
 export const SERIOUS = ["service-not-allowed", "language-not-supported", "network", "audio-capture", "not-allowed", "start"];
 
-export function needAI(lang) { return !SR || !!load()[lang] || (IOS && (lang === "ka" || navigator.standalone)); }
+// iPhone: its own recognizer only hears Japanese and English reliably (Russian, Georgian… come back empty) → AI ears
+export function needAI(lang) { return !SR || !!load()[lang] || (IOS && (!["ja", "en"].includes(lang) || navigator.standalone)); }
 export function markAI(lang) { const o = load(); o[lang] = true; try { localStorage.setItem(KEY, JSON.stringify(o)); } catch {} }
 
 let cur = null;
