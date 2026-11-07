@@ -96,6 +96,7 @@ a.btn{display:inline-flex;align-items:center;justify-content:center;text-decorat
 .sum div{background:var(--panel2);border-radius:14px;padding:14px;text-align:center}
 .sum b{display:block;font-family:var(--display);font-size:32px;color:var(--gold)}
 .st{font-size:12px;color:var(--muted);text-align:center;min-height:16px}
+.st:not(:empty){position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));background:#24211e;color:#f4efe6;font-size:16px;padding:10px 16px;border-radius:12px;border:1px solid var(--gold);z-index:50;max-width:90vw;box-shadow:0 6px 20px #0008}
 .switch{position:fixed;inset:0;background:rgba(17,16,16,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:20;text-align:center;padding:16px}
 .switch .big{font-family:var(--display);font-size:clamp(34px,8vw,70px);color:var(--gold);text-transform:uppercase}
 </style>
@@ -317,7 +318,7 @@ const UI = {
         bookNext: "📅 次回の交流会を予約（WhatsApp）", seePlans: "📘 先生と習う（料金を見る）", bookLead: "続けると上達が速くなります。同じメンバーでもう一度、または先生と少人数で。",
         noSr: "このブラウザは音声入力に未対応です。お手本を聞いて声に出して練習してください", micErr: "マイクが使えませんでした。もう一度押してください",
         lv: ["入門", "日常会話", "中級", "上級"], needTwo: "2人以上入れてください",
-        st1: "① 聞く", st2: "② 答えを聞く", st3: "③ 意味を答える", hear2: "👂 相手の答えを聞き取る", heardIt: "相手の答え（聞き取り）", again2: "🔊 もう一度聞く",
+        talkNow: "🎤 どうぞ、話してください…", noVoice: "声が聞こえませんでした。マイクに近づいて、もう一度どうぞ", answerType: "または答えを文字で入力", st1: "① 聞く", st2: "② 答えを聞く", st3: "③ 意味を答える", hear2: "👂 相手の答えを聞き取る", heardIt: "相手の答え（聞き取り）", again2: "🔊 もう一度聞く",
         guess: "🤔 意味を答える（{lang}で話す）", guessType: "または文字で入力", giveUp: "わからない → 答えを見る", judging: "AIが確認中…",
         right: "正しい意味", words: "覚えたい言葉（タップで単語帳へ）", saveQ: "⭐ この質問を単語帳へ", saved: "⭐ 保存済み", learned: "単語帳に入れた言葉", understood: "聞き取れた答え" },
   en: { h1: "<em>Talk</em> to learn.", lead: "No teacher. You pair up with someone who speaks the language you want to learn, and you each get half the time in your target language. The app runs the topics, model voice, scoring and timer.",
@@ -333,7 +334,7 @@ const UI = {
         bookNext: "📅 Book the next exchange (WhatsApp)", seePlans: "📘 Learn with a teacher (see prices)", bookLead: "You improve fastest by coming back. Same group again, or a small class with a teacher.",
         noSr: "Voice input isn't supported here. Listen to the model and say it out loud", micErr: "The microphone didn't start. Press again",
         lv: ["Basics", "Everyday", "Intermediate", "Advanced"], needTwo: "Add at least two people",
-        st1: "① Ask", st2: "② Hear the answer", st3: "③ Say what it means", hear2: "👂 Listen to partner's answer", heardIt: "Partner's answer (heard)", again2: "🔊 Hear it again",
+        talkNow: "🎤 Speak now…", noVoice: "We couldn't hear you. Move closer to the mic and try again", answerType: "or type the answer", st1: "① Ask", st2: "② Hear the answer", st3: "③ Say what it means", hear2: "👂 Listen to partner's answer", heardIt: "Partner's answer (heard)", again2: "🔊 Hear it again",
         guess: "🤔 Say what it means (in {lang})", guessType: "or type it", giveUp: "Not sure → show the meaning", judging: "AI is checking…",
         right: "Correct meaning", words: "Words to learn (tap to save)", saveQ: "⭐ Save this question", saved: "⭐ Saved", learned: "Words saved", understood: "Answers understood" },
 };
@@ -578,31 +579,32 @@ async function sessionView() {
   const mic = h("button", { class: "btn mic", id: "mic" }, ui.speak);
   mic.onclick = async () => {
     unlockAudio(); if (rec || Ears.busy()) { stopListening(); return; }
-    mic.classList.add("on"); mic.textContent = ui.stop;
+    mic.classList.add("on"); mic.textContent = ui.stop; st(ui.talkNow);
     const { alts, err } = await listenOnce(lang);
-    mic.classList.remove("on"); mic.textContent = ui.speak;
+    mic.classList.remove("on"); mic.textContent = ui.speak; st("");
     if (err === "nosr") return st(ui.noSr); if (err && !alts.length) return st(ui.micErr);
+    if (!alts.some(x => x && x.trim())) return st(ui.noVoice);
     let best = { s: 0, heard: alts[0] || "" }; for (const x of alts) { const s = scoreOf(Q.p[lang], x, lang); if (s > best.s) best = { s, heard: x }; }
     S.score = best; sessionView();
   };
   const hear = h("button", { class: "btn main" }, ui.hear2);
   hear.onclick = async () => {
     unlockAudio(); if (rec || Ears.busy()) { stopListening(); return; }
-    hear.classList.add("on"); hear.textContent = fmt(ui.helpOn, { lang: LANG[lang].name });
+    hear.classList.add("on"); hear.textContent = fmt(ui.helpOn, { lang: LANG[lang].name }); st(ui.talkNow);
     const { alts, err } = await listenOnce(lang, true);
-    hear.classList.remove("on"); hear.textContent = ui.hear2;
+    hear.classList.remove("on"); hear.textContent = ui.hear2; st("");
     if (err === "nosr") return st(ui.noSr);
-    if (alts[0]) { S.answer = { text: alts[0] }; S.judge = null; sessionView(); } else st(ui.micErr);
+    if (alts[0]) { S.answer = { text: alts[0] }; S.judge = null; sessionView(); } else st(err ? ui.micErr : ui.noVoice);
   };
   const runJudge = async guess => { S.judge = "wait"; sessionView(); const J = await judge(a, lang, Q.p[lang], S.answer.text, guess); J.guess = guess;
     if (J.score != null && J.score >= 50) S.got[a.i]++; S.judge = J; sessionView(); };
   const guessBtn = h("button", { class: "btn main" }, fmt(ui.guess, { lang: LANG[a.native].name }));
   guessBtn.onclick = async () => {
     unlockAudio(); if (rec || Ears.busy()) { stopListening(); return; }
-    guessBtn.classList.add("on"); guessBtn.textContent = fmt(ui.helpOn, { lang: LANG[a.native].name });
-    const { alts } = await listenOnce(a.native, true);
-    guessBtn.classList.remove("on"); guessBtn.textContent = fmt(ui.guess, { lang: LANG[a.native].name });
-    if (alts[0]) runJudge(alts[0]); else st(ui.micErr);
+    guessBtn.classList.add("on"); guessBtn.textContent = fmt(ui.helpOn, { lang: LANG[a.native].name }); st(ui.talkNow);
+    const { alts, err } = await listenOnce(a.native, true);
+    guessBtn.classList.remove("on"); guessBtn.textContent = fmt(ui.guess, { lang: LANG[a.native].name }); st("");
+    if (alts[0]) runJudge(alts[0]); else st(err ? ui.micErr : ui.noVoice);
   };
   const typeIn = h("input", { placeholder: ui.guessType, enterkeyhint: "send" });
   typeIn.onkeydown = e => { if (e.key === "Enter" && typeIn.value.trim()) runJudge(typeIn.value.trim()); };
@@ -611,8 +613,8 @@ async function sessionView() {
   help.onclick = async () => {
     unlockAudio(); if (rec || Ears.busy()) { stopListening(); return; }
     help.classList.add("on"); help.textContent = fmt(ui.helpOn, { lang: LANG[a.native].name });
-    const { alts } = await listenOnce(a.native, true);
-    help.classList.remove("on"); help.textContent = ui.help;
+    st(ui.talkNow); const { alts } = await listenOnce(a.native, true);
+    help.classList.remove("on"); help.textContent = ui.help; st(alts[0] ? "" : ui.noVoice);
     if (alts[0]) { const t = await translate(alts[0], a.native, lang); S.answer = { text: t.text, tr: alts[0], helped: true }; say(t.text, lang); sessionView(); }
   };
   const next = () => {
@@ -624,6 +626,11 @@ async function sessionView() {
       h("button", { class: stage === 1 ? "btn main" : "btn", onclick: () => { unlockAudio(); say(Q.p[lang], lang); } }, ui.listen),
       h("button", { class: "btn", onclick: () => { unlockAudio(); say(Q.p[lang], lang, true); } }, ui.slow), mic, saveQ),
     h("div", { class: "actions" }, hear, help)];
+  if (!S.answer) {   // the phone didn't catch it (noise, Georgian on iPhone…): the partner types the answer
+    const ans = h("input", { placeholder: ui.answerType, enterkeyhint: "send", lang });
+    ans.onkeydown = e => { if (e.key === "Enter" && ans.value.trim()) { S.answer = { text: ans.value.trim() }; S.judge = null; sessionView(); } };
+    rows.push(h("div", { class: "typein" }, ans));
+  }
   if (S.answer && !S.answer.helped && !(S.judge && S.judge !== "wait")) rows.push(h("div", { class: "actions" }, guessBtn, giveUp), h("div", { class: "typein" }, typeIn));
   main.replaceChildren(
     h("div", { class: "bar" }, h("div", { class: "turn", html: "" }), h("div", { class: "clock", id: "clock" }, "")),
@@ -717,6 +724,6 @@ document.addEventListener("pointerdown", unlockAudio, { passive: true });
 try { navigator.wakeLock?.request("screen").catch(() => {}); } catch {}
 setupView();
 </script>
-<script src="nav.js?v=12"></script>
+<script src="nav.js?v=13"></script>
 </body>
 </html>

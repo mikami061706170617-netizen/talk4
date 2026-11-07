@@ -187,7 +187,7 @@
   // Big typing: tapping a text box opens a large editor; OK puts the text back and sends it (like pressing Enter)
   let editing = false;
   document.addEventListener("focusin", e => {
-    const inp = e.target;
+    let inp = e.target;
     if (editing || !(inp instanceof HTMLInputElement || inp instanceof HTMLTextAreaElement) || inp.closest(".t4z")) return;
     if (inp instanceof HTMLInputElement && !["text", "search", ""].includes(inp.type)) return;
     if (inp.dataset.small !== undefined || inp.readOnly || inp.disabled) return;
@@ -196,7 +196,9 @@
     z.innerHTML = `<textarea></textarea><div class="bar"></div>`;
     const ta = z.querySelector("textarea"); ta.value = inp.value; ta.placeholder = inp.placeholder || T.ph; ta.setAttribute("enterkeyhint", "done");
     const done = send => {
-      z.remove(); editing = false;
+      z.remove(); editing = false; clearInterval(watch);
+      // the page redrew while typing: hand the text to the new box that took its place
+      if (!inp.isConnected) inp = [...document.querySelectorAll("input,textarea")].find(x => x.placeholder === ta.placeholder && x.isConnected) || inp;
       inp.value = ta.value; inp.dispatchEvent(new Event("input", { bubbles: true }));
       if (send && ta.value.trim()) inp.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
       inp.blur();
@@ -206,6 +208,7 @@
     add(T.ok, () => done(true), "ok");
     ta.addEventListener("keydown", k => { if (k.key === "Enter" && !k.shiftKey && !k.isComposing) { k.preventDefault(); done(true); } });
     document.body.append(z); ta.focus(); inp.blur(); setTimeout(() => ta.focus(), 30);
+    const watch = setInterval(() => { if (!inp.isConnected && !ta.value.trim() && z.isConnected) done(false); }, 600);   // its box is gone and nothing typed: close
   });
 })();
 
