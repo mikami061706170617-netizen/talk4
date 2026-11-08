@@ -673,6 +673,8 @@ function stopAll() { stopListening(); try { speechSynthesis.cancel(); } catch {}
 function say(text, lang, slow = false) {
   text = text.replace(/＿＿|__/g, lang === "ja" ? "、" : ", ");
   speechSynthesis?.cancel?.(); try { playing?.stop(); } catch {}
+  // Georgian: the downloaded voice sometimes reads only the punctuation ("period"); the AI voice reads it properly
+  if (lang === "ka") { speakAI(text, slow); return; }
   const plan = voicePlan(lang, "f");
   if (!plan.id) {
     if (!plan.nv && speechSynthesis?.getVoices?.().length) { speakAI(text, slow); return; }   // no voice for this language here

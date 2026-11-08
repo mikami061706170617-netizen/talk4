@@ -503,6 +503,8 @@ async function speak(text, lang, g = "f") {
   if (!text) return;
   speechSynthesis?.cancel?.(); try { playing?.stop(); } catch {}
   audioMode("playback");
+  // Georgian: the downloaded voice sometimes reads only the punctuation ("period"); the AI voice reads it properly
+  if (lang === "ka" && AIcfg?.proxy) return speakAI(text, g);
   const plan = voicePlan(lang, g);
   if (!plan.id) {
     const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.pitch = plan.pitch; u.volume = 1;

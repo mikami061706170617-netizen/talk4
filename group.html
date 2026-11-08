@@ -429,6 +429,8 @@ async function speakAI(text) {
 }
 function sayAndWait(text, lang) {
   return new Promise(async done => {
+    // Georgian: the downloaded voice sometimes reads only the punctuation ("period"); the AI voice reads it properly
+    if (lang === "ka" && await speakAI(text)) return done();
     const plan = voicePlan(lang, "f");
     if (!plan.id) {
       const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.pitch = plan.pitch; u.volume = 1;

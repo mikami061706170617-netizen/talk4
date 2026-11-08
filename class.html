@@ -470,6 +470,8 @@ function say(text, lang, slow = false) {
   speechSynthesis?.cancel?.(); try { playing?.stop(); } catch {}
   const plan = voicePlan(lang, "f");
   return new Promise(async done => {
+    // Georgian: the downloaded voice sometimes reads only the punctuation ("period"); the AI voice reads it properly
+    if (lang === "ka" && await speakAI(text, slow)) return done();
     if (!plan.id) {
       if (!plan.nv && speechSynthesis?.getVoices?.().length) { if (!await speakAI(text, slow)) st("🔇"); return done(); }   // no voice for this language here
       const u = new SpeechSynthesisUtterance(text); u.lang = LANG[lang].sr; if (plan.nv) u.voice = plan.nv; u.rate = slow ? 0.6 : 0.95; u.volume = 1;
