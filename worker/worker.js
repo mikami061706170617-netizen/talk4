@@ -159,7 +159,7 @@ async function live_(b, env, tier, key) {
     body: JSON.stringify({ uses: 1, expireTime: new Date(now + 30 * 60e3).toISOString(), newSessionExpireTime: new Date(now + 2 * 60e3).toISOString(),
       // REST name of the locked setup (the SDKs call it liveConnectConstraints)
       bidiGenerateContentSetup: { model: "models/" + model,
-        generationConfig: { responseModalities: ["AUDIO"], thinkingConfig: { thinkingBudget: 0 } },   // no thinking pause before speaking
+        generationConfig: { responseModalities: ["AUDIO"] },   // (this Live model refuses a thinking setting: "Thinking budget is not supported")
         // keep 0.3 s before the first sound (so the first word is never cut off); 0.6 s of quiet ends a sentence
         realtimeInputConfig: { automaticActivityDetection: { startOfSpeechSensitivity: "START_SENSITIVITY_HIGH", endOfSpeechSensitivity: "END_SENSITIVITY_HIGH", prefixPaddingMs: 300, silenceDurationMs: 600 } }, systemInstruction: { parts: [{ text: sys }] },
         inputAudioTranscription: {}, outputAudioTranscription: {}, sessionResumption: {} } }) });
