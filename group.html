@@ -40,13 +40,13 @@ button{cursor:pointer;touch-action:manipulation}
 .log{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-block:6px}
 .empty{margin:auto;text-align:center;color:var(--muted);font-size:16px;line-height:1.7;max-width:420px}
 .msg{background:var(--panel);border:1px solid var(--line);border-left-width:6px;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
-.msg .who{font-size:12px;letter-spacing:.06em;font-weight:700}
-.msg .orig{font-size:15px;color:var(--muted);overflow-wrap:anywhere}
+.msg .who{font-size:calc(13px * var(--z,1));letter-spacing:.06em;font-weight:700}
+.msg .orig{font-size:calc(17px * var(--z,1));line-height:1.45;color:var(--muted);overflow-wrap:anywhere}
 .msg .tr{display:flex;flex-direction:column;gap:1px;border-top:1px dashed var(--line);padding-top:6px}
-.msg .tr .l{font-size:11px;color:var(--muted);letter-spacing:.06em}
-.msg .tr .t{font-size:clamp(18px,4.6vw,26px);font-weight:700;overflow-wrap:anywhere}
-.msg .tr .r{font-size:14px;color:var(--gold);overflow-wrap:anywhere}
-.msg.last .tr .t{font-size:clamp(22px,6vw,34px)}
+.msg .tr .l{font-size:calc(12px * var(--z,1));color:var(--muted);letter-spacing:.06em}
+.msg .tr .t{font-size:calc(clamp(21px,5.6vw,28px) * var(--z,1));line-height:1.35;font-weight:700;overflow-wrap:anywhere}
+.msg .tr .r{font-size:calc(15px * var(--z,1));color:var(--gold);overflow-wrap:anywhere}
+.msg.last .tr .t{font-size:calc(clamp(25px,7vw,36px) * var(--z,1))}
 .msg button.mini{align-self:flex-end;border:1px solid var(--line);background:var(--panel2);border-radius:999px;width:38px;height:38px}
 .people{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding-block:8px}
 .people.n1{grid-template-columns:minmax(0,1fr)}
@@ -73,11 +73,19 @@ button{cursor:pointer;touch-action:manipulation}
 .setup .sub{border:1px solid var(--line);background:var(--panel2);border-radius:999px;padding:12px 18px}
 .setup label.ck{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--muted)}
 .hint{font-size:13px;color:var(--muted);line-height:1.6}
+@media (max-width:600px){   /* phone: controls stay small so the words get the screen */
+  .auto{padding:8px 10px!important;font-size:14px!important;border-width:1.5px!important;border-radius:12px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:6px!important}
+  #bargeBtn{padding:6px!important;font-size:13px!important}
+  .pb{min-height:50px;padding:6px 8px;font-size:16px}
+  .typer input{padding:9px 10px}
+  .tool{padding:6px 9px}
+}
 </style>
 </head>
 <body>
 <header class="top">
   <div class="brand">TALK4 <b>GROUP</b></div>
+  <button class="tool" id="zoomBtn" aria-label="text size" style="font-weight:700">A＋</button>
   <button class="tool" id="kbBtn" aria-label="keyboard">⌨</button>
   <button class="tool" id="spkBtn"></button>
   <button class="tool" id="clearBtn" aria-label="clear">🗑</button>
@@ -406,10 +414,17 @@ function paintLog() {
     el.append(again);
     box.append(el);
   });
-  box.scrollTop = box.scrollHeight;
+  const last = box.lastElementChild;
+  box.scrollTop = last && last.offsetHeight > box.clientHeight ? last.offsetTop - box.offsetTop - 6 : box.scrollHeight;   // a long newest message: show where it starts
 }
 $("spkBtn").onclick = () => { autoSpeak = !autoSpeak; save(); paint(); };
 $("clearBtn").onclick = () => { log = []; paintLog(); };
+// Text size: tap A＋ to go bigger (3 steps), remembered on this phone
+const ZOOMS = [1, 1.3, 1.65];
+let zoom = 0; try { zoom = Math.min(2, +localStorage.getItem("t4-zoom") || 0); } catch {}
+const paintZoom = () => { document.documentElement.style.setProperty("--z", ZOOMS[zoom]); $("zoomBtn").textContent = zoom === 2 ? "A－" : "A＋"; };
+$("zoomBtn").onclick = () => { zoom = (zoom + 1) % ZOOMS.length; try { localStorage.setItem("t4-zoom", zoom); } catch {} paintZoom(); };
+paintZoom();
 $("kbBtn").onclick = () => { $("typer").hidden = !$("typer").hidden; if (!$("typer").hidden) $("tin").focus(); };
 
 /* ---------- Speak a result out loud, one language after another ---------- */
@@ -713,7 +728,7 @@ const scriptLang = (t, langs) => {
   for (const [l, re] of by) if (re.test(t) && langs.includes(l)) return l;
   return langs.includes("en") ? "en" : langs.find(l => !by.some(([b, re]) => b === l)) || langs[0];
 };
-function paintLive() { $("liveBtn").textContent = Live.on ? LV.on : LV.off; $("liveBtn").classList.toggle("on", Live.on); paintHandsFree(); }
+function paintLive() { $("liveBtn").textContent = Live.on ? LV.on : LV.off; $("liveBtn").classList.toggle("on", Live.on); paintHandsFree(); try { paintBarge(); } catch {} }
 // 3-4 languages: one spoken translation only. The first person's language is the host's: when the host speaks,
 // the translation is spoken in the chosen guest language; when anyone else speaks, it is spoken in the host's.
 // The other languages appear on screen as text right away.
@@ -913,7 +928,7 @@ Live.stop = () => {
 $("liveBtn").onclick = () => { unlockAudio(); if (Live.on) Live.stop(); else Live.start(); };
 $("liveBtn").hidden = !AI.proxy; paintLive(); paintLiveVoice();
 try { Live.barge = localStorage.getItem("t4-barge") === "1"; } catch {}
-function paintBarge() { const b = $("bargeBtn"); b.hidden = !AI.proxy;
+function paintBarge() { const b = $("bargeBtn"); b.hidden = !AI.proxy || !Live.on;
   b.textContent = (uiLang === "ja" ? "🗣 読み上げ中も話せる: " : "🗣 Talk over the translation: ") + (Live.barge ? "ON" : "OFF");
   b.style.borderColor = Live.barge ? "var(--gold)" : ""; b.style.color = Live.barge ? "var(--gold)" : ""; }
 $("bargeBtn").onclick = () => { Live.barge = !Live.barge; try { localStorage.setItem("t4-barge", Live.barge ? "1" : "0"); } catch {} paintBarge(); };
