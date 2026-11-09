@@ -468,7 +468,7 @@ const audioMode = m => { try { if (navigator.audioSession) navigator.audioSessio
 async function readOut(m) {
   const my = ++readRun; speechSynthesis?.cancel?.(); try { playing?.stop(); } catch {}
   reading = true;
-  const reopen = IOS && handsFree && recording;
+  const reopen = false;   // closing/reopening the mic on iPhone made hands-free stop listening: keep it open
   if (reopen) { stopAuto(); audioMode("playback"); }
   try { for (const t of m.out) { if (my !== readRun || !t.text) return; await sayAndWait(t.text, t.lang); await new Promise(r => setTimeout(r, 250)); } }
   finally {
@@ -476,7 +476,7 @@ async function readOut(m) {
     if (reopen && my === readRun && handsFree && !recording) { audioMode("auto"); await startAuto(); }
   }
 }
-function stopReading() { readRun++; reading = false; try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} if (IOS && handsFree && !recording) { audioMode("auto"); startAuto(); } }
+function stopReading() { readRun++; reading = false; try { speechSynthesis.cancel(); } catch {} try { playing?.stop(); } catch {} }
 
 /* ---------- One utterance → every other language in the room ---------- */
 // Spoken Japanese questions often come out of voice input without "？" (and "か" is often dropped),
