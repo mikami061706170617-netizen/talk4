@@ -588,7 +588,7 @@ async function detectAndTranslate(text) {
   addUtterance(text, lang, i >= 0 ? label(people[i], i) : "?", i >= 0 ? COLORS[i] : "var(--muted)", true);
 }
 $("tsend").onclick = () => { unlockAudio(); const v = $("tin").value; $("tin").value = ""; if (v.trim()) detectAndTranslate(v); };
-$("tin").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) $("tsend").click(); });
+$("tin").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229) $("tsend").click(); });
 
 /* ---------- Hands-free mode (needs the AI): keeps listening; whoever speaks, in whatever language,
    is transcribed, recognised and translated for everyone by one AI call, using the conversation so far ---------- */
@@ -950,6 +950,6 @@ paint();
 let first = true; try { first = !localStorage.getItem("t4g"); } catch {}
 if (first) { paintSetup(); $("setup").hidden = false; } else warmAll();
 </script>
-<script src="nav.js?v=13"></script>
+<script src="nav.js?v=14"></script>
 </body>
 </html>

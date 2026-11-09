@@ -206,7 +206,8 @@
     const add = (label, fn, cls) => { const b = document.createElement("button"); b.textContent = label; if (cls) b.className = cls; b.onclick = fn; z.querySelector(".bar").append(b); };
     add(T.close, () => done(false));
     add(T.ok, () => done(true), "ok");
-    ta.addEventListener("keydown", k => { if (k.key === "Enter" && !k.shiftKey && !k.isComposing) { k.preventDefault(); done(true); } });
+    ta.addEventListener("keydown", k => { if (k.key === "Enter" && !k.shiftKey && !k.isComposing && k.keyCode !== 229) {   // 229: iPhone Japanese keyboard still converting
+ k.preventDefault(); done(true); } });
     document.body.append(z); ta.focus(); inp.blur(); setTimeout(() => ta.focus(), 30);
     const watch = setInterval(() => { if (!inp.isConnected && !ta.value.trim() && z.isConnected) done(false); }, 600);   // its box is gone and nothing typed: close
   });
