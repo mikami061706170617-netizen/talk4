@@ -532,6 +532,7 @@ Reply ONLY JSON {${want.map(l => `"${l}":""`).join(",")},${Names.learnAsk}}`;
     const r = await fetch(AI.proxy, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ quality: lang === "ka" || targets.includes("ka") ? "high" : "", request: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2, thinkingConfig: { thinkingLevel: "low" } } } }) });
     const j = await r.json(), raw = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("").replace(/^```json|```$/g, "").trim();
+    if (j.t4 === "free") return null;   // free AI: Google Translate's version is better, keep it
     try { return JSON.parse(raw); } catch { return JSON.parse(raw.replace(/\\(?!["\\/bfnrtu])/g, "")); }
   } catch { return null; } finally { clearTimeout(tm); }
 }
@@ -688,6 +689,8 @@ Answer only JSON: {"lang":"<code>","text":"<transcript>","tr":{"<code>":"<transl
   let out; try { out = JSON.parse(raw); }
   catch { out = JSON.parse(raw.replace(/\\(?!["\\/bfnrtu])/g, "").replace(/[\u0000-\u001f]/g, " ")); }   // the AI sometimes adds a stray backslash or line break
   if (out) { out.text = noNoise(out.text).trim(); for (const k in out.tr || {}) out.tr[k] = noNoise(out.tr[k]).trim(); }   // sounds are not words
+  if (out && j.t4 === "free") out.tr = {};   // free AI: it only listens; Google Translate (better than the light AI) translates
+  if (out?.tr?.ka && /[^\u10A0-\u10FF\s\d.,!?;:'"()«»\-–—%₾$€/]/.test(out.tr.ka)) delete out.tr.ka;   // broken Georgian (Cyrillic/odd letters mixed in): use Google
   return out;
 }
 // A sentence left hanging ("…and then", "…けど") is not translated yet: it waits for the rest, and the

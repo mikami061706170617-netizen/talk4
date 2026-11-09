@@ -566,6 +566,7 @@ async function aiTranslate(text, from, to, draft, voice, plain) {
     const r = await fetch(AIcfg.proxy, { method: "POST", signal: ctl.signal, headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ quality: from === "ka" || to === "ka" ? "high" : "", ...job }) });
     const j = await r.json(), raw = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+    if (j.t4 === "free" && draft) return null;   // free AI: Google Translate's draft is better, keep it
     const o = JSON.parse(raw.replace(/^```json|```$/g, "").trim());
     Names.learn(o.names);
     if (o.text) o.text = Names.postNames(o.text, to);
