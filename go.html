@@ -33,8 +33,21 @@ select{width:100%;background:var(--card);border:1px solid var(--line);border-rad
 .m .rom{font-size:calc(14px*var(--z,1));color:var(--gold);margin-top:2px}
 .m .back{font-size:calc(14px*var(--z,1));color:var(--muted);margin-top:8px;padding-top:6px;border-top:1px dashed var(--line);line-height:1.5}
 .m .back.warn{color:#ffb86b}
-.m .acts{display:flex;gap:6px;margin-top:8px}
-.m .acts button{background:#26231f;border:1px solid var(--line);border-radius:9px;padding:6px 11px;font-size:14px}
+.m .acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.m .acts button{background:#26231f;border:1px solid var(--line);border-radius:9px;padding:7px 10px;font-size:14px;white-space:nowrap}
+.m .num{font-size:calc(14px*var(--z,1));color:#ffb86b;margin-top:6px}
+#show{position:fixed;inset:0;background:#fff;color:#111;z-index:30;display:none;flex-direction:column;padding:calc(14px + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom))}
+#show.open{display:flex}
+#show .big{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:800;line-height:1.3;word-break:break-word;overflow-y:auto}
+#show .sub{text-align:center;color:#666;font-size:17px;margin-bottom:10px}
+#show .bar{display:flex;gap:10px;justify-content:center}
+#show .bar button{background:#111;color:#fff;border:0;border-radius:14px;padding:14px 22px;font-size:18px;font-weight:700}
+.item{display:flex;width:100%;text-align:left;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 12px;margin-bottom:6px;font-size:17px}
+.item small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.dg{background:var(--card);border-radius:10px;padding:9px 11px;margin-bottom:5px;font-size:15px;line-height:1.5}
+.dg.ng{border-left:4px solid var(--red)}.dg.ok{border-left:4px solid var(--ok)}.dg.wn{border-left:4px solid #ffb86b}
+.favrow{display:flex;gap:6px;align-items:stretch}.favrow .ph{flex:1}.favrow .x{flex:none;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:6px;padding:0 12px;color:var(--muted)}
+textarea.out{width:100%;height:42dvh;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;font-size:15px}
 .badge{font-size:11px;border:1px solid var(--ok);color:var(--ok);border-radius:6px;padding:0 5px}
 #status{min-height:22px;text-align:center;font-size:15px;color:var(--gold);padding:4px 0}
 .typer{display:flex;gap:6px;margin-bottom:6px}
@@ -70,7 +83,6 @@ select{width:100%;background:var(--card);border:1px solid var(--line);border-rad
 .row button{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;font-size:17px}
 .row .go{background:var(--gold);color:#14110a;border-color:var(--gold);font-weight:700}
 .row .rec{background:var(--red);border-color:var(--red);color:#fff;font-weight:700}
-footer{font-size:12px;color:var(--muted);text-align:center;padding:2px 0 6px}footer a{color:var(--muted)}
 </style>
 </head>
 <body>
@@ -78,7 +90,7 @@ footer{font-size:12px;color:var(--muted);text-align:center;padding:2px 0 6px}foo
   <h1>TALK4 <b>かんたん通訳</b></h1><span class="sp"></span>
   <button class="tool" id="zoom">A＋</button>
   <button class="tool on" id="voice">🔊</button>
-  <button class="tool" id="clear">🗑</button>
+  <button class="tool" id="menu">☰</button>
 </header>
 <div class="scenes" id="scenes"></div>
 <div class="langs">
@@ -92,7 +104,7 @@ footer{font-size:12px;color:var(--muted);text-align:center;padding:2px 0 6px}foo
   <div class="typer"><input id="tin" placeholder="文字で入力（どちらの言葉でもOK）" enterkeyhint="send" autocomplete="off"><button id="tsend">訳す</button><button id="phr">📋 定型文</button></div>
   <div class="mics"><button class="mic" id="micMe"></button><button class="mic you" id="micYou"></button></div>
 </div>
-<footer><a href="index.html">前のTalk4に戻る</a></footer>
+<div id="show"><div class="sub" id="showSub"></div><div class="big" id="showBig"></div><div class="bar"><button id="showSay">🔊</button><button id="showClose">✕ 閉じる</button></div></div>
 <div id="sheet"><div class="box"><div class="top"><b id="shTitle"></b><button class="tool" id="shClose">✕ 閉じる</button></div><div class="list" id="shList"></div></div></div>
 
 <script type="module">
@@ -116,6 +128,7 @@ const SCENES = [
 const store = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem("go-" + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("go-" + k, JSON.stringify(v)); } catch {} } };
 const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []).filter(m => m.tr && !/^⚠/.test(m.tr)), lesson: store.get("lesson", "greet"), pi: 0 };
 const st = t => { $("status").textContent = t || ""; };
+const VER = "go-3";
 
 /* ---------- translation (free: Google), with names kept and a check translation back ---------- */
 let Names = null; import("./names.js").then(m => Names = m).catch(() => {});
@@ -158,6 +171,15 @@ function similar(a, b) {   // 0..1, shared two-letter pieces
   return 2 * hit / tot;
 }
 
+// numbers must survive the translation (prices, times, quantities): show both when they differ
+function numsOf(s) {
+  s = (s || "").normalize("NFKC").replace(/(\d),(?=\d{3})/g, "$1");
+  const mul = (re, k) => { s = s.replace(re, (_, n) => String(Math.round(n * k))); };
+  mul(/(\d+(?:\.\d+)?)\s*(?:億|billion)/gi, 1e8); mul(/(\d+(?:\.\d+)?)\s*million/gi, 1e6); mul(/(\d+(?:\.\d+)?)\s*万/g, 1e4); mul(/(\d+(?:\.\d+)?)\s*(?:千|thousand)/gi, 1e3);
+  return (s.match(/\d+(?:\.\d+)?/g) || []).map(Number);
+}
+function numCheck(a, b) { const A = numsOf(a), B = numsOf(b); if (!A.length) return ""; return A.some(x => !B.includes(x)) ? `元の数字 ${A.join("・")} ／ 訳の数字 ${B.join("・") || "なし"}` : ""; }
+
 /* ---------- voice out ---------- */
 let actx = null;
 function unlock() {   // called inside a tap: lets the phone speak later
@@ -172,8 +194,8 @@ function stopSay() { try { speechSynthesis.cancel(); } catch {} try { playing?.s
 async function say(text, lang, slow) {
   stopSay(); if (!text) return;
   const v = voiceFor(lang);
-  if (v) return new Promise(done => {
-    const u = new SpeechSynthesisUtterance(text); u.voice = v; u.lang = v.lang; u.rate = slow ? 0.6 : 0.95; u.volume = 1;
+  if (window.speechSynthesis && (v || lang !== "ka")) return new Promise(done => {   // the phone lists its voices late: speak by language even before the list arrives
+    const u = new SpeechSynthesisUtterance(text); if (v) u.voice = v; u.lang = v?.lang || LANG[lang].sr; u.rate = slow ? 0.6 : 0.95; u.volume = 1;
     let started = false; u.onstart = () => started = true; u.onend = u.onerror = () => done();
     speechSynthesis.speak(u);
     setTimeout(async () => { if (!started && !speechSynthesis.speaking) { speechSynthesis.cancel(); await sayAI(text, slow); done(); } }, 1800);
@@ -227,10 +249,10 @@ function listen(lang, long) {
 async function utter(text, from, verified) {
   text = (text || "").trim(); if (!text) return;
   const to = from === S.me ? S.you : S.me, mine = from === S.me;
-  const m = { text, from, to, mine, tr: verified?.tr || "", rom: verified?.rom || "", back: "", ok: !!verified, t: Date.now() };
+  const m = { text, from, to, mine, tr: verified?.tr || "", rom: verified?.rom || "", back: "", ok: !!verified, fav: !!verified?.fav, t: Date.now() };
   S.log.push(m); if (S.log.length > 40) S.log.shift(); paint(); st("⏳ 訳しています…");
   try {
-    if (!m.tr) { const r = await translate(text, from, to); m.tr = r.text; m.rom = to === "ja" ? "" : r.rom; }
+    if (!m.tr) { const r = await translate(text, from, to); m.tr = r.text; m.rom = to === "ja" ? "" : r.rom; m.num = numCheck(text, m.tr); }
   } catch (e) { m.tr = ""; m.fail = e?.message || "error"; paint(); st(""); return; }
   paint(); st(""); store.set("log", S.log);
   const speakP = S.voice ? say(m.tr, to).catch(() => {}) : null;
@@ -249,16 +271,21 @@ async function detect(text) {
 function paint() {
   if (S.scene === "class") return paintClass();
   const box = $("main"); box.replaceChildren();
-  if (!S.log.length) { box.append(h("div", { class: "empty" }, "下の黄色いボタンを押して日本語で話すと、相手の言葉に訳して読み上げます。", h("br"), "相手には青いボタンを押して話してもらってください。", h("br"), "「📋 定型文」には、確認済みの正しい訳が入っています。")); return; }
+  if (!S.log.length) { box.append(h("div", { class: "empty" }, "下の黄色いボタンを押して日本語で話すと、相手の言葉に訳して読み上げます。", h("br"), "相手には青いボタンを押して話してもらってください。", h("br"), "「📋 定型文」には、確認済みの正しい訳が入っています。", h("br"), "訳した文は「👁 大きく見せる」で相手に見せたり、「⭐ 保存」で自分の定型文にできます。")); return; }
   for (const m of S.log) {
-    const warn = m.mine && m.back && m.sim < 0.34;
+    const warn = m.mine && m.back && m.sim < 0.34; const last = m === S.log[S.log.length - 1];
     box.append(h("div", { class: "m" + (m.mine ? "" : " you") },
-      h("div", { class: "who" }, (m.mine ? "わたし" : "相手") + "・" + LANG[m.from].name, m.ok ? h("span", { class: "badge" }, "✓ 確認済みの訳") : null),
+      h("div", { class: "who" }, (m.mine ? "わたし" : "相手") + "・" + LANG[m.from].name, m.ok ? h("span", { class: "badge" }, m.fav ? "⭐ 保存した訳" : "✓ 確認済みの訳") : null),
       h("div", { class: "src" }, m.text),
       m.fail ? h("div", { class: "back warn" }, "⚠ 訳せませんでした（" + m.fail + "）", h("div", { class: "acts" }, h("button", { onclick: () => { unlock(); S.log = S.log.filter(x => x !== m); utter(m.text, m.from); } }, "↻ もう一度訳す"))) : h("div", { class: "tr", lang: m.to }, m.tr || "…"),
       m.rom ? h("div", { class: "rom" }, m.rom) : null,
       m.back ? h("div", { class: "back" + (warn ? " warn" : "") }, (warn ? "⚠ 伝わりにくいかも。短く言い直してみてください ／ " : "") + "相手にはこう伝わります：" + m.back) : null,
-      m.fail ? null : h("div", { class: "acts" }, h("button", { onclick: () => { unlock(); say(m.tr, m.to); } }, "🔊 もう一度"), h("button", { onclick: () => { unlock(); say(m.tr, m.to, true); } }, "🐢 ゆっくり"))));
+      m.num ? h("div", { class: "num" }, "🔢 数字を確認してください（" + m.num + "）") : null,
+      m.fail || !m.tr ? null : h("div", { class: "acts" },
+        h("button", { onclick: () => { unlock(); say(m.tr, m.to); } }, "🔊 もう一度"), last ? h("button", { onclick: () => { unlock(); say(m.tr, m.to, true); } }, "🐢 ゆっくり") : null,
+        h("button", { onclick: () => showBig(m) }, "👁 大きく見せる"),
+        m.ok || !last ? null : h("button", { onclick: () => { $("tin").value = m.text; S.log = S.log.filter(x => x !== m); store.set("log", S.log); paint(); $("tin").focus(); } }, "✏️ 直す"),
+        m.mine && !m.ok ? h("button", { onclick: e => { saveFav(m); e.target.textContent = "⭐ 保存しました"; e.target.disabled = true; } }, "⭐ 保存") : null)));
   }
   box.scrollTop = box.scrollHeight;
 }
@@ -280,6 +307,11 @@ const romOf = (p, l) => l === "ja" ? p.jr : l === "ko" ? p.kr : l === "zh" ? p.z
 async function openPhrases() {
   const sc = SCENES.find(x => x.id === S.scene); $("shTitle").textContent = "📋 定型文（押すと相手に伝えます）"; const list = $("shList"); list.replaceChildren(h("div", { class: "empty" }, "読み込み中…")); $("sheet").classList.add("open");
   const L = await lessons(); list.replaceChildren();
+  const favs = store.get("fav", []).filter(f => f.from === S.me && f.to === S.you);
+  if (favs.length) { list.append(h("div", { class: "grp" }, "⭐ マイ定型文（自分で保存した文）"));
+    for (const f of favs) list.append(h("div", { class: "favrow" },
+      h("button", { class: "ph", onclick: () => { unlock(); $("sheet").classList.remove("open"); utter(f.text, S.me, { tr: f.tr, rom: f.rom, fav: true }); } }, h("div", { class: "a" }, f.text), h("div", { class: "b" }, f.tr)),
+      h("button", { class: "x", "aria-label": "delete", onclick: () => { store.set("fav", store.get("fav", []).filter(x => !(x.text === f.text && x.from === f.from && x.to === f.to))); openPhrases(); } }, "✕"))); }
   for (const id of sc.lessons || ["greet"]) { const les = L.find(x => x.id === id); if (!les) continue;
     list.append(h("div", { class: "grp" }, (les.icon || "") + " " + (les.title[S.me] || les.title.ja)));
     for (const p of les.phrases) if (p[S.me] && p[S.you]) list.append(h("button", { class: "ph", onclick: () => { unlock(); $("sheet").classList.remove("open"); utter(p[S.me], S.me, { tr: p[S.you], rom: romOf(p, S.you) }); } }, h("div", { class: "a" }, p[S.me]), h("div", { class: "b" }, p[S.you])));
@@ -312,13 +344,56 @@ async function paintClass() {
       h("div", { class: "row" }, h("button", { onclick: () => { S.pi = Math.max(0, S.pi - 1); paintClass(); } }, "← 前"), h("button", { class: "go", onclick: () => { S.pi = (S.pi + 1) % ps.length; paintClass(); } }, "次へ →"))));
 }
 
+/* ---------- show big, save, export, self-check ---------- */
+let shown = null;
+function showBig(m) { shown = m; const n = [...m.tr].length; $("showBig").textContent = m.tr; $("showBig").lang = m.to; $("showBig").style.fontSize = n <= 14 ? "13vw" : n <= 40 ? "9.5vw" : n <= 90 ? "7vw" : "5.2vw"; $("showSub").textContent = m.rom || ""; $("show").classList.add("open"); }
+function saveFav(m) { const f = store.get("fav", []).filter(x => !(x.text === m.text && x.from === m.from && x.to === m.to)); f.unshift({ text: m.text, from: m.from, to: m.to, tr: m.tr, rom: m.rom }); store.set("fav", f.slice(0, 80)); }
+const openSheet = (title, ...kids) => { $("shTitle").textContent = title; $("shList").replaceChildren(...kids); $("sheet").classList.add("open"); };
+function logText() {
+  const d = new Date(), z = n => String(n).padStart(2, "0");
+  return `Talk4 会話の記録 ${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${z(d.getHours())}:${z(d.getMinutes())}\n\n` + S.log.filter(m => m.tr).map(m => `${z(new Date(m.t).getHours())}:${z(new Date(m.t).getMinutes())} ${m.mine ? "わたし" : "相手"}（${LANG[m.from].name}）\n${m.text}\n→ ${m.tr}`).join("\n\n");
+}
+async function exportLog() {
+  if (!S.log.length) { $("sheet").classList.remove("open"); st("まだ会話がありません"); return; }
+  const text = logText();
+  try { if (navigator.share) { await navigator.share({ title: "Talk4 会話の記録", text }); $("sheet").classList.remove("open"); return; } } catch (e) { if (e?.name === "AbortError") return; }
+  let copied = false; try { await navigator.clipboard.writeText(text); copied = true; } catch {}
+  openSheet("📤 会話の記録", h("div", { class: "grp" }, copied ? "コピーしました。メールやLINEに貼り付けてください。" : "下の文を長押しして、すべて選択 → コピーしてください。"), h("textarea", { class: "out", readonly: "" }, text));
+}
+async function diagnose() {
+  const list = h("div"), add = (cls, t) => list.append(h("div", { class: "dg " + cls }, t));
+  openSheet("🩺 うまく動かないとき", h("div", { class: "grp" }, "調べています… 終わったら、この画面の写真（スクリーンショット）を送ってください。"), list);
+  const ua = navigator.userAgent, inApp = /Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(ua);
+  add(inApp ? "ng" : "ok", inApp ? "✕ アプリの中のブラウザで開いています。マイクが使えません。iPhoneはSafari、MacはChromeで開いてください。" : "✓ ブラウザ：" + (/CriOS/.test(ua) ? "Chrome(iPhone)" : /Safari/.test(ua) && !/Chrome/.test(ua) ? "Safari" : /Chrome/.test(ua) ? "Chrome" : "その他") + (IOS ? "・iPhone/iPad" : ""));
+  add(navigator.onLine ? "ok" : "ng", navigator.onLine ? "✓ インターネット：つながっています" : "✕ インターネットにつながっていません");
+  for (const [name, host] of [["通訳①", "translate.googleapis.com"], ["通訳②", "clients5.google.com"]]) { const t0 = performance.now(); try { const r = await gtxOnce("こんにちは", "ja", "en", host); add("ok", `✓ ${name}：動いています（${Math.round(performance.now() - t0)}ms・${r.text}）`); } catch (e) { add("wn", `△ ${name}：使えません（${e?.message || e}）`); } }
+  try { const j = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent("こんにちは")}&langpair=ja|en`).then(r => r.json()); add(j.responseStatus == 200 ? "ok" : "wn", (j.responseStatus == 200 ? "✓" : "△") + " 通訳③（予備）：" + (j.responseData?.translatedText || j.responseStatus)); } catch (e) { add("wn", "△ 通訳③（予備）：使えません（" + (e?.message || e) + "）"); }
+  if (AIproxy) { const t0 = performance.now(); try { const j = await fetch(AIproxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ request: { contents: [{ parts: [{ text: "Reply with the single word OK." }] }], generationConfig: { temperature: 0 } } }) }).then(r => r.json()); const ok = !!j.candidates; add(ok ? "ok" : "wn", (ok ? "✓" : "△") + ` AI（聞き取り・ジョージア語の声）：${ok ? "動いています" : (j.error?.message || j.error || "返事なし").toString().slice(0, 80)}（${Math.round(performance.now() - t0)}ms・${j.t4 || "-"}）`); } catch (e) { add("ng", "✕ AI（聞き取り・ジョージア語の声）：つながりません（" + (e?.message || e) + "）"); } }
+  else add("ng", "✕ AIの設定が読めません");
+  let micState = "?"; try { micState = (await navigator.permissions.query({ name: "microphone" })).state; } catch {}
+  add(micState === "denied" ? "ng" : micState === "granted" ? "ok" : "wn", micState === "denied" ? "✕ マイク：拒否になっています。設定 → アプリ → Safari → マイク → 許可" : micState === "granted" ? "✓ マイク：許可されています" : "△ マイク：まだ聞かれていません（マイクのボタンを押すと聞かれます → 許可）");
+  add(navigator.mediaDevices?.getUserMedia ? "ok" : "ng", navigator.mediaDevices?.getUserMedia ? "✓ 録音の機能：あります" : "✕ 録音の機能がありません（https で開いていますか？）");
+  add("ok", "✓ 聞き取りの方法：" + Object.keys(LANG).map(l => LANG[l].name + "=" + (!SR || (Ears && Ears.needAI(l)) ? "AI" : "本体")).join("／"));
+  await new Promise(r => setTimeout(r, 300)); const vs = window.speechSynthesis?.getVoices?.() || [];
+  add(vs.length ? "ok" : "wn", (vs.length ? "✓" : "△") + " 声：" + Object.keys(LANG).map(l => LANG[l].name + "=" + (voiceFor(l) ? "あり" : l === "ka" ? "AIの声" : "一覧なし（言語指定で読みます）")).join("／"));
+  add("ok", "版：" + VER + "・" + new Date().toLocaleString("ja-JP"));
+  list.previousSibling.textContent = "調べ終わりました。✕ や △ があれば、この画面の写真（スクリーンショット）を送ってください。";
+}
+function openMenu() {
+  openSheet("☰ メニュー",
+    h("button", { class: "item", onclick: exportLog }, "📤", h("div", {}, "会話の記録を送る・コピーする", h("small", {}, "商談のメモとして、メールやLINEに送れます"))),
+    h("button", { class: "item", onclick: () => { $("sheet").classList.remove("open"); stopSay(); S.log = []; store.set("log", []); paint(); } }, "🗑", h("div", {}, "会話を消す", h("small", {}, "画面の会話をすべて消します（マイ定型文は残ります）"))),
+    h("button", { class: "item", onclick: diagnose }, "🩺", h("div", {}, "うまく動かないとき", h("small", {}, "通訳・マイク・声を自動で調べます"))),
+    h("a", { class: "item", href: "index.html", style: "text-decoration:none;color:inherit" }, "↩", h("div", {}, "前のTalk4に戻る")));
+}
+
 /* ---------- controls ---------- */
 function paintUI() {
   $("scenes").replaceChildren(...SCENES.map(s => h("button", { class: s.id === S.scene ? "on" : "", onclick: () => { stopSay(); stopListen?.(); S.scene = s.id; store.set("scene", s.id); paintUI(); paint(); } }, s.label)));
   for (const [id, key] of [["me", "me"], ["you", "you"]]) $(id).replaceChildren(...Object.entries(LANG).map(([k, v]) => h("option", { value: k, selected: S[key] === k }, v.name)));
   $("micMe").innerHTML = `🎤 わたし<small>${LANG[S.me].name}</small>`;
   $("micYou").innerHTML = `🎤 ${LANG[S.you].partner}<small>${LANG[S.you].speak}・${LANG[S.you].name}</small>`;
-  $("talkUI").hidden = S.scene === "class"; $("clear").hidden = S.scene === "class";
+  $("talkUI").hidden = S.scene === "class";
   $("voice").textContent = S.voice ? "🔊" : "🔇"; $("voice").classList.toggle("on", S.voice);
   document.documentElement.style.setProperty("--z", [1, 1.25, 1.55][S.zoom]); $("zoom").textContent = S.zoom === 2 ? "A－" : "A＋";
   st("");
@@ -328,7 +403,9 @@ $("you").onchange = e => { S.you = e.target.value; if (S.me === S.you) S.me = S.
 $("swap").onclick = () => { [S.me, S.you] = [S.you, S.me]; store.set("me", S.me); store.set("you", S.you); paintUI(); paint(); };
 $("zoom").onclick = () => { S.zoom = (S.zoom + 1) % 3; store.set("zoom", S.zoom); paintUI(); };
 $("voice").onclick = () => { S.voice = !S.voice; store.set("voice", S.voice); if (!S.voice) stopSay(); paintUI(); };
-$("clear").onclick = () => { stopSay(); S.log = []; store.set("log", []); paint(); };
+$("menu").onclick = openMenu;
+$("showClose").onclick = () => $("show").classList.remove("open"); $("showSay").onclick = () => { unlock(); if (shown) say(shown.tr, shown.to); };
+$("showBig").onclick = () => $("show").classList.remove("open");
 $("micMe").onclick = () => mic("me"); $("micYou").onclick = () => mic("you");
 const sendTyped = async () => { unlock(); const v = $("tin").value.trim(); if (!v) return; $("tin").value = ""; $("tin").blur(); utter(v, await detect(v)); };
 $("tsend").onclick = sendTyped;
@@ -336,6 +413,7 @@ $("tin").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isCompos
 $("phr").onclick = openPhrases; $("shClose").onclick = () => $("sheet").classList.remove("open");
 $("sheet").onclick = e => { if (e.target === $("sheet")) $("sheet").classList.remove("open"); };
 paintUI(); paint();
+if (/Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(navigator.userAgent)) st("⚠ アプリの中のブラウザではマイクが使えません。Safari（Macは Chrome）で開いてください");
 window.__go = { S, utter };
 </script>
 </body>
