@@ -114,19 +114,35 @@ const SCENES = [
   { id: "class", label: "📘 語学教室", lessons: null },
 ];
 const store = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem("go-" + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("go-" + k, JSON.stringify(v)); } catch {} } };
-const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []), lesson: store.get("lesson", "greet"), pi: 0 };
+const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []).filter(m => m.tr && !/^⚠/.test(m.tr)), lesson: store.get("lesson", "greet"), pi: 0 };
 const st = t => { $("status").textContent = t || ""; };
 
 /* ---------- translation (free: Google), with names kept and a check translation back ---------- */
 let Names = null; import("./names.js").then(m => Names = m).catch(() => {});
-async function gtx(text, from, to) {
-  const u = `https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&dt=rm&sl=${LANG[from]?.g || "auto"}&tl=${LANG[to].g}&q=${encodeURIComponent(text)}`;
-  const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 8000);
+async function gtxOnce(text, from, to, host) {
+  const u = `https://${host}/translate_a/single?client=gtx&dt=t&dt=rm&sl=${LANG[from]?.g || "auto"}&tl=${LANG[to].g}&q=${encodeURIComponent(text)}`;
+  const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 7000);
   try {
     const j = await fetch(u, { signal: ctl.signal }).then(r => { if (!r.ok) throw new Error("http " + r.status); return r.json(); });
     const text2 = j[0].filter(x => x[0] != null).map(x => x[0]).join(""), romRow = j[0].find(x => x[0] == null) || [];
+    if (!text2) throw new Error("empty");
     return { text: text2, rom: romRow[2] || "", detected: j[2] };
   } finally { clearTimeout(tm); }
+}
+// Google first (two addresses), then a second free translator, then the AI: one of them always answers
+async function gtx(text, from, to) {
+  text = text.slice(0, 1200);
+  for (const host of ["translate.googleapis.com", "clients5.google.com", "translate.googleapis.com"]) { try { return await gtxOnce(text, from, to, host); } catch (e) { gtx.last = e?.message || String(e); } }
+  try {
+    const j = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.slice(0, 450))}&langpair=${LANG[from].g}|${LANG[to].g}`).then(r => r.json());
+    if (j.responseData?.translatedText && j.responseStatus == 200) return { text: j.responseData.translatedText, rom: "" };
+  } catch (e) { gtx.last = e?.message || String(e); }
+  if (AIproxy) {
+    const j = await fetch(AIproxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ request: { contents: [{ parts: [{ text: `Translate from ${LANG[from].name} into ${LANG[to].name}. Reply ONLY JSON {"text":""}.\n${text}` }] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } } }) }).then(r => r.json());
+    const t = JSON.parse((j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("").replace(/^```json|```$/g, "").trim()).text;
+    if (t) return { text: t, rom: "" };
+  }
+  throw new Error(gtx.last || "offline");
 }
 async function translate(text, from, to) {
   let src = text; try { if (Names) src = Names.preNames(text); } catch {}
@@ -182,6 +198,7 @@ async function sayAI(text, slow) {   // languages the phone has no voice for (Ge
 /* ---------- voice in: the phone's own recognizer for Japanese/English, the AI ears for the rest ---------- */
 let Ears = null; import("./ears.js").then(m => Ears = m).catch(() => {});
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 let stopListen = null;
 function listen(lang, long) {
   return new Promise(resolve => {
@@ -195,7 +212,10 @@ function listen(lang, long) {
     const r = new SR(); r.lang = LANG[lang].sr; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
     let text = "", got = false, fin = false, err = null;
     const end = () => { if (fin) return; fin = true; stopListen = null; clearTimeout(guard); if (!text && err && err !== "no-speech" && err !== "aborted") { try { Ears?.markAI(lang); } catch {} return viaAI(); } resolve({ text: text.trim(), err: text ? null : err }); };
-    r.onresult = e => { got = true; text = [...e.results].map(x => x[0].transcript).join(""); st("🎤 " + text); };
+    let quiet = null;
+    r.onresult = e => { got = true;
+      text = IOS ? e.results[e.results.length - 1][0].transcript : [...e.results].map(x => x[0].transcript).join("");   // iPhone repeats the whole sentence in every result
+      st("🎤 " + text); clearTimeout(quiet); quiet = setTimeout(() => { try { r.stop(); } catch {} }, 2000); };
     r.onerror = e => { err = e.error; }; r.onend = end;
     const guard = setTimeout(() => { try { r.stop(); } catch {} setTimeout(end, 800); }, 25000);
     stopListen = () => { try { r.stop(); } catch {} };
@@ -211,13 +231,13 @@ async function utter(text, from, verified) {
   S.log.push(m); if (S.log.length > 40) S.log.shift(); paint(); st("⏳ 訳しています…");
   try {
     if (!m.tr) { const r = await translate(text, from, to); m.tr = r.text; m.rom = to === "ja" ? "" : r.rom; }
-    paint(); st("");
-    const speakP = S.voice ? say(m.tr, to) : null;
-    if (mine && !verified) {   // check: how does the partner read it?
-      try { const b = await gtx(m.tr, to, from); m.back = b.text; m.sim = similar(text, b.text); paint(); } catch {}
-    }
-    store.set("log", S.log); await speakP;
-  } catch (e) { m.tr = "⚠ 訳せませんでした（通信を確認してください）"; paint(); st(""); }
+  } catch (e) { m.tr = ""; m.fail = e?.message || "error"; paint(); st(""); return; }
+  paint(); st(""); store.set("log", S.log);
+  const speakP = S.voice ? say(m.tr, to).catch(() => {}) : null;
+  if (mine && !verified) {   // check: how does the partner read it?
+    try { const b = await gtx(m.tr, to, from); m.back = b.text; m.sim = similar(text, b.text); paint(); store.set("log", S.log); } catch {}
+  }
+  await speakP;
 }
 async function detect(text) {
   if (/[぀-ヿ一-鿿]/.test(text) && (S.me === "ja" || S.you === "ja") && !(S.me === "zh" || S.you === "zh")) return "ja";
@@ -235,10 +255,10 @@ function paint() {
     box.append(h("div", { class: "m" + (m.mine ? "" : " you") },
       h("div", { class: "who" }, (m.mine ? "わたし" : "相手") + "・" + LANG[m.from].name, m.ok ? h("span", { class: "badge" }, "✓ 確認済みの訳") : null),
       h("div", { class: "src" }, m.text),
-      h("div", { class: "tr", lang: m.to }, m.tr || "…"),
+      m.fail ? h("div", { class: "back warn" }, "⚠ 訳せませんでした（" + m.fail + "）", h("div", { class: "acts" }, h("button", { onclick: () => { unlock(); S.log = S.log.filter(x => x !== m); utter(m.text, m.from); } }, "↻ もう一度訳す"))) : h("div", { class: "tr", lang: m.to }, m.tr || "…"),
       m.rom ? h("div", { class: "rom" }, m.rom) : null,
       m.back ? h("div", { class: "back" + (warn ? " warn" : "") }, (warn ? "⚠ 伝わりにくいかも。短く言い直してみてください ／ " : "") + "相手にはこう伝わります：" + m.back) : null,
-      h("div", { class: "acts" }, h("button", { onclick: () => { unlock(); say(m.tr, m.to); } }, "🔊 もう一度"), h("button", { onclick: () => { unlock(); say(m.tr, m.to, true); } }, "🐢 ゆっくり"))));
+      m.fail ? null : h("div", { class: "acts" }, h("button", { onclick: () => { unlock(); say(m.tr, m.to); } }, "🔊 もう一度"), h("button", { onclick: () => { unlock(); say(m.tr, m.to, true); } }, "🐢 ゆっくり"))));
   }
   box.scrollTop = box.scrollHeight;
 }
