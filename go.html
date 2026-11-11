@@ -53,6 +53,9 @@ textarea.out{width:100%;height:42dvh;background:var(--card);color:var(--ink);bor
 .typer{display:flex;gap:6px;margin-bottom:6px}
 .typer input{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 10px;font-size:16px}
 .typer button{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:0 14px;font-size:15px;white-space:nowrap}
+.autob{width:100%;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;font-size:16px;margin-bottom:6px}
+.autob.on{background:var(--ok);border-color:var(--ok);color:#0c1a10;font-weight:700}
+.mic.turn{outline:4px solid #fff;outline-offset:-4px}
 .mics{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-bottom:8px}
 .mic{border:0;border-radius:16px;min-height:76px;font-size:18px;font-weight:700;color:#14110a;background:var(--gold);line-height:1.3;padding:6px}
 .mic.you{background:var(--blue)}
@@ -102,6 +105,7 @@ textarea.out{width:100%;height:42dvh;background:var(--card);color:var(--ink);bor
 <div id="status"></div>
 <div id="talkUI">
   <div class="typer"><input id="tin" placeholder="文字で入力（どちらの言葉でもOK）" enterkeyhint="send" autocomplete="off"><button id="tsend">訳す</button><button id="phr">📋 定型文</button></div>
+  <button id="auto" class="autob">🔁 自動で聞く（交互に話す）</button>
   <div class="mics"><button class="mic" id="micMe"></button><button class="mic you" id="micYou"></button></div>
 </div>
 <div id="show"><div class="sub" id="showSub"></div><div class="big" id="showBig"></div><div class="bar"><button id="showSay">🔊</button><button id="showClose">✕ 閉じる</button></div></div>
@@ -128,7 +132,7 @@ const SCENES = [
 const store = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem("go-" + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("go-" + k, JSON.stringify(v)); } catch {} } };
 const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []).filter(m => m.tr && !/^⚠/.test(m.tr)), lesson: store.get("lesson", "greet"), pi: 0 };
 const st = t => { $("status").textContent = t || ""; };
-const VER = "go-3";
+const VER = "go-4";
 
 /* ---------- translation (free: Google), with names kept and a check translation back ---------- */
 let Names = null; import("./names.js").then(m => Names = m).catch(() => {});
@@ -289,8 +293,33 @@ function paint() {
   }
   box.scrollTop = box.scrollHeight;
 }
+/* automatic: one tap, then it listens to each side in turn (me -> partner -> me ...) and stops by itself when a person finishes */
+let auto = false, autoSide = "me", autoMiss = 0, autoSkip = false;
+function autoPaint() {
+  $("auto").classList.toggle("on", auto); $("auto").textContent = auto ? "■ 自動を止める" : "🔁 自動で聞く（交互に話す）";
+  $("micMe").classList.toggle("turn", auto && autoSide === "me"); $("micYou").classList.toggle("turn", auto && autoSide === "you");
+  $("micMe").classList.remove("on"); $("micYou").classList.remove("on");
+}
+function autoStop(msg) { auto = false; stopListen?.(); autoPaint(); st(msg || ""); }
+async function autoRun() {
+  auto = true; autoMiss = 0; stopSay();
+  while (auto) {
+    const who = autoSide, lang = who === "me" ? S.me : S.you, btn = who === "me" ? $("micMe") : $("micYou");
+    autoPaint(); btn.classList.add("on"); autoSkip = false;
+    st(who === "me" ? "🎤 わたしの番です。話してください（" + LANG[lang].name + "）" : "🎤 " + LANG[lang].speak + "（" + LANG[lang].name + "）");
+    const r = await listen(lang, true);
+    btn.classList.remove("on");
+    if (!auto) break;
+    if (autoSkip) continue;   // the turn was changed by a tap
+    if (r.err === "not-allowed") return autoStop("🎤 マイクが許可されていません。設定 → アプリ → Safari → マイク → 許可");
+    if (r.text) { autoMiss = 0; autoSide = who === "me" ? "you" : "me"; autoPaint(); await utter(r.text, lang); await new Promise(r => setTimeout(r, 350)); }
+    else if (++autoMiss >= 3) return autoStop("声が聞こえないので、自動を止めました。もう一度押すと始まります");
+  }
+  autoPaint();
+}
 async function mic(who) {
   unlock();
+  if (auto) { autoSide = who; autoMiss = 0; autoSkip = true; autoPaint(); stopListen?.(); return; }   // in automatic mode a tap just gives the turn to that side
   const btn = who === "me" ? $("micMe") : $("micYou"), lang = who === "me" ? S.me : S.you;
   if (stopListen) { stopListen(); return; }
   stopSay(); btn.classList.add("on"); const other = who === "me" ? $("micYou") : $("micMe"); other.disabled = true;
@@ -389,7 +418,7 @@ function openMenu() {
 
 /* ---------- controls ---------- */
 function paintUI() {
-  $("scenes").replaceChildren(...SCENES.map(s => h("button", { class: s.id === S.scene ? "on" : "", onclick: () => { stopSay(); stopListen?.(); S.scene = s.id; store.set("scene", s.id); paintUI(); paint(); } }, s.label)));
+  $("scenes").replaceChildren(...SCENES.map(s => h("button", { class: s.id === S.scene ? "on" : "", onclick: () => { if (auto) autoStop(""); stopSay(); stopListen?.(); S.scene = s.id; store.set("scene", s.id); paintUI(); paint(); } }, s.label)));
   for (const [id, key] of [["me", "me"], ["you", "you"]]) $(id).replaceChildren(...Object.entries(LANG).map(([k, v]) => h("option", { value: k, selected: S[key] === k }, v.name)));
   $("micMe").innerHTML = `🎤 わたし<small>${LANG[S.me].name}</small>`;
   $("micYou").innerHTML = `🎤 ${LANG[S.you].partner}<small>${LANG[S.you].speak}・${LANG[S.you].name}</small>`;
@@ -406,6 +435,7 @@ $("voice").onclick = () => { S.voice = !S.voice; store.set("voice", S.voice); if
 $("menu").onclick = openMenu;
 $("showClose").onclick = () => $("show").classList.remove("open"); $("showSay").onclick = () => { unlock(); if (shown) say(shown.tr, shown.to); };
 $("showBig").onclick = () => $("show").classList.remove("open");
+$("auto").onclick = () => { unlock(); if (auto) return autoStop(""); if (stopListen) stopListen(); autoSide = "me"; autoRun(); };
 $("micMe").onclick = () => mic("me"); $("micYou").onclick = () => mic("you");
 const sendTyped = async () => { unlock(); const v = $("tin").value.trim(); if (!v) return; $("tin").value = ""; $("tin").blur(); utter(v, await detect(v)); };
 $("tsend").onclick = sendTyped;
