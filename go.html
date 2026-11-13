@@ -151,7 +151,7 @@ const SCENES = [
 const store = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem("go-" + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("go-" + k, JSON.stringify(v)); } catch {} } };
 const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []).filter(m => m.tr && !/^⚠/.test(m.tr)), lesson: store.get("lesson", "greet"), pi: 0 };
 const st = t => { $("status").textContent = t || ""; };
-const VER = "go-8b";
+const VER = "go-8c";
 const DBG = /voicetest/.test(location.hash); function dlog(t) { if (!DBG) return; for (const id of ["dbg", "dbg2"]) { const e = document.getElementById(id); if (e) e.textContent = (new Date().toTimeString().slice(3, 8) + " " + t + "\n" + e.textContent).slice(0, 1500); } }
 
 /* ---------- translation (free: Google), with names kept and a check translation back ---------- */
@@ -200,12 +200,13 @@ function similar(a, b) {   // 0..1, shared two-letter pieces
 
 // numbers must survive the translation (prices, times, quantities): show both when they differ
 function numsOf(s) {
-  s = (s || "").normalize("NFKC").replace(/(\d),(?=\d{3})/g, "$1");
+  s = (s || "").normalize("NFKC").replace(/(\d),(?=\d{3})/g, "$1").replace(/\b(\d{1,2}):00\b/g, "$1");   // 7:00 = 7
   const mul = (re, k) => { s = s.replace(re, (_, n) => String(Math.round(n * k))); };
   mul(/(\d+(?:\.\d+)?)\s*(?:億|billion)/gi, 1e8); mul(/(\d+(?:\.\d+)?)\s*million/gi, 1e6); mul(/(\d+(?:\.\d+)?)\s*万/g, 1e4); mul(/(\d+(?:\.\d+)?)\s*(?:千|thousand)/gi, 1e3);
   return (s.match(/\d+(?:\.\d+)?/g) || []).map(Number);
 }
-function numCheck(a, b) { const A = numsOf(a), B = numsOf(b); if (!A.length) return ""; return A.some(x => !B.includes(x) && !(x > 12 && x <= 24 && B.includes(x - 12))) ? `元の数字 ${A.join("・")} ／ 訳の数字 ${B.join("・") || "なし"}` : ""; }
+// 15時 = 3 PM and 夜7時 = 19:00 count as the same number
+function numCheck(a, b) { const A = numsOf(a), B = numsOf(b); if (!A.length) return ""; return A.some(x => !B.includes(x) && !(x >= 1 && x <= 24 && (B.includes(x - 12) || B.includes(x + 12)))) ? `元の数字 ${A.join("・")} ／ 訳の数字 ${B.join("・") || "なし"}` : ""; }
 
 /* ---------- voice out ---------- */
 let actx = null;
@@ -227,12 +228,12 @@ function stopSay() { try { speechSynthesis.cancel(); } catch {} try { playing?.s
 async function say(text, lang, slow) {
   stopSay(); if (!text) return;
   const v = voiceFor(lang);
-  if (window.speechSynthesis && (v || lang !== "ka")) return new Promise(done => {   // the phone lists its voices late: speak by language even before the list arrives
+  if (window.speechSynthesis && (v || lang !== "ka") && !say.broken) return new Promise(done => {   // the phone lists its voices late: speak by language even before the list arrives
     const u = new SpeechSynthesisUtterance(text); if (v) u.voice = v; u.lang = v?.lang || LANG[lang].sr; u.rate = slow ? 0.6 : 0.95; u.volume = 1;
     let started = false; u.onstart = () => { started = true; dlog("say start " + (v?.name || u.lang)); }; u.onend = () => done(); u.onerror = e => { dlog("say err " + e.error); done(); };
     try { speechSynthesis.resume(); } catch {}
     speechSynthesis.speak(u);
-    setTimeout(async () => { if (!started) { dlog("say stuck -> AI voice"); speechSynthesis.cancel(); await sayAI(text, slow); done(); } }, 2200);
+    setTimeout(async () => { if (!started) { dlog("say stuck -> AI voice"); say.broken = true; speechSynthesis.cancel(); await sayAI(text, slow); done(); } }, 2200);
     setTimeout(done, 5000 + text.length * 250);
   });
   return sayAI(text, slow);
@@ -314,7 +315,7 @@ function paint() {
   const box = $("main"); box.replaceChildren();
   if (!S.log.length) { box.append(h("div", { class: "empty" }, "下の黄色いボタンを押して日本語で話すと、相手の言葉に訳して読み上げます。", h("br"), "相手には青いボタンを押して話してもらってください。", h("br"), "「📋 定型文」には、確認済みの正しい訳が入っています。", h("br"), "訳した文は「👁 大きく見せる」で相手に見せたり、「⭐ 保存」で自分の定型文にできます。")); return; }
   for (const m of S.log) {
-    const warn = m.mine && m.back && m.sim < 0.34; const last = m === S.log[S.log.length - 1];
+    const warn = m.mine && m.back && m.sim < 0.29; const last = m === S.log[S.log.length - 1];
     box.append(h("div", { class: "m" + (m.mine ? "" : " you") },
       h("div", { class: "who" }, (m.mine ? "わたし" : "相手") + "・" + LANG[m.from].name, m.ok ? h("span", { class: "badge" }, m.fav ? "⭐ 保存した訳" : "✓ 確認済みの訳") : null),
       h("div", { class: "src" }, m.text),
