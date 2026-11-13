@@ -151,7 +151,7 @@ const SCENES = [
 const store = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem("go-" + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("go-" + k, JSON.stringify(v)); } catch {} } };
 const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []).filter(m => m.tr && !/^⚠/.test(m.tr)), lesson: store.get("lesson", "greet"), pi: 0 };
 const st = t => { $("status").textContent = t || ""; };
-const VER = "go-8f";
+const VER = "go-8g";
 const DBG = /voicetest/.test(location.hash); function dlog(t) { if (!DBG) return; for (const id of ["dbg", "dbg2"]) { const e = document.getElementById(id); if (e) e.textContent = (new Date().toTimeString().slice(3, 8) + " " + t + "\n" + e.textContent).slice(0, 1500); } }
 
 /* ---------- translation (free: Google), with names kept and a check translation back ---------- */
@@ -228,13 +228,15 @@ function stopSay() { try { speechSynthesis.cancel(); } catch {} try { playing?.s
 async function say(text, lang, slow) {
   stopSay(); if (!text) return;
   const v = voiceFor(lang);
-  if (window.speechSynthesis && (v || lang !== "ka") && !say.broken) return new Promise(done => {   // the phone lists its voices late: speak by language even before the list arrives
+  if (window.speechSynthesis && (v || lang !== "ka") && !say.broken) return new Promise(resolve => {   // the phone lists its voices late: speak by language even before the list arrives
+    // "finished" only when the sound has really ended: cancelling the stuck voice must not count as finished (the mic would open while the AI voice is still talking)
+    let fin = false, fallback = false; const done = () => { if (!fin) { fin = true; resolve(); } };
     const u = new SpeechSynthesisUtterance(text); if (v) u.voice = v; u.lang = v?.lang || LANG[lang].sr; u.rate = slow ? 0.6 : 0.95; u.volume = 1;
-    let started = false; u.onstart = () => { started = true; dlog("say start " + (v?.name || u.lang)); }; u.onend = () => done(); u.onerror = e => { dlog("say err " + e.error); done(); };
+    let started = false; u.onstart = () => { started = true; dlog("say start " + (v?.name || u.lang)); }; u.onend = () => { if (!fallback) done(); }; u.onerror = e => { dlog("say err " + e.error); if (!fallback) done(); };
     try { speechSynthesis.resume(); } catch {}
     speechSynthesis.speak(u);
-    setTimeout(async () => { if (!started) { dlog("say stuck -> AI voice"); say.broken = true; speechSynthesis.cancel(); await sayAI(text, slow); done(); } }, 2200);
-    setTimeout(done, 5000 + text.length * 250);
+    setTimeout(async () => { if (!started && !fin) { dlog("say stuck -> AI voice"); say.broken = true; fallback = true; speechSynthesis.cancel(); await sayAI(text, slow); done(); } }, 2200);
+    setTimeout(() => { if (!fallback) done(); }, 5000 + text.length * 250);
   });
   return sayAI(text, slow);
 }
@@ -249,6 +251,7 @@ async function sayAI(text, slow) { dlog("app voice: " + (text || "").slice(0, 14
     for (let i = 0; i < n; i++) { let x = bin.charCodeAt(2 * i) | (bin.charCodeAt(2 * i + 1) << 8); if (x > 32767) x -= 65536; d[i] = x / 32768; }
     const src = actx.createBufferSource(); src.buffer = buf; src.playbackRate.value = slow ? 0.8 : 1; src.connect(actx.destination); playing = src; src.start();
     await new Promise(r => { src.onended = r; setTimeout(r, n / rate * 1300 + 800); });
+    if (playing === src) playing = null;
   } catch { st("🔇 声を出せませんでした。画面を相手に見せてください"); }
 }
 
@@ -257,6 +260,10 @@ let Ears = null; import("./ears.js").then(m => Ears = m).catch(() => {});
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 let stopListen = null;
+async function appQuiet(max = 15000) {   // wait until the app has finished reading aloud
+  const t0 = Date.now(); const talking = () => !!playing || (!say.broken && !!window.speechSynthesis?.speaking);
+  if (!talking()) return; while (talking() && Date.now() - t0 < max) await new Promise(z => setTimeout(z, 150)); await new Promise(z => setTimeout(z, 300));
+}
 // Which ears: the browser's own recognizer (Chrome = Google's, iPhone = Apple's) is free and hears well; the AI only for
 // Georgian on iPhone (Apple has no Georgian) or a language that failed on this device before
 const CHROME_LIKE = !IOS && /Chrome|Chromium|Edg\//.test(navigator.userAgent);
@@ -343,8 +350,10 @@ async function autoRun() {
   auto = true; autoMiss = 0; stopSay();
   while (auto) {
     const who = autoSide, lang = who === "me" ? S.me : S.you, btn = who === "me" ? $("micMe") : $("micYou");
-    autoPaint(); btn.classList.add("on"); autoSkip = false;
+    autoPaint(); autoSkip = false;
     st(who === "me" ? "🎤 わたしの番です。話してください（" + LANG[lang].name + "）" : "🎤 " + LANG[lang].speak + "（" + LANG[lang].name + "）");
+    await appQuiet(); if (!auto) break; if (autoSide !== who) continue;
+    btn.classList.add("on");
     const r = await listen(lang, true);
     btn.classList.remove("on");
     if (!auto) break;
