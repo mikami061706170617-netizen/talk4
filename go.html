@@ -150,7 +150,7 @@ const SCENES = [
 const store = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem("go-" + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("go-" + k, JSON.stringify(v)); } catch {} } };
 const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []).filter(m => m.tr && !/^⚠/.test(m.tr)), lesson: store.get("lesson", "greet"), pi: 0 };
 const st = t => { $("status").textContent = t || ""; };
-const VER = "go-7t5";
+const VER = "go-7t6";
 const DBG = /voicetest/.test(location.hash); function dlog(t) { if (!DBG) return; const e = document.getElementById("dbg"); if (e) e.textContent = (new Date().toTimeString().slice(3, 8) + " " + t + "\n" + e.textContent).slice(0, 1500); }
 
 /* ---------- translation (free: Google), with names kept and a check translation back ---------- */
@@ -438,7 +438,7 @@ async function voiceTest() {
   const lang = txLang(), vs = speechSynthesis.getVoices(), code = LANG[lang].sr;
   const v = voiceFor(lang);
   dlog("voices:" + vs.length + " use:" + (v ? v.name + "/" + v.lang + (v.localService ? "/local" : "/net") : "none"));
-  if (!v) { st("🔇 この言葉の声がこのパソコンにありません"); return; }
+  if (!v && !/ai/.test(location.hash)) { st("🔇 この言葉の声がこのパソコンにありません"); return; }
   if (!TX.on) { txStart(); await new Promise(z => setTimeout(z, 1500)); }
   if (/ai/.test(location.hash)) { for (const t of SAMPLES[lang] || []) { dlog("AI voice: " + t.slice(0, 12)); await sayAI(t); dlog("AI voice done"); await new Promise(z => setTimeout(z, 2600)); } st("テスト音声おわり：" + (SAMPLES[lang] || []).join(" ／ ")); return; }
   for (const t of SAMPLES[lang] || []) { try { speechSynthesis.cancel(); speechSynthesis.resume(); } catch {} await new Promise(done => { const u = new SpeechSynthesisUtterance(t); u.voice = v; u.lang = v.lang; u.rate = 0.9; u.onstart = () => dlog("say start"); u.onend = () => { dlog("say end"); done(); }; u.onerror = e => { dlog("say err " + e.error); done(); }; speechSynthesis.speak(u); setTimeout(done, 12000); }); await new Promise(z => setTimeout(z, 2600)); }
