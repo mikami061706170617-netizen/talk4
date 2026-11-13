@@ -132,7 +132,7 @@ const SCENES = [
 const store = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem("go-" + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("go-" + k, JSON.stringify(v)); } catch {} } };
 const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []).filter(m => m.tr && !/^⚠/.test(m.tr)), lesson: store.get("lesson", "greet"), pi: 0 };
 const st = t => { $("status").textContent = t || ""; };
-const VER = "go-5";
+const VER = "go-6";
 
 /* ---------- translation (free: Google), with names kept and a check translation back ---------- */
 let Names = null; import("./names.js").then(m => Names = m).catch(() => {});
@@ -172,7 +172,10 @@ function similar(a, b) {   // 0..1, shared two-letter pieces
   a = norm(a); b = norm(b); if (!a || !b) return 0; if (a === b) return 1;
   const bi = s => { const m = new Map(); for (let i = 0; i < Math.max(1, s.length - 1); i++) { const k = s.slice(i, i + 2); m.set(k, (m.get(k) || 0) + 1); } return m; };
   const A = bi(a), B = bi(b); let hit = 0, tot = 0; for (const [k, v] of A) { hit += Math.min(v, B.get(k) || 0); tot += v; } for (const v of B.values()) tot += v;
-  return 2 * hit / tot;
+  const two = 2 * hit / tot;
+  // the same meaning often comes back in other words ("4人" -> "4名様"): also count shared single letters, so only a really different sentence is flagged
+  const uni = s => { const m = new Map(); for (const c of s) m.set(c, (m.get(c) || 0) + 1); return m; }, U = uni(a), V = uni(b); let h1 = 0; for (const [k, v] of U) h1 += Math.min(v, V.get(k) || 0);
+  return /[぀-ヿ一-鿿가-힯]/.test(a) ? Math.max(two, 2 * h1 / ([...a].length + [...b].length) * 0.62) : two;
 }
 
 // numbers must survive the translation (prices, times, quantities): show both when they differ
