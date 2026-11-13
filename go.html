@@ -150,7 +150,7 @@ const SCENES = [
 const store = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem("go-" + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("go-" + k, JSON.stringify(v)); } catch {} } };
 const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []).filter(m => m.tr && !/^⚠/.test(m.tr)), lesson: store.get("lesson", "greet"), pi: 0 };
 const st = t => { $("status").textContent = t || ""; };
-const VER = "go-7";
+const VER = "go-7t";
 
 /* ---------- translation (free: Google), with names kept and a check translation back ---------- */
 let Names = null; import("./names.js").then(m => Names = m).catch(() => {});
@@ -423,6 +423,16 @@ async function txStart() {
     await new Promise(z => setTimeout(z, 120));
   }
 }
+// hidden self-test (address ending in #voicetest): the computer's own voice reads sample sentences aloud while 話す→文字 listens through the real microphone
+const SAMPLES = { ja: ["今日は料理教室です。", "まず卵を三つ割ってください。", "予約は四人で、夜七時からお願いします。"], en: ["Welcome to the cooking class.", "Please crack three eggs first.", "We would like a table for four at seven."], ru: ["Добро пожаловать на кулинарный урок.", "Сначала разбейте три яйца.", "Мы хотим столик на четверых в семь часов."], ko: ["요리 교실에 오신 것을 환영합니다.", "먼저 달걀 세 개를 깨 주세요."], zh: ["欢迎来到烹饪课。", "请先打三个鸡蛋。"], ka: ["გამარჯობა, მოგესალმებით კულინარიულ გაკვეთილზე."] };
+async function voiceTest() {
+  const lang = txLang(), vs = speechSynthesis.getVoices(), code = LANG[lang].sr;
+  const v = vs.find(x => x.localService && x.lang.replace("_", "-") === code) || vs.find(x => x.localService && x.lang.startsWith(code.slice(0, 2)));
+  if (!v) { st("🔇 この言葉の声がこのパソコンにありません"); return; }
+  if (!TX.on) { txStart(); await new Promise(z => setTimeout(z, 1500)); }
+  for (const t of SAMPLES[lang] || []) { await new Promise(done => { const u = new SpeechSynthesisUtterance(t); u.voice = v; u.lang = v.lang; u.rate = 0.9; u.onend = u.onerror = () => done(); speechSynthesis.speak(u); setTimeout(done, 12000); }); await new Promise(z => setTimeout(z, 2600)); }
+  st("テスト音声おわり：" + (SAMPLES[lang] || []).join(" ／ "));
+}
 function txStop(msg) { TX.on = false; try { TX.rec?.stop(); } catch {} stopListen?.(); txPaintBar(); if (S.scene === "tx") paintTx(); st(msg || ""); }
 function txSide(side) { if (TX.side === side) return; TX.side = side; store.set("txside", side); txPaintBar(); if (TX.on) { try { TX.rec?.stop(); } catch {} stopListen?.(); } }
 
@@ -532,6 +542,7 @@ $("voice").onclick = () => { S.voice = !S.voice; store.set("voice", S.voice); if
 $("menu").onclick = openMenu;
 $("showClose").onclick = () => $("show").classList.remove("open"); $("showSay").onclick = () => { unlock(); if (shown) say(shown.tr, shown.to); };
 $("showBig").onclick = () => $("show").classList.remove("open");
+if (/voicetest/.test(location.hash)) { const b = h("button", { class: "autob", onclick: voiceTest }, "🔊 例文を流す（テスト用）"); $("txUI").append(b); }
 $("txGo").onclick = () => TX.on ? txStop("") : txStart();
 $("txMe").onclick = () => txSide("me"); $("txYou").onclick = () => txSide("you");
 $("auto").onclick = () => { unlock(); if (auto) return autoStop(""); if (stopListen) stopListen(); autoSide = "me"; autoRun(); };
