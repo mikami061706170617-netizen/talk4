@@ -151,7 +151,7 @@ const SCENES = [
 const store = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem("go-" + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("go-" + k, JSON.stringify(v)); } catch {} } };
 const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []).filter(m => m.tr && !/^⚠/.test(m.tr)), lesson: store.get("lesson", "greet"), pi: 0 };
 const st = t => { $("status").textContent = t || ""; };
-const VER = "go-8g";
+const VER = "go-8h";
 const DBG = /voicetest/.test(location.hash); function dlog(t) { if (!DBG) return; for (const id of ["dbg", "dbg2"]) { const e = document.getElementById(id); if (e) e.textContent = (new Date().toTimeString().slice(3, 8) + " " + t + "\n" + e.textContent).slice(0, 1500); } }
 
 /* ---------- translation (free: Google), with names kept and a check translation back ---------- */
@@ -240,11 +240,19 @@ async function say(text, lang, slow) {
   });
   return sayAI(text, slow);
 }
+sayAI.cache = new Map();
 async function sayAI(text, slow) { dlog("app voice: " + (text || "").slice(0, 14));   // languages the phone has no voice for (Georgian)
   if (!AIproxy || !actx) { st("🔇 この言葉の声はこの端末にありません。画面を相手に見せてください"); return; }
   try {
-    const j = await fetch(AIproxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ task: "speak", text, g: "f" }) }).then(r => r.json());
-    if (!j.audio) { dlog("AI voice: no audio " + JSON.stringify(j).slice(0, 80)); throw 0; }
+    // the free AI voice allows only a few voices per minute: reuse voices already made, and if refused wait a moment and ask once more
+    let j = sayAI.cache.get(text);
+    for (let tries = 0; !j && tries < 3; tries++) {
+      if (tries) { st("⏳ 声を準備しています…"); await new Promise(z => setTimeout(z, tries * 3500)); }
+      const r = await fetch(AIproxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ task: "speak", text, g: "f" }) }).then(r => r.json()).catch(() => ({}));
+      if (r.audio) { j = r; sayAI.cache.set(text, r); if (sayAI.cache.size > 40) sayAI.cache.delete(sayAI.cache.keys().next().value); st(""); }
+      else dlog("AI voice: no audio " + JSON.stringify(r).slice(0, 80));
+    }
+    if (!j) throw 0;
     let bin = atob(j.audio), rate = +((j.mime || "").match(/rate=(\d+)/) || [0, 24000])[1];
     if (bin.startsWith("RIFF")) { rate = bin.charCodeAt(24) | (bin.charCodeAt(25) << 8) | (bin.charCodeAt(26) << 16); bin = bin.slice(44); }
     const n = bin.length >> 1, buf = actx.createBuffer(1, n, rate), d = buf.getChannelData(0);
