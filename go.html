@@ -53,6 +53,19 @@ textarea.out{width:100%;height:42dvh;background:var(--card);color:var(--ink);bor
 .typer{display:flex;gap:6px;margin-bottom:6px}
 .typer input{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 10px;font-size:16px}
 .typer button{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:0 14px;font-size:15px;white-space:nowrap}
+/* transcribe */
+#txUI{display:flex;flex-direction:column;gap:6px;padding-bottom:8px}
+.txside{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.txside button{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 6px;font-size:15px}
+.txside button.on{border-color:var(--gold);background:#2b2416;color:var(--gold);font-weight:700}
+#txGo{border:0;border-radius:16px;min-height:66px;font-size:19px;font-weight:800;background:var(--gold);color:#14110a}
+#txGo.on{background:var(--red);color:#fff;animation:p 1.2s infinite}
+.tx{padding:8px 6px 10px;border-bottom:1px solid var(--line)}
+.tx .o{font-size:calc(17px*var(--z,1));color:#cfc6b6;line-height:1.5}
+.tx .t{font-size:calc(23px*var(--z,1));font-weight:700;line-height:1.4;margin-top:2px}
+.tx .t.wait{color:var(--muted);font-weight:400;font-size:15px}
+.tx.live .o{color:var(--ink);font-size:calc(21px*var(--z,1));font-weight:600}
+.tx.live .o::after{content:"▍";color:var(--gold);animation:p 1s infinite}
 .autob{width:100%;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;font-size:16px;margin-bottom:6px}
 .autob.on{background:var(--ok);border-color:var(--ok);color:#0c1a10;font-weight:700}
 .mic.turn{outline:4px solid #fff;outline-offset:-4px}
@@ -109,6 +122,10 @@ textarea.out{width:100%;height:42dvh;background:var(--card);color:var(--ink);bor
   <div class="mics"><button class="mic" id="micMe"></button><button class="mic you" id="micYou"></button></div>
 </div>
 <div id="show"><div class="sub" id="showSub"></div><div class="big" id="showBig"></div><div class="bar"><button id="showSay">🔊</button><button id="showClose">✕ 閉じる</button></div></div>
+<div id="txUI" hidden>
+  <div class="txside"><button id="txMe"></button><button id="txYou"></button></div>
+  <button id="txGo">● 話すと文字になる（スタート）</button>
+</div>
 <div id="sheet"><div class="box"><div class="top"><b id="shTitle"></b><button class="tool" id="shClose">✕ 閉じる</button></div><div class="list" id="shList"></div></div></div>
 
 <script type="module">
@@ -124,6 +141,7 @@ const LANG = {
 };
 const SCENES = [
   { id: "biz", label: "💼 商談", lessons: ["meeting", "negotiate", "reserve", "online"] },
+  { id: "tx", label: "📝 話す→文字", lessons: null },
   { id: "cook", label: "🍳 料理教室", lessons: ["cooking", "restaurant", "market"] },
   { id: "shop", label: "🍽 お店", lessons: ["restaurant", "cafe", "money", "complain"] },
   { id: "daily", label: "👋 日常", lessons: ["greet", "intro", "help", "taxi"] },
@@ -132,7 +150,7 @@ const SCENES = [
 const store = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem("go-" + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("go-" + k, JSON.stringify(v)); } catch {} } };
 const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []).filter(m => m.tr && !/^⚠/.test(m.tr)), lesson: store.get("lesson", "greet"), pi: 0 };
 const st = t => { $("status").textContent = t || ""; };
-const VER = "go-6";
+const VER = "go-7";
 
 /* ---------- translation (free: Google), with names kept and a check translation back ---------- */
 let Names = null; import("./names.js").then(m => Names = m).catch(() => {});
@@ -229,6 +247,12 @@ let Ears = null; import("./ears.js").then(m => Ears = m).catch(() => {});
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 let stopListen = null;
+// Which ears: the browser's own recognizer (Chrome = Google's, iPhone = Apple's) is free and hears well; the AI only for
+// Georgian on iPhone (Apple has no Georgian) or a language that failed on this device before
+const CHROME_LIKE = !IOS && /Chrome|Chromium|Edg\//.test(navigator.userAgent);
+const aiMark = store.get("aiears", {});
+function useAI(lang) { return !SR || !!aiMark[lang] || (IOS && lang === "ka") || (IOS && navigator.standalone) || (!CHROME_LIKE && !IOS && !["ja", "en"].includes(lang)); }
+function markAI(lang) { aiMark[lang] = true; store.set("aiears", aiMark); }
 function listen(lang, long) {
   return new Promise(resolve => {
     const viaAI = async () => {
@@ -237,10 +261,10 @@ function listen(lang, long) {
       const r = await Ears.aiOnce(lang, long ? true : false, s => { if (s === "wait") st("⏳ 聞き取っています…"); });
       stopListen = null; resolve({ text: r.alts[0] || "", err: r.err });
     };
-    if (!SR || (Ears && Ears.needAI(lang))) return viaAI();
+    if (useAI(lang)) return viaAI();
     const r = new SR(); r.lang = LANG[lang].sr; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
     let text = "", got = false, fin = false, err = null;
-    const end = () => { if (fin) return; fin = true; stopListen = null; clearTimeout(guard); if (!text && err && err !== "no-speech" && err !== "aborted") { try { Ears?.markAI(lang); } catch {} return viaAI(); } resolve({ text: text.trim(), err: text ? null : err }); };
+    const end = () => { if (fin) return; fin = true; stopListen = null; clearTimeout(guard); if (!text && err && err !== "no-speech" && err !== "aborted") { markAI(lang); return viaAI(); } resolve({ text: text.trim(), err: text ? null : err }); };
     let quiet = null;
     r.onresult = e => { got = true;
       text = IOS ? e.results[e.results.length - 1][0].transcript : [...e.results].map(x => x[0].transcript).join("");   // iPhone repeats the whole sentence in every result
@@ -277,6 +301,7 @@ async function detect(text) {
 }
 function paint() {
   if (S.scene === "class") return paintClass();
+  if (S.scene === "tx") return paintTx();
   const box = $("main"); box.replaceChildren();
   if (!S.log.length) { box.append(h("div", { class: "empty" }, "下の黄色いボタンを押して日本語で話すと、相手の言葉に訳して読み上げます。", h("br"), "相手には青いボタンを押して話してもらってください。", h("br"), "「📋 定型文」には、確認済みの正しい訳が入っています。", h("br"), "訳した文は「👁 大きく見せる」で相手に見せたり、「⭐ 保存」で自分の定型文にできます。")); return; }
   for (const m of S.log) {
@@ -333,6 +358,74 @@ async function mic(who) {
   else st(r.err === "not-allowed" ? "🎤 マイクが許可されていません。Safariの「ぁあ」→Webサイトの設定→マイク→許可" : r.err && r.err !== "no-speech" ? "🎤 聞き取れませんでした（" + r.err + "）。文字でも入力できます" : "声が聞こえませんでした。もう一度どうぞ");
 }
 
+/* ---------- 話す→文字 (like Google Translate's Transcribe): keeps listening, words appear while you speak, every sentence is translated ---------- */
+const TX = { on: false, side: store.get("txside", "me"), lines: store.get("tx", []), live: "", empty: 0, rec: null };
+const txLang = () => TX.side === "me" ? S.me : S.you, txTo = () => TX.side === "me" ? S.you : S.me;
+let txLiveEl = null;
+function txPaintBar() {
+  $("txMe").textContent = "わたし（" + LANG[S.me].name + "）が話す"; $("txYou").textContent = "相手（" + LANG[S.you].name + "）が話す";
+  $("txMe").classList.toggle("on", TX.side === "me"); $("txYou").classList.toggle("on", TX.side === "you");
+  $("txGo").classList.toggle("on", TX.on); $("txGo").textContent = TX.on ? "■ 止める" : "● 話すと文字になる（スタート）";
+}
+function paintTx() {
+  const box = $("main"); box.replaceChildren(); txLiveEl = null;
+  if (!TX.lines.length && !TX.on) { box.append(h("div", { class: "empty" }, "「● スタート」を押して話すと、話している途中から文字になり、", h("br"), "ひと区切りごとに相手の言葉に訳します。", h("br"), "止めるまでずっと聞き続けます（授業・説明・商談のメモに）。", h("br"), "話す人が変わったら、上の「わたし／相手」を押して切り替えます。")); return; }
+  for (const l of TX.lines) box.append(h("div", { class: "tx" }, h("div", { class: "o", lang: l.from }, l.text), h("div", { class: "t" + (l.tr ? "" : " wait"), lang: l.to }, l.tr || (l.fail ? "⚠ 訳せませんでした" : "訳しています…"))));
+  if (TX.on) { txLiveEl = h("div", { class: "o" }, TX.live || ""); box.append(h("div", { class: "tx live" }, txLiveEl)); }
+  box.scrollTop = box.scrollHeight;
+}
+function txLive(t) { TX.live = t; if (txLiveEl) { txLiveEl.textContent = t; $("main").scrollTop = $("main").scrollHeight; } else if (S.scene === "tx") paintTx(); }
+async function txAdd(text, from) {
+  text = (text || "").trim(); if (!text) return;
+  const l = { text, from, to: from === S.me ? S.you : S.me, tr: "", t: Date.now() };
+  TX.lines.push(l); if (TX.lines.length > 300) TX.lines.shift(); TX.live = ""; if (S.scene === "tx") paintTx();
+  try { l.tr = (await translate(text, l.from, l.to)).text; } catch { l.fail = true; }
+  store.set("tx", TX.lines); if (S.scene === "tx") paintTx();
+}
+// one run of the browser's recognizer; resolves when it ends. Chrome: continuous with finished sentences; iPhone: one sentence at a time
+function txBrowser(lang) {
+  return new Promise(res => {
+    const r = new SR(); r.lang = LANG[lang].sr; r.interimResults = true; r.maxAlternatives = 1; r.continuous = !IOS;
+    let err = null, any = false, cur = "", quiet = null, ended = false;
+    const flush = () => { if (cur.trim()) { txAdd(cur, lang); any = true; } cur = ""; txLive(""); };
+    r.onresult = e => {
+      if (IOS) { cur = e.results[e.results.length - 1][0].transcript; txLive(cur); clearTimeout(quiet); quiet = setTimeout(() => { try { r.stop(); } catch {} }, 1400); if (cur.length > 220) { try { r.stop(); } catch {} } return; }
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) { const x = e.results[i]; if (x.isFinal) { cur = x[0].transcript; flush(); } else interim += x[0].transcript; }
+      cur = interim; txLive(interim);
+    };
+    r.onerror = e => { err = e.error; };
+    r.onend = () => { if (ended) return; ended = true; clearTimeout(quiet); TX.rec = null; flush(); res({ err, any }); };
+    TX.rec = r;
+    try { r.start(); } catch (e) { ended = true; TX.rec = null; res({ err: "start", any: false }); }
+  });
+}
+async function txStart() {
+  unlock(); stopSay(); if (auto) autoStop(""); stopListen?.();
+  TX.on = true; TX.empty = 0; TX.live = ""; txPaintBar(); paintTx();
+  while (TX.on) {
+    const lang = txLang();
+    st("🎤 聞いています：" + LANG[lang].name + (useAI(lang) ? "（AI・区切りごとに文字になります）" : ""));
+    if (useAI(lang)) {
+      txLive("…");
+      const r = await listen(lang, true);
+      if (!TX.on) break;
+      if (r.err === "not-allowed") return txStop("🎤 マイクが許可されていません。設定 → アプリ → Safari → マイク → 許可");
+      txLive(""); if (r.text) txAdd(r.text, lang);
+      continue;
+    }
+    const r = await txBrowser(lang);
+    if (!TX.on) break;
+    if (r.err === "not-allowed" || r.err === "service-not-allowed") return txStop("🎤 マイクが許可されていません。設定 → アプリ → Safari → マイク → 許可");
+    if (r.err && !["no-speech", "aborted"].includes(r.err)) { markAI(lang); st("この端末の聞き取りが使えないので、AIで聞きます（" + r.err + "）"); await new Promise(z => setTimeout(z, 600)); continue; }
+    if (r.any || r.err === "no-speech") TX.empty = 0;
+    else if (++TX.empty >= 3 && !["ja", "en"].includes(lang)) { markAI(lang); st(LANG[lang].name + "が文字にならないので、AIで聞きます"); }
+    await new Promise(z => setTimeout(z, 120));
+  }
+}
+function txStop(msg) { TX.on = false; try { TX.rec?.stop(); } catch {} stopListen?.(); txPaintBar(); if (S.scene === "tx") paintTx(); st(msg || ""); }
+function txSide(side) { if (TX.side === side) return; TX.side = side; store.set("txside", side); txPaintBar(); if (TX.on) { try { TX.rec?.stop(); } catch {} stopListen?.(); } }
+
 /* ---------- ready-made phrases (hand-checked translations) ---------- */
 let LESSONS = null; const lessons = async () => LESSONS || (LESSONS = (await import("./lessons.js")).LESSONS);
 const romOf = (p, l) => l === "ja" ? p.jr : l === "ko" ? p.kr : l === "zh" ? p.zr : "";
@@ -382,11 +475,12 @@ function showBig(m) { shown = m; const n = [...m.tr].length; $("showBig").textCo
 function saveFav(m) { const f = store.get("fav", []).filter(x => !(x.text === m.text && x.from === m.from && x.to === m.to)); f.unshift({ text: m.text, from: m.from, to: m.to, tr: m.tr, rom: m.rom }); store.set("fav", f.slice(0, 80)); }
 const openSheet = (title, ...kids) => { $("shTitle").textContent = title; $("shList").replaceChildren(...kids); $("sheet").classList.add("open"); };
 function logText() {
+  if (S.scene === "tx") { const d = new Date(); return `Talk4 文字起こし ${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}\n\n` + TX.lines.map(l => `${l.text}\n→ ${l.tr || ""}`).join("\n\n"); }
   const d = new Date(), z = n => String(n).padStart(2, "0");
   return `Talk4 会話の記録 ${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${z(d.getHours())}:${z(d.getMinutes())}\n\n` + S.log.filter(m => m.tr).map(m => `${z(new Date(m.t).getHours())}:${z(new Date(m.t).getMinutes())} ${m.mine ? "わたし" : "相手"}（${LANG[m.from].name}）\n${m.text}\n→ ${m.tr}`).join("\n\n");
 }
 async function exportLog() {
-  if (!S.log.length) { $("sheet").classList.remove("open"); st("まだ会話がありません"); return; }
+  if (S.scene === "tx" ? !TX.lines.length : !S.log.length) { $("sheet").classList.remove("open"); st("まだ会話がありません"); return; }
   const text = logText();
   try { if (navigator.share) { await navigator.share({ title: "Talk4 会話の記録", text }); $("sheet").classList.remove("open"); return; } } catch (e) { if (e?.name === "AbortError") return; }
   let copied = false; try { await navigator.clipboard.writeText(text); copied = true; } catch {}
@@ -405,7 +499,7 @@ async function diagnose() {
   let micState = "?"; try { micState = (await navigator.permissions.query({ name: "microphone" })).state; } catch {}
   add(micState === "denied" ? "ng" : micState === "granted" ? "ok" : "wn", micState === "denied" ? "✕ マイク：拒否になっています。設定 → アプリ → Safari → マイク → 許可" : micState === "granted" ? "✓ マイク：許可されています" : "△ マイク：まだ聞かれていません（マイクのボタンを押すと聞かれます → 許可）");
   add(navigator.mediaDevices?.getUserMedia ? "ok" : "ng", navigator.mediaDevices?.getUserMedia ? "✓ 録音の機能：あります" : "✕ 録音の機能がありません（https で開いていますか？）");
-  add("ok", "✓ 聞き取りの方法：" + Object.keys(LANG).map(l => LANG[l].name + "=" + (!SR || (Ears && Ears.needAI(l)) ? "AI" : "本体")).join("／"));
+  add("ok", "✓ 聞き取りの方法：" + Object.keys(LANG).map(l => LANG[l].name + "=" + (useAI(l) ? "AI" : "本体")).join("／"));
   await new Promise(r => setTimeout(r, 300)); const vs = window.speechSynthesis?.getVoices?.() || [];
   add(vs.length ? "ok" : "wn", (vs.length ? "✓" : "△") + " 声：" + Object.keys(LANG).map(l => LANG[l].name + "=" + (voiceFor(l) ? "あり" : l === "ka" ? "AIの声" : "一覧なし（言語指定で読みます）")).join("／"));
   add("ok", "版：" + VER + "・" + new Date().toLocaleString("ja-JP"));
@@ -414,30 +508,32 @@ async function diagnose() {
 function openMenu() {
   openSheet("☰ メニュー",
     h("button", { class: "item", onclick: exportLog }, "📤", h("div", {}, "会話の記録を送る・コピーする", h("small", {}, "商談のメモとして、メールやLINEに送れます"))),
-    h("button", { class: "item", onclick: () => { $("sheet").classList.remove("open"); stopSay(); S.log = []; store.set("log", []); paint(); } }, "🗑", h("div", {}, "会話を消す", h("small", {}, "画面の会話をすべて消します（マイ定型文は残ります）"))),
+    h("button", { class: "item", onclick: () => { $("sheet").classList.remove("open"); stopSay(); if (S.scene === "tx") { TX.lines = []; store.set("tx", []); } else { S.log = []; store.set("log", []); } paint(); } }, "🗑", h("div", {}, "会話を消す", h("small", {}, "画面の会話をすべて消します（マイ定型文は残ります）"))),
     h("button", { class: "item", onclick: diagnose }, "🩺", h("div", {}, "うまく動かないとき", h("small", {}, "通訳・マイク・声を自動で調べます"))),
     h("a", { class: "item", href: "index.html", style: "text-decoration:none;color:inherit" }, "↩", h("div", {}, "前のTalk4に戻る")));
 }
 
 /* ---------- controls ---------- */
 function paintUI() {
-  $("scenes").replaceChildren(...SCENES.map(s => h("button", { class: s.id === S.scene ? "on" : "", onclick: () => { if (auto) autoStop(""); stopSay(); stopListen?.(); S.scene = s.id; store.set("scene", s.id); paintUI(); paint(); } }, s.label)));
+  $("scenes").replaceChildren(...SCENES.map(s => h("button", { class: s.id === S.scene ? "on" : "", onclick: () => { if (auto) autoStop(""); if (TX.on) txStop(""); stopSay(); stopListen?.(); S.scene = s.id; store.set("scene", s.id); paintUI(); paint(); } }, s.label)));
   for (const [id, key] of [["me", "me"], ["you", "you"]]) $(id).replaceChildren(...Object.entries(LANG).map(([k, v]) => h("option", { value: k, selected: S[key] === k }, v.name)));
   $("micMe").innerHTML = `🎤 わたし<small>${LANG[S.me].name}</small>`;
   $("micYou").innerHTML = `🎤 ${LANG[S.you].partner}<small>${LANG[S.you].speak}・${LANG[S.you].name}</small>`;
-  $("talkUI").hidden = S.scene === "class";
+  $("talkUI").hidden = S.scene === "class" || S.scene === "tx"; $("txUI").hidden = S.scene !== "tx"; txPaintBar();
   $("voice").textContent = S.voice ? "🔊" : "🔇"; $("voice").classList.toggle("on", S.voice);
   document.documentElement.style.setProperty("--z", [1, 1.25, 1.55][S.zoom]); $("zoom").textContent = S.zoom === 2 ? "A－" : "A＋";
   st("");
 }
 $("me").onchange = e => { S.me = e.target.value; if (S.me === S.you) S.you = S.me === "ja" ? "en" : "ja"; store.set("me", S.me); store.set("you", S.you); paintUI(); paint(); };
 $("you").onchange = e => { S.you = e.target.value; if (S.me === S.you) S.me = S.you === "ja" ? "en" : "ja"; store.set("me", S.me); store.set("you", S.you); paintUI(); paint(); };
-$("swap").onclick = () => { [S.me, S.you] = [S.you, S.me]; store.set("me", S.me); store.set("you", S.you); paintUI(); paint(); };
+$("swap").onclick = () => { if (TX.on) txStop(""); [S.me, S.you] = [S.you, S.me]; store.set("me", S.me); store.set("you", S.you); paintUI(); paint(); };
 $("zoom").onclick = () => { S.zoom = (S.zoom + 1) % 3; store.set("zoom", S.zoom); paintUI(); };
 $("voice").onclick = () => { S.voice = !S.voice; store.set("voice", S.voice); if (!S.voice) stopSay(); paintUI(); };
 $("menu").onclick = openMenu;
 $("showClose").onclick = () => $("show").classList.remove("open"); $("showSay").onclick = () => { unlock(); if (shown) say(shown.tr, shown.to); };
 $("showBig").onclick = () => $("show").classList.remove("open");
+$("txGo").onclick = () => TX.on ? txStop("") : txStart();
+$("txMe").onclick = () => txSide("me"); $("txYou").onclick = () => txSide("you");
 $("auto").onclick = () => { unlock(); if (auto) return autoStop(""); if (stopListen) stopListen(); autoSide = "me"; autoRun(); };
 $("micMe").onclick = () => mic("me"); $("micYou").onclick = () => mic("you");
 const sendTyped = async () => { unlock(); const v = $("tin").value.trim(); if (!v) return; $("tin").value = ""; $("tin").blur(); utter(v, await detect(v)); };
@@ -447,7 +543,7 @@ $("phr").onclick = openPhrases; $("shClose").onclick = () => $("sheet").classLis
 $("sheet").onclick = e => { if (e.target === $("sheet")) $("sheet").classList.remove("open"); };
 paintUI(); paint();
 if (/Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(navigator.userAgent)) st("⚠ アプリの中のブラウザではマイクが使えません。Safari（Macは Chrome）で開いてください");
-window.__go = { S, utter };
+window.__go = { S, utter, TX, useAI };
 </script>
 </body>
 </html>
