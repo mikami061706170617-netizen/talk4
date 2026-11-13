@@ -150,7 +150,7 @@ const SCENES = [
 const store = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem("go-" + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("go-" + k, JSON.stringify(v)); } catch {} } };
 const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []).filter(m => m.tr && !/^⚠/.test(m.tr)), lesson: store.get("lesson", "greet"), pi: 0 };
 const st = t => { $("status").textContent = t || ""; };
-const VER = "go-7t3";
+const VER = "go-7t4";
 const DBG = /voicetest/.test(location.hash); function dlog(t) { if (!DBG) return; const e = document.getElementById("dbg"); if (e) e.textContent = (new Date().toTimeString().slice(3, 8) + " " + t + "\n" + e.textContent).slice(0, 1500); }
 
 /* ---------- translation (free: Google), with names kept and a check translation back ---------- */
@@ -212,7 +212,13 @@ function unlock() {   // called inside a tap: lets the phone speak later
   try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); } catch {}
   try { if (!unlock.done && window.speechSynthesis) { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); unlock.done = true; } } catch {}
 }
-const voiceFor = lang => { const vs = window.speechSynthesis?.getVoices?.() || [], code = LANG[lang].sr.slice(0, 2); return vs.find(v => v.lang.replace("_", "-") === LANG[lang].sr) || vs.find(v => v.lang.startsWith(code)); };
+// Chrome on a computer: its own "Google …" voices play reliably (the Mac's voices often stay silent in Chrome); Safari/iPhone: the phone's voices
+const voiceFor = lang => {
+  const vs = window.speechSynthesis?.getVoices?.() || [], full = LANG[lang].sr, code = full.slice(0, 2);
+  const m = vs.filter(v => v.lang.replace("_", "-") === full), m2 = m.length ? m : vs.filter(v => v.lang.startsWith(code));
+  const chromeDesk = !/iPhone|iPad|iPod/.test(navigator.userAgent) && /Chrome/.test(navigator.userAgent) && !/Edg\//.test(navigator.userAgent);
+  return (chromeDesk && m2.find(v => /^Google/.test(v.name))) || m2.find(v => v.localService && v.default) || m2[0];
+};
 window.speechSynthesis?.addEventListener?.("voiceschanged", () => {});
 let AIproxy = ""; import("./config.js").then(m => AIproxy = m.AI?.proxy || "").catch(() => {});
 let playing = null;
@@ -430,7 +436,7 @@ async function txStart() {
 const SAMPLES = { ja: ["今日は料理教室です。", "まず卵を三つ割ってください。", "予約は四人で、夜七時からお願いします。"], en: ["Welcome to the cooking class.", "Please crack three eggs first.", "We would like a table for four at seven."], ru: ["Добро пожаловать на кулинарный урок.", "Сначала разбейте три яйца.", "Мы хотим столик на четверых в семь часов."], ko: ["요리 교실에 오신 것을 환영합니다.", "먼저 달걀 세 개를 깨 주세요."], zh: ["欢迎来到烹饪课。", "请先打三个鸡蛋。"], ka: ["გამარჯობა, მოგესალმებით კულინარიულ გაკვეთილზე."] };
 async function voiceTest() {
   const lang = txLang(), vs = speechSynthesis.getVoices(), code = LANG[lang].sr;
-  const v = vs.find(x => x.localService && x.lang.replace("_", "-") === code) || vs.find(x => x.localService && x.lang.startsWith(code.slice(0, 2)));
+  const v = voiceFor(lang);
   dlog("voices:" + vs.length + " use:" + (v ? v.name + "/" + v.lang + (v.localService ? "/local" : "/net") : "none"));
   if (!v) { st("🔇 この言葉の声がこのパソコンにありません"); return; }
   if (!TX.on) { txStart(); await new Promise(z => setTimeout(z, 1500)); }
