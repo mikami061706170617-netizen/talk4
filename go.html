@@ -150,8 +150,8 @@ const SCENES = [
 const store = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem("go-" + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("go-" + k, JSON.stringify(v)); } catch {} } };
 const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []).filter(m => m.tr && !/^⚠/.test(m.tr)), lesson: store.get("lesson", "greet"), pi: 0 };
 const st = t => { $("status").textContent = t || ""; };
-const VER = "go-7t6";
-const DBG = /voicetest/.test(location.hash); function dlog(t) { if (!DBG) return; const e = document.getElementById("dbg"); if (e) e.textContent = (new Date().toTimeString().slice(3, 8) + " " + t + "\n" + e.textContent).slice(0, 1500); }
+const VER = "go-8";
+const DBG = /voicetest/.test(location.hash); function dlog(t) { if (!DBG) return; for (const id of ["dbg", "dbg2"]) { const e = document.getElementById(id); if (e) e.textContent = (new Date().toTimeString().slice(3, 8) + " " + t + "\n" + e.textContent).slice(0, 1500); } }
 
 /* ---------- translation (free: Google), with names kept and a check translation back ---------- */
 let Names = null; import("./names.js").then(m => Names = m).catch(() => {});
@@ -277,7 +277,7 @@ function listen(lang, long) {
     r.onresult = e => { got = true;
       text = IOS ? e.results[e.results.length - 1][0].transcript : [...e.results].map(x => x[0].transcript).join("");   // iPhone repeats the whole sentence in every result
       st("🎤 " + text); clearTimeout(quiet); quiet = setTimeout(() => { try { r.stop(); } catch {} }, 2000); };
-    r.onerror = e => { err = e.error; }; r.onend = end;
+    r.onerror = e => { err = e.error; dlog("talk sr err " + e.error); }; r.onend = end; r.onspeechstart = () => dlog("talk sr speech!");
     const guard = setTimeout(() => { try { r.stop(); } catch {} setTimeout(end, 800); }, 25000);
     stopListen = () => { try { r.stop(); } catch {} };
     try { r.start(); } catch { err = "start"; end(); }
@@ -553,6 +553,10 @@ $("voice").onclick = () => { S.voice = !S.voice; store.set("voice", S.voice); if
 $("menu").onclick = openMenu;
 $("showClose").onclick = () => $("show").classList.remove("open"); $("showSay").onclick = () => { unlock(); if (shown) say(shown.tr, shown.to); };
 $("showBig").onclick = () => $("show").classList.remove("open");
+if (/voicetest/.test(location.hash)) {
+  const talkTest = who => async () => { const lang = who === "me" ? S.me : S.you; mic(who); await new Promise(z => setTimeout(z, 1200)); dlog("talk test " + who + " " + lang); await sayAI((SAMPLES[lang] || [])[2] || (SAMPLES[lang] || [])[0]); };
+  $("talkUI").append(h("div", { class: "txside" }, h("button", { onclick: talkTest("me") }, "🔊 テスト：わたしのマイク"), h("button", { onclick: talkTest("you") }, "🔊 テスト：相手のマイク")), h("pre", { id: "dbg2", style: "font-size:11px;max-height:70px;overflow:auto;margin:0;color:#9c9" }));
+}
 if (/voicetest/.test(location.hash)) { const b = h("button", { class: "autob", onclick: voiceTest }, "🔊 例文を流す（テスト用）"); $("txUI").append(b, h("pre", { id: "dbg", style: "font-size:11px;max-height:90px;overflow:auto;margin:0;color:#9c9" })); }
 $("txGo").onclick = () => TX.on ? txStop("") : txStart();
 $("txMe").onclick = () => txSide("me"); $("txYou").onclick = () => txSide("you");
@@ -563,6 +567,18 @@ $("tsend").onclick = sendTyped;
 $("tin").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229) sendTyped(); });
 $("phr").onclick = openPhrases; $("shClose").onclick = () => $("sheet").classList.remove("open");
 $("sheet").onclick = e => { if (e.target === $("sheet")) $("sheet").classList.remove("open"); };
+// always the newest version: a page left open on the phone keeps the old copy, so check when it comes back and update when nobody is using it
+async function checkUpdate() {
+  try {
+    const t = await fetch(location.pathname + "?ver=" + Date.now(), { cache: "no-store" }).then(r => r.text()), v = (t.match(/const VER = "([^"]+)"/) || [])[1];
+    if (!v || v === VER) return;
+    const busy = TX.on || auto || stopListen || $("tin").value || $("sheet").classList.contains("open") || $("show").classList.contains("open");
+    if (busy) { st("🆕 新しい版があります。使い終わったら自動で更新します"); checkUpdate.pending = true; return; }
+    location.reload();
+  } catch {}
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkUpdate(); });
+setInterval(() => { if (document.visibilityState === "visible") checkUpdate(); }, 5 * 60 * 1000);
 paintUI(); paint();
 if (/Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(navigator.userAgent)) st("⚠ アプリの中のブラウザではマイクが使えません。Safari（Macは Chrome）で開いてください");
 window.__go = { S, utter, TX, useAI };
