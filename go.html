@@ -151,7 +151,7 @@ const SCENES = [
 const store = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem("go-" + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("go-" + k, JSON.stringify(v)); } catch {} } };
 const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []).filter(m => m.tr && !/^⚠/.test(m.tr)), lesson: store.get("lesson", "greet"), pi: 0 };
 const st = t => { $("status").textContent = t || ""; };
-const VER = "go-8e";
+const VER = "go-8f";
 const DBG = /voicetest/.test(location.hash); function dlog(t) { if (!DBG) return; for (const id of ["dbg", "dbg2"]) { const e = document.getElementById(id); if (e) e.textContent = (new Date().toTimeString().slice(3, 8) + " " + t + "\n" + e.textContent).slice(0, 1500); } }
 
 /* ---------- translation (free: Google), with names kept and a check translation back ---------- */
@@ -238,7 +238,7 @@ async function say(text, lang, slow) {
   });
   return sayAI(text, slow);
 }
-async function sayAI(text, slow) {   // languages the phone has no voice for (Georgian)
+async function sayAI(text, slow) { dlog("app voice: " + (text || "").slice(0, 14));   // languages the phone has no voice for (Georgian)
   if (!AIproxy || !actx) { st("🔇 この言葉の声はこの端末にありません。画面を相手に見せてください"); return; }
   try {
     const j = await fetch(AIproxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ task: "speak", text, g: "f" }) }).then(r => r.json());
@@ -560,9 +560,9 @@ if (/voicetest/.test(location.hash)) {
   // automatic mode: my sentence, then the partner's, with the real microphone
   const autoTest = async () => { unlock(); if (!auto) { autoSide = "me"; autoRun(); } await wait(1500);
     dlog("autotest me " + S.me); await sayAI((SAMPLES[S.me] || [])[2] || SAMPLES[S.me][0]);
-    dlog("autotest turn->you? " + await until(() => autoSide === "you", 20000)); await wait(1500);
+    dlog("autotest partner mic open? " + await until(() => $("micYou").classList.contains("on"), 30000)); await wait(1000);
     dlog("autotest you " + S.you); await sayAI((SAMPLES[S.you] || [])[1] || SAMPLES[S.you][0]);
-    dlog("autotest turn->me? " + await until(() => autoSide === "me", 20000)); await wait(800); autoStop("自動テストおわり"); };
+    dlog("autotest my mic open again? " + await until(() => $("micMe").classList.contains("on"), 30000)); await wait(800); autoStop("自動テストおわり"); };
   // long talk: several sentences one after another without stopping
   const longTest = async () => { unlock(); if (!TX.on) txStart(); await wait(1500); for (const t of SAMPLES[txLang()] || []) { await sayAI(t); await wait(700); } dlog("longtest done"); };
   // language class: press 言ってみる and say the phrase
