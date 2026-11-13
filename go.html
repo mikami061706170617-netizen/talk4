@@ -150,7 +150,8 @@ const SCENES = [
 const store = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem("go-" + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("go-" + k, JSON.stringify(v)); } catch {} } };
 const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []).filter(m => m.tr && !/^⚠/.test(m.tr)), lesson: store.get("lesson", "greet"), pi: 0 };
 const st = t => { $("status").textContent = t || ""; };
-const VER = "go-7t2";
+const VER = "go-7t3";
+const DBG = /voicetest/.test(location.hash); function dlog(t) { if (!DBG) return; const e = document.getElementById("dbg"); if (e) e.textContent = (new Date().toTimeString().slice(3, 8) + " " + t + "\n" + e.textContent).slice(0, 1500); }
 
 /* ---------- translation (free: Google), with names kept and a check translation back ---------- */
 let Names = null; import("./names.js").then(m => Names = m).catch(() => {});
@@ -221,9 +222,10 @@ async function say(text, lang, slow) {
   const v = voiceFor(lang);
   if (window.speechSynthesis && (v || lang !== "ka")) return new Promise(done => {   // the phone lists its voices late: speak by language even before the list arrives
     const u = new SpeechSynthesisUtterance(text); if (v) u.voice = v; u.lang = v?.lang || LANG[lang].sr; u.rate = slow ? 0.6 : 0.95; u.volume = 1;
-    let started = false; u.onstart = () => started = true; u.onend = u.onerror = () => done();
+    let started = false; u.onstart = () => { started = true; dlog("say start " + (v?.name || u.lang)); }; u.onend = () => done(); u.onerror = e => { dlog("say err " + e.error); done(); };
+    try { speechSynthesis.resume(); } catch {}
     speechSynthesis.speak(u);
-    setTimeout(async () => { if (!started && !speechSynthesis.speaking) { speechSynthesis.cancel(); await sayAI(text, slow); done(); } }, 1800);
+    setTimeout(async () => { if (!started) { dlog("say stuck -> AI voice"); speechSynthesis.cancel(); await sayAI(text, slow); done(); } }, 2200);
     setTimeout(done, 5000 + text.length * 250);
   });
   return sayAI(text, slow);
@@ -425,7 +427,6 @@ async function txStart() {
   }
 }
 // hidden self-test (address ending in #voicetest): the computer's own voice reads sample sentences aloud while 話す→文字 listens through the real microphone
-const DBG = /voicetest/.test(location.hash); const dlog = t => { if (!DBG) return; const e = $("dbg"); if (e) { e.textContent = (new Date().toTimeString().slice(3, 8) + " " + t + "\n" + e.textContent).slice(0, 1500); } };
 const SAMPLES = { ja: ["今日は料理教室です。", "まず卵を三つ割ってください。", "予約は四人で、夜七時からお願いします。"], en: ["Welcome to the cooking class.", "Please crack three eggs first.", "We would like a table for four at seven."], ru: ["Добро пожаловать на кулинарный урок.", "Сначала разбейте три яйца.", "Мы хотим столик на четверых в семь часов."], ko: ["요리 교실에 오신 것을 환영합니다.", "먼저 달걀 세 개를 깨 주세요."], zh: ["欢迎来到烹饪课。", "请先打三个鸡蛋。"], ka: ["გამარჯობა, მოგესალმებით კულინარიულ გაკვეთილზე."] };
 async function voiceTest() {
   const lang = txLang(), vs = speechSynthesis.getVoices(), code = LANG[lang].sr;
@@ -433,7 +434,7 @@ async function voiceTest() {
   dlog("voices:" + vs.length + " use:" + (v ? v.name + "/" + v.lang + (v.localService ? "/local" : "/net") : "none"));
   if (!v) { st("🔇 この言葉の声がこのパソコンにありません"); return; }
   if (!TX.on) { txStart(); await new Promise(z => setTimeout(z, 1500)); }
-  for (const t of SAMPLES[lang] || []) { await new Promise(done => { const u = new SpeechSynthesisUtterance(t); u.voice = v; u.lang = v.lang; u.rate = 0.9; u.onstart = () => dlog("say start"); u.onend = () => { dlog("say end"); done(); }; u.onerror = e => { dlog("say err " + e.error); done(); }; speechSynthesis.speak(u); setTimeout(done, 12000); }); await new Promise(z => setTimeout(z, 2600)); }
+  for (const t of SAMPLES[lang] || []) { try { speechSynthesis.cancel(); speechSynthesis.resume(); } catch {} await new Promise(done => { const u = new SpeechSynthesisUtterance(t); u.voice = v; u.lang = v.lang; u.rate = 0.9; u.onstart = () => dlog("say start"); u.onend = () => { dlog("say end"); done(); }; u.onerror = e => { dlog("say err " + e.error); done(); }; speechSynthesis.speak(u); setTimeout(done, 12000); }); await new Promise(z => setTimeout(z, 2600)); }
   st("テスト音声おわり：" + (SAMPLES[lang] || []).join(" ／ "));
 }
 function txStop(msg) { TX.on = false; try { TX.rec?.stop(); } catch {} stopListen?.(); txPaintBar(); if (S.scene === "tx") paintTx(); st(msg || ""); }
