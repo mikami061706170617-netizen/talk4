@@ -132,7 +132,7 @@ const SCENES = [
 const store = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem("go-" + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("go-" + k, JSON.stringify(v)); } catch {} } };
 const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []).filter(m => m.tr && !/^⚠/.test(m.tr)), lesson: store.get("lesson", "greet"), pi: 0 };
 const st = t => { $("status").textContent = t || ""; };
-const VER = "go-4";
+const VER = "go-5";
 
 /* ---------- translation (free: Google), with names kept and a check translation back ---------- */
 let Names = null; import("./names.js").then(m => Names = m).catch(() => {});
@@ -182,7 +182,7 @@ function numsOf(s) {
   mul(/(\d+(?:\.\d+)?)\s*(?:億|billion)/gi, 1e8); mul(/(\d+(?:\.\d+)?)\s*million/gi, 1e6); mul(/(\d+(?:\.\d+)?)\s*万/g, 1e4); mul(/(\d+(?:\.\d+)?)\s*(?:千|thousand)/gi, 1e3);
   return (s.match(/\d+(?:\.\d+)?/g) || []).map(Number);
 }
-function numCheck(a, b) { const A = numsOf(a), B = numsOf(b); if (!A.length) return ""; return A.some(x => !B.includes(x)) ? `元の数字 ${A.join("・")} ／ 訳の数字 ${B.join("・") || "なし"}` : ""; }
+function numCheck(a, b) { const A = numsOf(a), B = numsOf(b); if (!A.length) return ""; return A.some(x => !B.includes(x) && !(x > 12 && x <= 24 && B.includes(x - 12))) ? `元の数字 ${A.join("・")} ／ 訳の数字 ${B.join("・") || "なし"}` : ""; }
 
 /* ---------- voice out ---------- */
 let actx = null;
