@@ -151,7 +151,7 @@ const SCENES = [
 const store = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem("go-" + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("go-" + k, JSON.stringify(v)); } catch {} } };
 const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []).filter(m => m.tr && !/^⚠/.test(m.tr)), lesson: store.get("lesson", "greet"), pi: 0 };
 const st = t => { $("status").textContent = t || ""; };
-const VER = "go-8d";
+const VER = "go-8e";
 const DBG = /voicetest/.test(location.hash); function dlog(t) { if (!DBG) return; for (const id of ["dbg", "dbg2"]) { const e = document.getElementById(id); if (e) e.textContent = (new Date().toTimeString().slice(3, 8) + " " + t + "\n" + e.textContent).slice(0, 1500); } }
 
 /* ---------- translation (free: Google), with names kept and a check translation back ---------- */
@@ -558,15 +558,15 @@ $("showBig").onclick = () => $("show").classList.remove("open");
 if (/voicetest/.test(location.hash)) {
   const wait = ms => new Promise(z => setTimeout(z, ms)), until = async (f, ms) => { const t0 = Date.now(); while (!f() && Date.now() - t0 < ms) await wait(200); return f(); };
   // automatic mode: my sentence, then the partner's, with the real microphone
-  const autoTest = async () => { if (!auto) { autoSide = "me"; autoRun(); } await wait(1500);
+  const autoTest = async () => { unlock(); if (!auto) { autoSide = "me"; autoRun(); } await wait(1500);
     dlog("autotest me " + S.me); await sayAI((SAMPLES[S.me] || [])[2] || SAMPLES[S.me][0]);
     dlog("autotest turn->you? " + await until(() => autoSide === "you", 20000)); await wait(1500);
     dlog("autotest you " + S.you); await sayAI((SAMPLES[S.you] || [])[1] || SAMPLES[S.you][0]);
     dlog("autotest turn->me? " + await until(() => autoSide === "me", 20000)); await wait(800); autoStop("自動テストおわり"); };
   // long talk: several sentences one after another without stopping
-  const longTest = async () => { if (!TX.on) txStart(); await wait(1500); for (const t of SAMPLES[txLang()] || []) { await sayAI(t); await wait(700); } dlog("longtest done"); };
+  const longTest = async () => { unlock(); if (!TX.on) txStart(); await wait(1500); for (const t of SAMPLES[txLang()] || []) { await sayAI(t); await wait(700); } dlog("longtest done"); };
   // language class: press 言ってみる and say the phrase
-  const classTest = async () => { const b = [...document.querySelectorAll("button")].find(x => /言ってみる/.test(x.textContent)); if (!b || !S.curPhrase) return dlog("classtest: no button"); b.click(); await wait(1300); dlog("classtest say " + S.curPhrase[S.you]); await sayAI(S.curPhrase[S.you]); await wait(4000); dlog("classtest stars " + (document.querySelector(".stars")?.textContent || "-") + " heard " + (document.querySelector(".heard")?.textContent || "-")); };
+  const classTest = async () => { unlock(); const b = [...document.querySelectorAll("button")].find(x => /言ってみる/.test(x.textContent)); if (!b || !S.curPhrase) return dlog("classtest: no button"); b.click(); await wait(1300); dlog("classtest say " + S.curPhrase[S.you]); await sayAI(S.curPhrase[S.you]); await wait(4000); dlog("classtest stars " + (document.querySelector(".stars")?.textContent || "-") + " heard " + (document.querySelector(".heard")?.textContent || "-")); };
   document.body.append(h("div", { style: "position:fixed;left:4px;bottom:4px;z-index:40;display:flex;gap:4px;opacity:.85" },
     h("button", { class: "tool", onclick: autoTest }, "T自動"), h("button", { class: "tool", onclick: longTest }, "T長い"), h("button", { class: "tool", onclick: classTest }, "T語学")));
   const talkTest = who => async () => { const lang = who === "me" ? S.me : S.you; mic(who); await new Promise(z => setTimeout(z, 1200)); dlog("talk test " + who + " " + lang); await sayAI((SAMPLES[lang] || [])[2] || (SAMPLES[lang] || [])[0]); };
