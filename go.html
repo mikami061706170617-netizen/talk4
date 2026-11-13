@@ -150,7 +150,7 @@ const SCENES = [
 const store = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem("go-" + k)); return v ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("go-" + k, JSON.stringify(v)); } catch {} } };
 const S = { me: store.get("me", "ja"), you: store.get("you", "en"), scene: store.get("scene", "biz"), voice: store.get("voice", true), zoom: store.get("zoom", 0), log: store.get("log", []).filter(m => m.tr && !/^⚠/.test(m.tr)), lesson: store.get("lesson", "greet"), pi: 0 };
 const st = t => { $("status").textContent = t || ""; };
-const VER = "go-7t4";
+const VER = "go-7t5";
 const DBG = /voicetest/.test(location.hash); function dlog(t) { if (!DBG) return; const e = document.getElementById("dbg"); if (e) e.textContent = (new Date().toTimeString().slice(3, 8) + " " + t + "\n" + e.textContent).slice(0, 1500); }
 
 /* ---------- translation (free: Google), with names kept and a check translation back ---------- */
@@ -240,7 +240,7 @@ async function sayAI(text, slow) {   // languages the phone has no voice for (Ge
   if (!AIproxy || !actx) { st("🔇 この言葉の声はこの端末にありません。画面を相手に見せてください"); return; }
   try {
     const j = await fetch(AIproxy, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ task: "speak", text, g: "f" }) }).then(r => r.json());
-    if (!j.audio) throw 0;
+    if (!j.audio) { dlog("AI voice: no audio " + JSON.stringify(j).slice(0, 80)); throw 0; }
     let bin = atob(j.audio), rate = +((j.mime || "").match(/rate=(\d+)/) || [0, 24000])[1];
     if (bin.startsWith("RIFF")) { rate = bin.charCodeAt(24) | (bin.charCodeAt(25) << 8) | (bin.charCodeAt(26) << 16); bin = bin.slice(44); }
     const n = bin.length >> 1, buf = actx.createBuffer(1, n, rate), d = buf.getChannelData(0);
@@ -440,6 +440,7 @@ async function voiceTest() {
   dlog("voices:" + vs.length + " use:" + (v ? v.name + "/" + v.lang + (v.localService ? "/local" : "/net") : "none"));
   if (!v) { st("🔇 この言葉の声がこのパソコンにありません"); return; }
   if (!TX.on) { txStart(); await new Promise(z => setTimeout(z, 1500)); }
+  if (/ai/.test(location.hash)) { for (const t of SAMPLES[lang] || []) { dlog("AI voice: " + t.slice(0, 12)); await sayAI(t); dlog("AI voice done"); await new Promise(z => setTimeout(z, 2600)); } st("テスト音声おわり：" + (SAMPLES[lang] || []).join(" ／ ")); return; }
   for (const t of SAMPLES[lang] || []) { try { speechSynthesis.cancel(); speechSynthesis.resume(); } catch {} await new Promise(done => { const u = new SpeechSynthesisUtterance(t); u.voice = v; u.lang = v.lang; u.rate = 0.9; u.onstart = () => dlog("say start"); u.onend = () => { dlog("say end"); done(); }; u.onerror = e => { dlog("say err " + e.error); done(); }; speechSynthesis.speak(u); setTimeout(done, 12000); }); await new Promise(z => setTimeout(z, 2600)); }
   st("テスト音声おわり：" + (SAMPLES[lang] || []).join(" ／ "));
 }
